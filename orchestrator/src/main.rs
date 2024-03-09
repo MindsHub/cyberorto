@@ -7,6 +7,7 @@ mod action;
 mod api;
 mod queue;
 mod state;
+mod constants;
 
 fn main() {
     let state_handler = StateHandler::new();
