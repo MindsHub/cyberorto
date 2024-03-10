@@ -17,7 +17,8 @@ fn hello(name: &str, age: u8) -> String {
     format!("Hello, {} year old named {}!", age, name)
 }
 
-fn main() {
+#[rocket::main]
+async fn main() {
     let state_handler = StateHandler::new();
     let queue_handler = QueueHandler::new(state_handler);
 
@@ -26,12 +27,12 @@ fn main() {
         queue_handler_clone.main_loop()
     });
 
-    let _ = rocket::execute(
-        rocket::build()
-            .mount("/hello", routes![hello])
-            .launch()
-    );
+    rocket::build()
+        .mount("/hello", routes![hello])
+        .launch()
+        .await
+        .unwrap();
 
-    // rocket::execute will block until it receives a shutdown request (e.g. Ctrl+C)
+    // launch().await will block until it receives a shutdown request (e.g. Ctrl+C)
     println!("Shutting down Cyberorto orchestrator...");
 }
