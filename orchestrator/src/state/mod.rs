@@ -6,7 +6,7 @@ use std::{
 
 use crate::constants::ARM_LENGTH;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct State {
     target_x: f64,
     target_y: f64,
@@ -58,6 +58,10 @@ impl StateHandler {
         StateHandler {
             state: Arc::new(Mutex::new(State::default())),
         }
+    }
+
+    pub fn get_state(&self) -> State {
+        acquire(&self.state).clone()
     }
 
     pub fn move_to(&self, x: f64, y: f64, z: f64) {
