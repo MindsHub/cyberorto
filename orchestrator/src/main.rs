@@ -14,32 +14,6 @@ mod constants;
 #[macro_use]
 extern crate rocket;
 
-#[rocket::async_trait]
-impl<'r> FromRequest<'r> for State {
-    type Error = ();
-
-    async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
-        request.guard::<&rocket::State<StateHandler>>().await
-            .map(|request_handler| request_handler.get_state())
-    }
-}
-
-// why doesn't Rocket provide directly &QueueHandler,
-// but only &State<QueueHandler>, thus requiring this FromRequest impl?
-#[rocket::async_trait]
-impl<'r> FromRequest<'r> for &'r QueueHandler {
-    type Error = ();
-
-    async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
-        request.guard::<&rocket::State<QueueHandler>>().await
-            .map(|request_handler| request_handler.inner())
-    }
-}
-
-#[get("/")]
-fn hello(robot_state: State, queue_handler: &QueueHandler) -> String {
-    format!("Hello, {:?} {:?}!", robot_state, queue_handler)
-}
 
 #[rocket::main]
 async fn main() {
@@ -52,9 +26,9 @@ async fn main() {
     });
 
     rocket::build()
-        .manage(state_handler)
-        .manage(queue_handler)
-        .mount("/hello", routes![hello])
+        .manage(state_handler) // used by `impl FromRequest for State`
+        .manage(queue_handler) // used by `impl FromRequest for &QueueHandler`
+        .mount("/hello", routes![api::hello])
         .launch()
         .await
         .unwrap();
