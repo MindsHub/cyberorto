@@ -9,6 +9,14 @@ mod queue;
 mod state;
 mod constants;
 
+#[macro_use]
+extern crate rocket;
+
+#[get("/<name>/<age>")]
+fn hello(name: &str, age: u8) -> String {
+    format!("Hello, {} year old named {}!", age, name)
+}
+
 fn main() {
     let state_handler = StateHandler::new();
     let queue_handler = QueueHandler::new(state_handler);
@@ -18,7 +26,12 @@ fn main() {
         queue_handler_clone.main_loop()
     });
 
-    // TODO instantiate API with ref to state_handler and queue
+    let _ = rocket::execute(
+        rocket::build()
+            .mount("/hello", routes![hello])
+            .launch()
+    );
 
-    queue_handler_thread.join().unwrap();
+    // rocket::execute will block until it receives a shutdown request (e.g. Ctrl+C)
+    println!("Shutting down Cyberorto orchestrator...");
 }

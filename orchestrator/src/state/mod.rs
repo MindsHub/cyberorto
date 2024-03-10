@@ -75,11 +75,16 @@ impl StateHandler {
 
     pub fn reset(&self) {
         // TODO send command to Arduino
-        mutate_state!(&self.state, target_x = 0.0, target_y = -ARM_LENGTH, target_z = 0.0);
+        mutate_state!(
+            &self.state,
+            target_x = 0.0,
+            target_y = -ARM_LENGTH,
+            target_z = 0.0
+        );
     }
 
     pub fn retract(&self) {
         // TODO send command to Arduino
         mutate_state!(&self.state, target_z = 0.0);
-    }    
+    }
 }
