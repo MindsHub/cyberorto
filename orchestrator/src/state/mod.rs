@@ -4,7 +4,9 @@ use std::{
     time::Duration,
 };
 
-#[derive(Debug)]
+use crate::constants::ARM_LENGTH;
+
+#[derive(Debug, Clone)]
 pub struct State {
     target_x: f64,
     target_y: f64,
@@ -58,6 +60,10 @@ impl StateHandler {
         }
     }
 
+    pub fn get_state(&self) -> State {
+        acquire(&self.state).clone()
+    }
+
     pub fn move_to(&self, x: f64, y: f64, z: f64) {
         // TODO send command to Arduino
         mutate_state!(&self.state, target_x = x, target_y = y, target_z = z);
@@ -69,5 +75,20 @@ impl StateHandler {
         thread::sleep(duration);
         // TODO send command to Arduino to turn off water
         mutate_state!(&self.state, water = false);
+    }
+
+    pub fn reset(&self) {
+        // TODO send command to Arduino
+        mutate_state!(
+            &self.state,
+            target_x = 0.0,
+            target_y = -ARM_LENGTH,
+            target_z = 0.0
+        );
+    }
+
+    pub fn retract(&self) {
+        // TODO send command to Arduino
+        mutate_state!(&self.state, target_z = 0.0);
     }
 }
