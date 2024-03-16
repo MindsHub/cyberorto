@@ -1,23 +1,37 @@
-#![no_std]
+//#![no_std]
 
 
-use panic_halt as _;
 use serialmessage::SerMsg;
-#[arduino_hal::entry]
-fn main() -> ! {
-    let dp = arduino_hal::Peripherals::take().unwrap();
-    let pins = arduino_hal::pins!(dp);
 
+trait Serial{
 
-    let mut led = pins.d13.into_output();
+}
 
-    loop {
-        led.toggle();
+pub struct Comunication{
+
+    
+}
+impl Comunication{
+    pub fn send(&mut self){
+        let send_data_vec= [1, 2, 3, 4];
+        let (msg, len) = SerMsg::create_msg_arr(&send_data_vec, 1).unwrap();
+        println!("{:?}", msg[..len].to_vec());
+        let mut next_msg = SerMsg::new();
+        let (parse_state, len) = SerMsg::parse_read_bytes(&mut next_msg, &msg);
+        match  parse_state {
+            serialmessage::ParseState::Continue => todo!(),
+            serialmessage::ParseState::DataReady => println!("{:?}", next_msg.return_read_data()),
+            serialmessage::ParseState::CrcError => todo!(),
+            serialmessage::ParseState::HighPayloadError => todo!(),
+            serialmessage::ParseState::StopByteError => todo!(),
+            serialmessage::ParseState::COBSError => todo!(),
+        }
         
-        //let send_data_vec= [1, 2, 3, 4];
-        //let send_msg = SerMsg::create_msg_arr(&send_data_vec, 1).unwrap();
-        
-        //arduino_hal::delay_ms(send_msg.1 as u16);
-        arduino_hal::delay_ms(1000);
     }
+}
+
+#[test]
+fn test_send(){
+    Comunication{}.send();
+    todo!()
 }
