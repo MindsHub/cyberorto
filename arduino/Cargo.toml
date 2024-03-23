@@ -1,7 +1,7 @@
 [package]
 name = "arduino"
 version = "0.1.0"
-authors = ["Mindshub"]
+authors = ["AlessioZeni <alessio.zeni01@gmail.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
@@ -10,11 +10,12 @@ name = "arduino"
 test = false
 bench = false
 
-[dependencies]
+[dependencies] 
 panic-halt = "0.2.0"
 ufmt = "0.2.0"
 nb = "1.1.0"
 embedded-hal = "1.0"
+serialmessage = {version="0.1.1", default-features = false}
 
 [dependencies.arduino-hal]
 git = "https://github.com/rahix/avr-hal"

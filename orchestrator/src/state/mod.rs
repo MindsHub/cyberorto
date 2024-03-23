@@ -7,7 +7,7 @@ use std::{
 use crate::constants::ARM_LENGTH;
 use crate::constants::WATER_TIME;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct State {
     target_x: f64,
     target_y: f64,
@@ -78,6 +78,10 @@ impl StateHandler {
         }
     }
 
+    pub fn get_state(&self) -> State {
+        acquire(&self.state).clone()
+    }
+
     pub fn water_a_plant(&self, x: f64, y: f64, z: f64) {
         self.move_to(x, y, z);
         self.water(Duration::from_secs_f64(WATER_TIME));
@@ -146,7 +150,12 @@ impl StateHandler {
 
     pub fn reset(&self) {
         // TODO send command to Arduino
-        mutate_state!(&self.state, target_x = 0.0, target_y = -ARM_LENGTH, target_z = 0.0);
+        mutate_state!(
+            &self.state,
+            target_x = 0.0,
+            target_y = -ARM_LENGTH,
+            target_z = 0.0
+        );
     }
 
     pub fn retract(&self) {
