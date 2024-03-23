@@ -3,17 +3,27 @@
 
 use serialmessage::SerMsg;
 
-trait Serial{
+pub trait Serial{
 
 }
-
-pub struct Comunication{
-
-    
+enum Message{
+    Move(f32, f32, f32),
+    Plow(f32),
+    Arrived(),
+    Ended(),
 }
-impl Comunication{
+
+pub struct Comunication<S: Serial>{
+    s: S,
+}
+impl<S: Serial> Comunication<S>{
+    pub fn try_receive(&mut  self)->Option<()>{
+        todo!()
+    }
+
     pub fn send(&mut self){
         let send_data_vec= [1, 2, 3, 4];
+        //SerMsg::;
         let (msg, len) = SerMsg::create_msg_arr(&send_data_vec, 1).unwrap();
         println!("{:?}", msg[..len].to_vec());
         let mut next_msg = SerMsg::new();
@@ -30,8 +40,11 @@ impl Comunication{
     }
 }
 
+struct StupidSerial;
+impl Serial for StupidSerial{}
+
 #[test]
 fn test_send(){
-    Comunication{}.send();
+    Comunication{s: StupidSerial}.send();
     todo!()
 }
