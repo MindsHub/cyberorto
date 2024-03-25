@@ -2,10 +2,18 @@ use std::{collections::VecDeque, sync::{Arc, Condvar, Mutex}};
 
 use crate::{action::Action, state::StateHandler};
 
+#[derive(Debug, PartialEq)]
+enum EmergencyStatus {
+    None,
+    WaitingForReset,
+    Resetting,
+}
+
 #[derive(Debug)]
 struct Queue {
     actions: VecDeque<Box<dyn Action>>,
     paused: bool,
+    emergency: EmergencyStatus,
 }
 
 #[derive(Debug, Clone)]
@@ -21,6 +29,7 @@ impl QueueHandler {
             queue: Arc::new((Mutex::new(Queue {
                 actions: VecDeque::new(),
                 paused: false,
+                emergency: EmergencyStatus::None,
             }), Condvar::new())),
             state_handler,
         }
@@ -31,10 +40,14 @@ impl QueueHandler {
         let mut queue = queue.lock().unwrap();
 
         loop {
-            if queue.paused {
+            if queue.paused || queue.emergency != EmergencyStatus::None {
                 if let Some(current_action) = last_current_action {
                     queue.actions.push_front(current_action);
                     last_current_action = None;
+                }
+                if queue.emergency == EmergencyStatus::WaitingForReset {
+                    queue.emergency = EmergencyStatus::Resetting;
+                    // TODO return reset action
                 }
             } else if let Some(current_action) = last_current_action {
                 return current_action
@@ -55,7 +68,6 @@ impl QueueHandler {
             } else {
                 last_current_action = None;
             }
-            // TODO
         }
     }
 
