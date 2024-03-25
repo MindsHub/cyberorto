@@ -4,9 +4,9 @@
 
 use core::ptr::read;
 
-use arduino_hal::hal::usart::Event;
+use arduino_hal::{default_serial, hal::usart::Event};
 use panic_halt as _;
-use serial_hal::{Serial, SerialHAL};
+use serial_v2::{Serial, SerialHAL};
 
 //static mut USART: Mutex<Option<Usart<USART0, Pin<Input, PD0>, Pin<Output, PD1>, MHz16>>> = Mutex::new(None);
 
@@ -18,8 +18,8 @@ enum TestEnum{
     Lol(u32),
     H(u32),
 }*/
-mod serial_hal;
-
+//mod serial_hal;
+mod serial_v2;
 #[arduino_hal::entry]
 fn main() -> ! {
     //getting peripherals
@@ -27,13 +27,17 @@ fn main() -> ! {
     let pins = arduino_hal::pins!(dp);
     //let t = dp.USART0.;
     //setting uart
-    let mut serial = arduino_hal::default_serial!(dp, pins, 115200);
+    let serial =dp.USART0;
+    
+    //let mut serial = arduino_hal::default_serial!(dp, pins, 115200);
+    
+    /*arduino_hal::Usart::new(p, rx, tx, baudrate)
     serial.listen(Event::RxComplete);
-    serial.listen(Event::TxComplete);
+    serial.listen(Event::TxComplete);*/
     //serial.listen(Event::DataRegisterEmpty);
     let mut led = pins.d13.into_output();
     led.set_low();
-    let mut serial = SerialHAL::new(serial);
+    let mut serial = SerialHAL::new(serial, led);
 
     //enable interrupts
     unsafe { avr_device::interrupt::enable() };
@@ -52,6 +56,7 @@ fn main() -> ! {
         if len==0{
             continue;
         }
+        //arduino_hal::Usart::new(p, rx, tx, baudrate)
         /*if len>19{
             led.set_high();
         }*/
@@ -59,10 +64,10 @@ fn main() -> ! {
             serial.write(buf[i])
         }
         
-        let (reader, writer) = serial.status();
-        if reader||writer{
+        /*let r = serial.status();
+        if r{
             led.set_high();
-        }
+        }*/
         /*if let Some(x) = serial.read(){
             serial.write(&[x])
         }*/
