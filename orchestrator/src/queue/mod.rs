@@ -23,6 +23,17 @@ pub struct QueueHandler {
     // TODO add serial object
 }
 
+macro_rules! mutate_queue_and_notify {
+    ($queue:expr, $queuevar:ident, $block:block) => {
+        {
+            let (queue, condvar) = &*$queue;
+            let mut $queuevar = queue.lock().unwrap();
+            $block
+            condvar.notify_all();
+        }
+    };
+}
+
 impl QueueHandler {
     pub fn new(state_handler: StateHandler) -> QueueHandler {
         QueueHandler {
@@ -71,5 +82,9 @@ impl QueueHandler {
         }
     }
 
-    // TODO add functions to handle queue
+    pub fn add_action(&self, action: Box<dyn Action>) {
+        mutate_queue_and_notify!(self.queue, queue, {
+            queue.actions.push_back(action);
+        });
+    }
 }
