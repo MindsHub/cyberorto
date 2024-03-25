@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, sync::{Arc, Condvar, Mutex}};
 
-use crate::{action::Action, state::StateHandler};
+use crate::{action::{emergency::EmergencyAction, Action}, state::StateHandler};
 
 #[derive(Debug, PartialEq)]
 enum EmergencyStatus {
@@ -47,7 +47,7 @@ impl QueueHandler {
                 }
                 if queue.emergency == EmergencyStatus::WaitingForReset {
                     queue.emergency = EmergencyStatus::Resetting;
-                    // TODO return reset action
+                    return Box::new(EmergencyAction {});
                 }
             } else if let Some(current_action) = last_current_action {
                 return current_action
@@ -63,7 +63,7 @@ impl QueueHandler {
         let mut last_current_action = None;
         loop {
             let mut current_action = self.get_current_action(last_current_action);
-            if current_action.step() {
+            if current_action.step(&self.state_handler) {
                 last_current_action = Some(current_action);
             } else {
                 last_current_action = None;
