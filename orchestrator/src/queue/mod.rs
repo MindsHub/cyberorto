@@ -1,6 +1,10 @@
+pub mod action_wrapper;
+
 use std::{collections::VecDeque, sync::{Arc, Condvar, Mutex}};
 
 use crate::{action::{emergency::EmergencyAction, Action}, state::StateHandler};
+
+use self::action_wrapper::{ActionId, ActionWrapper};
 
 #[derive(Debug, PartialEq)]
 enum EmergencyStatus {
@@ -11,9 +15,18 @@ enum EmergencyStatus {
 
 #[derive(Debug)]
 struct Queue {
-    actions: VecDeque<Box<dyn Action>>,
+    actions: VecDeque<ActionWrapper>,
     paused: bool,
     emergency: EmergencyStatus,
+    id_counter: ActionId,
+}
+
+impl Queue {
+    fn create_action_wrapper(&mut self, action: Box<dyn Action>) -> ActionWrapper {
+        let res = ActionWrapper { action, id: self.id_counter };
+        self.id_counter = self.id_counter.wrapping_add(1);
+        res
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -28,8 +41,9 @@ macro_rules! mutate_queue_and_notify {
         {
             let (queue, condvar) = &*$queue;
             let mut $queuevar = queue.lock().unwrap();
-            $block
+            let res = $block;
             condvar.notify_all();
+            res
         }
     };
 }
@@ -41,12 +55,13 @@ impl QueueHandler {
                 actions: VecDeque::new(),
                 paused: false,
                 emergency: EmergencyStatus::None,
+                id_counter: 0,
             }), Condvar::new())),
             state_handler,
         }
     }
 
-    fn get_current_action(&self, mut last_current_action: Option<Box<dyn Action>>) -> Box<dyn Action> {
+    fn get_current_action(&self, mut last_current_action: Option<ActionWrapper>) -> ActionWrapper {
         let (queue, condvar) = &*self.queue;
         let mut queue = queue.lock().unwrap();
 
@@ -58,7 +73,7 @@ impl QueueHandler {
                 }
                 if queue.emergency == EmergencyStatus::WaitingForReset {
                     queue.emergency = EmergencyStatus::Resetting;
-                    return Box::new(EmergencyAction {});
+                    return queue.create_action_wrapper(Box::new(EmergencyAction {}));
                 }
             } else if let Some(current_action) = last_current_action {
                 return current_action
@@ -74,7 +89,7 @@ impl QueueHandler {
         let mut last_current_action = None;
         loop {
             let mut current_action = self.get_current_action(last_current_action);
-            if current_action.step(&self.state_handler) {
+            if current_action.action.step(&self.state_handler) {
                 last_current_action = Some(current_action);
             } else {
                 last_current_action = None;
@@ -82,9 +97,12 @@ impl QueueHandler {
         }
     }
 
-    pub fn add_action(&self, action: Box<dyn Action>) {
+    pub fn add_action(&self, action: Box<dyn Action>) -> ActionId {
         mutate_queue_and_notify!(self.queue, queue, {
+            let action = queue.create_action_wrapper(action);
+            let id = action.id;
             queue.actions.push_back(action);
-        });
+            id
+        })
     }
 }
