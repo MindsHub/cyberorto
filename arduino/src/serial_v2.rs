@@ -15,7 +15,7 @@ use arduino_hal::{
 use avr_device::interrupt::{self, Mutex};
 use circular_buffer::CircularBuffer;
 
-const BUF_SIZE: usize = 20;
+const BUF_SIZE: usize = 30;
 
 static SERIAL_INNER: Mutex<RefCell<Option<SerialInner>>> = Mutex::new(RefCell::new(None));
 //static mut SERIAL_READER: Mutex<Option<SerialWr>> = Mutex::new(None);
@@ -40,13 +40,19 @@ impl SerialInner {
     }
 }
 #[avr_device::interrupt(atmega328p)]
-fn USART_TX() {
+fn USART_UDRE() {
     interrupt::free(|cs| {
+        
         if let Some(serial) = SERIAL_INNER.borrow(cs).borrow_mut().as_mut() {
+            
+            //serial.usart.ucsr0b.modify(|w| w.)
+            //serial.usart.udr0.write(|w| w.bits(b'r') );
+            //serial.usart.ucsr0b.modify(|_, w|{w.udrie0().clear_bit()});
             if let Some(s) = serial.out_buffer.pop_front() {
+                serial.led.toggle();
                 serial.usart.udr0.write(|w| w.bits(s) );
             } else {
-                //serial.usart.ucsr0b.write(|w|{w.udrie0().clear_bit()});
+                serial.usart.ucsr0b.modify(|_, w|{w.udrie0().clear_bit()});
                 serial.sending = false;
             };
         }
@@ -62,8 +68,12 @@ fn USART_RX() {
                 reader.overflowed = true;
                 //x.alarm_led.set_high();
             }
-            reader.led.toggle();
+            //reader.out_buffer.push_back(b);
+            //reader.usart.ucsr0b.modify(|_, w|{w.udrie0().set_bit()});
+
+            //reader.led.toggle();
         }
+
     });
 }
 
@@ -72,13 +82,13 @@ impl SerialHAL {
     pub fn new(usart: USART0, led: Pin<Output, PB5>) -> Self {
         //set baudrate
         let c: Baudrate<MHz16> = BaudrateExt::into_baudrate(115200);
-        usart.ubrr0.write(|w| w.bits(c.ubrr)); //((16000000/8/115200)-1)/2)
+        usart.ubrr0.write(|w| w.bits(c.ubrr));
         usart.ucsr0a.write(|w| w.u2x0().bit(c.u2x));
 
         usart.ucsr0b.write(|w| w
             .rxcie0().set_bit()
-            //.udrie0().set_bit()//.set_bit()
-            .txcie0().set_bit()
+            //.udrie0().clear_bit()
+            //.txcie0().set_bit()
             .txen0().set_bit()
             .rxen0().set_bit());
         
@@ -99,27 +109,16 @@ impl SerialHAL {
 
         SerialHAL
     }
-    pub fn status(&mut self) ->bool{
-        interrupt::free(
-            |cs| {
-                if let Some(serial) = SERIAL_INNER.borrow(cs).borrow_mut().as_mut() {
-                    serial.overflowed
-                }else {true}
-            },
-        )
-    }
 }
 
 pub trait Serial {
     fn read(&mut self) -> Option<u8>;
-    //fn advance_buffer(&mut self, to_remove: usize);
     fn write(&mut self, buf: u8);
 }
 impl Serial for SerialHAL {
     fn read(&mut self) -> Option<u8> {
         interrupt::free(|cs| {
             if let Some(serial) = SERIAL_INNER.borrow(cs).borrow_mut().as_mut(){
-                //serial.led.toggle();
                 serial.input_buffer.pop_front()
             }else{
                 None
@@ -137,22 +136,25 @@ impl Serial for SerialHAL {
     }*/
     fn write(&mut self, buf: u8) {
         interrupt::free(|cs| {
-            if let Some(x) = SERIAL_INNER.borrow(cs).borrow_mut().as_mut() {
-                if x.out_buffer.try_push_back(buf).is_err(){
-                    x.overflowed=true;
+            if let Some(serial) = SERIAL_INNER.borrow(cs).borrow_mut().as_mut() {
+                if serial.out_buffer.try_push_back(buf).is_err(){
+                    serial.overflowed=true;
                 }
-                if x.sending {
+                serial.usart.ucsr0b.modify(|_, w|{w.udrie0().set_bit()});
+                /*if serial.sending {
                     return;
                 }
 
-                let Some(t) = x.out_buffer.pop_front() else {
+                let Some(t) = serial.out_buffer.pop_front() else {
                     return;
                 };
-                //x.usart.ucsr0b.write(|w|{w.udrie0().set_bit()});
-                x.usart.udr0.write(|w| w.bits(t));
-                //enable 
+
+                serial.usart.ucsr0b.modify(|_, w|{w.udrie0().set_bit()});
+                
+                serial.usart.udr0.write(|w| w.bits(t));
+                //enable */
                
-                x.sending = true;
+                //x.sending = true;
             }
 
             // let serial = SERIAL_WRITER.borrow(cs).get_mut().as_mut().unwrap();

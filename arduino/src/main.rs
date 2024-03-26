@@ -2,9 +2,6 @@
 #![no_main]
 #![feature(abi_avr_interrupt)]
 
-use core::ptr::read;
-
-use arduino_hal::{default_serial, hal::usart::Event};
 use panic_halt as _;
 use serial_v2::{Serial, SerialHAL};
 
@@ -41,36 +38,20 @@ fn main() -> ! {
 
     //enable interrupts
     unsafe { avr_device::interrupt::enable() };
-
+    //let mut buf = [0u8; 30];
     loop {
         arduino_hal::delay_ms(1);
-        let mut buf = [0u8; 20];
-        let mut len =0;
-        while let Some(readen) = serial.read(){
-            buf[len]=readen;
-            len+=1;
-            if len==20{
-                break;
-            }
-        }
-        if len==0{
-            continue;
-        }
-        //arduino_hal::Usart::new(p, rx, tx, baudrate)
-        /*if len>19{
-            led.set_high();
-        }*/
-        for i in 0..len{
-            serial.write(buf[i])
-        }
         
-        /*let r = serial.status();
-        if r{
-            led.set_high();
-        }*/
-        /*if let Some(x) = serial.read(){
-            serial.write(&[x])
-        }*/
+        //let mut len =0;
+        while let Some(readen) = serial.read(){
+           // buf[len]=readen;
+            serial.write(readen);
+           // len+=1;
+            /*if len ==30{
+                break;
+            }*/
+        }
+
         
     }
 }
