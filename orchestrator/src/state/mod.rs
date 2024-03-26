@@ -1,10 +1,11 @@
 use std::{
     sync::{Arc, Mutex, MutexGuard},
     thread,
-    time::Duration,
+    time::Duration, vec,
 };
 
 use crate::constants::ARM_LENGTH;
+use crate::constants::WATER_TIME;
 
 #[derive(Debug, Clone)]
 pub struct State {
@@ -15,6 +16,11 @@ pub struct State {
     y: f64,
     z: f64,
     water: bool,
+    lights: bool,
+    air_pump: bool,
+    plow: bool,
+    plants: Vec<Plant>,
+    
 }
 
 impl Default for State {
@@ -27,13 +33,25 @@ impl Default for State {
             y: 0.0,
             z: 0.0,
             water: false,
+            lights: false,
+            air_pump: false,
+            plow: false,
+            plants: Vec::new(),
         }
     }
 }
 
 #[derive(Debug, Clone)]
+pub struct Plant{
+    x: f64,
+    y: f64,
+    z: f64,
+}
+
+#[derive(Debug, Clone)]
 pub struct StateHandler {
     state: Arc<Mutex<State>>,
+
     // TODO add serial object
 }
 
@@ -64,17 +82,70 @@ impl StateHandler {
         acquire(&self.state).clone()
     }
 
-    pub fn move_to(&self, x: f64, y: f64, z: f64) {
-        // TODO send command to Arduino
-        mutate_state!(&self.state, target_x = x, target_y = y, target_z = z);
+    pub fn water_a_plant(&self, x: f64, y: f64, z: f64) {
+        self.move_to(x, y, z);
+        self.water(Duration::from_secs_f64(WATER_TIME));
     }
 
+    pub fn add_plant(&self, x: f64, y: f64, z: f64) {
+        let mut state = acquire(&self.state);
+        state.plants.push(Plant{x:x, y:y, z:z});
+    }
+
+    pub fn water_all(&self) {
+        let plants = {
+            let mut state = acquire(&self.state);
+            state.plants.clone()
+        };
+        for plant in plants {
+            self.water_a_plant(plant.x, plant.y, plant.z);
+        }
+        
+    }
+
+    pub fn autopilot(&self) {
+
+
+    }
+
+
+
+
+    
+
+
+
+    
     pub fn water(&self, duration: Duration) {
         // TODO send command to Arduino to turn on water
         mutate_state!(&self.state, water = true);
         thread::sleep(duration);
         // TODO send command to Arduino to turn off water
         mutate_state!(&self.state, water = false);
+    }
+
+    pub fn lights(&self, duration: Duration) {
+        // TODO send command to Arduino to turn on the lights
+        mutate_state!(&self.state, lights = true);
+        thread::sleep(duration);
+        // TODO send command to Arduino to turn off the lights
+        mutate_state!(&self.state, lights = false);
+    }
+
+    pub fn air_pump(&self, duration: Duration) {
+        // TODO send command to Arduino to turn on the air pump
+        mutate_state!(&self.state, air_pump = true);
+        thread::sleep(duration);
+        // TODO send command to Arduino to turn off the air pump
+        mutate_state!(&self.state, air_pump = false);
+    }
+
+    pub fn plow(&self, duration: Duration) {
+        // TODO send command to Arduino to turn on the air pump
+        mutate_state!(&self.state, plow = true);
+        thread::sleep(duration);
+        // TODO send command to Arduino to turn off the air pump
+        mutate_state!(&self.state, plow = false);
     }
 
     pub fn reset(&self) {
@@ -90,5 +161,10 @@ impl StateHandler {
     pub fn retract(&self) {
         // TODO send command to Arduino
         mutate_state!(&self.state, target_z = 0.0);
+    }
+
+    pub fn move_to(&self, x: f64, y: f64, z: f64) {
+        // TODO send command to Arduino
+        mutate_state!(&self.state, target_x = x, target_y = y, target_z = z);
     }
 }
