@@ -15,9 +15,12 @@ panic-halt = "0.2.0"
 ufmt = "0.2.0"
 nb = "1.1.0"
 embedded-hal = "1.0"
-serialmessage = {version="0.1.1", default-features = false}
+arduino-common ={path="../arduino-common", default-features = false}
+fixed-queue = {version="0.5", default-features = false}
+#serialmessage = {version="0.1.1", default-features = false}
 avr-device= {version= "0.5", features = ["rt"]}
-circular-buffer = { version = "0.1", features = [], default-features = false}
+#circular-buffer = { version = "0.1", features = [], default-features = false}
+
 #zerocopy = {version="0.7", default-features = false}
 [dependencies.arduino-hal]
 git = "https://github.com/rahix/avr-hal"
@@ -35,4 +38,5 @@ panic = "abort"
 codegen-units = 1
 debug = true
 lto = true
-opt-level = "s"
+opt-level = "z"
+#incremental = false
