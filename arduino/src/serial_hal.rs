@@ -1,4 +1,3 @@
-
 use core::cell::RefCell;
 
 use arduino_common::Serial;
@@ -14,9 +13,7 @@ use arduino_hal::{
 use avr_device::interrupt::{self, Mutex};
 use fixed_queue::VecDeque;
 
-
-
-const BUF_SIZE: usize = 20;
+const BUF_SIZE: usize = 30;
 
 static SERIAL_INNER: Mutex<RefCell<Option<SerialInner>>> = Mutex::new(RefCell::new(None));
 //static mut SERIAL_READER: Mutex<Option<SerialWr>> = Mutex::new(None);
