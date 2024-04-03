@@ -1,8 +1,14 @@
 pub mod action_wrapper;
 
-use std::{collections::VecDeque, sync::{Arc, Condvar, Mutex}};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Condvar, Mutex},
+};
 
-use crate::{action::{emergency::EmergencyAction, Action}, state::StateHandler};
+use crate::{
+    action::{emergency::EmergencyAction, Action},
+    state::StateHandler,
+};
 
 use self::action_wrapper::{ActionId, ActionWrapper};
 
@@ -23,7 +29,10 @@ struct Queue {
 
 impl Queue {
     fn create_action_wrapper(&mut self, action: Box<dyn Action>) -> ActionWrapper {
-        let res = ActionWrapper { action: Some(action), id: self.id_counter };
+        let res = ActionWrapper {
+            action: Some(action),
+            id: self.id_counter,
+        };
         self.id_counter = self.id_counter.wrapping_add(1);
         res
     }
@@ -37,26 +46,27 @@ pub struct QueueHandler {
 }
 
 macro_rules! mutate_queue_and_notify {
-    ($queue:expr, $queuevar:ident, $block:block) => {
-        {
-            let (queue, condvar) = &*$queue;
-            let mut $queuevar = queue.lock().unwrap();
-            let res = $block;
-            condvar.notify_all();
-            res
-        }
-    };
+    ($queue:expr, $queuevar:ident, $block:block) => {{
+        let (queue, condvar) = &*$queue;
+        let mut $queuevar = queue.lock().unwrap();
+        let res = $block;
+        condvar.notify_all();
+        res
+    }};
 }
 
 impl QueueHandler {
     pub fn new(state_handler: StateHandler) -> QueueHandler {
         QueueHandler {
-            queue: Arc::new((Mutex::new(Queue {
-                actions: VecDeque::new(),
-                paused: false,
-                emergency: EmergencyStatus::None,
-                id_counter: 0,
-            }), Condvar::new())),
+            queue: Arc::new((
+                Mutex::new(Queue {
+                    actions: VecDeque::new(),
+                    paused: false,
+                    emergency: EmergencyStatus::None,
+                    id_counter: 0,
+                }),
+                Condvar::new(),
+            )),
             state_handler,
         }
     }
@@ -95,9 +105,8 @@ impl QueueHandler {
                     queue.emergency = EmergencyStatus::Resetting;
                     return queue.create_action_wrapper(Box::new(EmergencyAction {}));
                 }
-
             } else if let Some(current_action) = queue.actions.front_mut() {
-                return current_action.make_placeholder_and_extract()
+                return current_action.make_placeholder_and_extract();
             }
 
             queue = condvar.wait(queue).unwrap();

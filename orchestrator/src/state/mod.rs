@@ -1,7 +1,8 @@
 use std::{
     sync::{Arc, Mutex, MutexGuard},
     thread,
-    time::Duration, vec,
+    time::Duration,
+    vec,
 };
 
 use crate::constants::ARM_LENGTH;
@@ -20,7 +21,6 @@ pub struct State {
     air_pump: bool,
     plow: bool,
     plants: Vec<Plant>,
-    
 }
 
 impl Default for State {
@@ -42,7 +42,7 @@ impl Default for State {
 }
 
 #[derive(Debug, Clone)]
-pub struct Plant{
+pub struct Plant {
     x: f64,
     y: f64,
     z: f64,
@@ -51,7 +51,6 @@ pub struct Plant{
 #[derive(Debug, Clone)]
 pub struct StateHandler {
     state: Arc<Mutex<State>>,
-
     // TODO add serial object
 }
 
@@ -89,7 +88,7 @@ impl StateHandler {
 
     pub fn add_plant(&self, x: f64, y: f64, z: f64) {
         let mut state = acquire(&self.state);
-        state.plants.push(Plant{x:x, y:y, z:z});
+        state.plants.push(Plant { x: x, y: y, z: z });
     }
 
     pub fn water_all(&self) {
@@ -100,22 +99,10 @@ impl StateHandler {
         for plant in plants {
             self.water_a_plant(plant.x, plant.y, plant.z);
         }
-        
     }
 
-    pub fn autopilot(&self) {
+    pub fn autopilot(&self) {}
 
-
-    }
-
-
-
-
-    
-
-
-
-    
     pub fn water(&self, duration: Duration) {
         // TODO send command to Arduino to turn on water
         mutate_state!(&self.state, water = true);

@@ -1,23 +1,21 @@
-
 extern crate std;
-use std::boxed::Box;
 use serialport::SerialPort;
+use std::boxed::Box;
 
 use crate::Serial;
 
-impl Serial for Box<dyn SerialPort>{
+impl Serial for Box<dyn SerialPort> {
     fn read(&mut self) -> Option<u8> {
         let mut buf = [0u8];
         let read = self.as_mut().read(&mut buf).ok()?;
-        if read>0{
+        if read > 0 {
             Some(buf[0])
-        }else{
+        } else {
             None
         }
-
     }
 
-    fn write(&mut self, buf: u8)->bool {
+    fn write(&mut self, buf: u8) -> bool {
         self.write_all(&[buf]).is_ok()
     }
 }

@@ -3,8 +3,11 @@
 #![feature(abi_avr_interrupt)]
 #![feature(noop_waker)]
 
-
-use core::{future::Future, pin::pin, task::{Context, Waker}};
+use core::{
+    future::Future,
+    pin::pin,
+    task::{Context, Waker},
+};
 
 use arduino_common::{Comunication, Timer};
 
@@ -12,26 +15,21 @@ use millis::{MillisTimer0, Wait};
 use panic_halt as _;
 use serial_hal::SerialHAL;
 
-mod serial_hal;
 mod millis;
+mod serial_hal;
 
-
-async fn wait_sec(){
+async fn wait_sec() {
     Wait::from_millis(1000).await;
 }
 
-fn pooller(){
+fn pooller() {
     //let p = pin!(t);
     let w = Waker::noop();
     let mut cx = Context::from_waker(&w);
     let t = wait_sec();
     let mut w = pin!(t);
-    while let core::task::Poll::Pending = w.as_mut().poll(&mut cx){
-        
-    }
+    while w.as_mut().poll(&mut cx).is_pending() {}
 }
-
-
 
 #[arduino_hal::entry]
 fn main() -> ! {
@@ -44,7 +42,7 @@ fn main() -> ! {
 
     // extract usart, and init it
     let serial = dp.USART0;
-    let serial = SerialHAL::new(serial, led);
+    let serial = SerialHAL::new(serial);
     let mut com = Comunication::new(serial);
     //enable interrupts
     unsafe { avr_device::interrupt::enable() };
@@ -56,10 +54,11 @@ fn main() -> ! {
     for x in x{
         serial.write(x);
     }*/
-    
+
     loop {
-        
-        com.send_serialize(arduino_common::Response::Wait { ms: x.ms_from_start() });
+        com.send_serialize(arduino_common::Response::Wait {
+            ms: x.ms_from_start(),
+        });
         pooller();
         //arduino_hal::delay_ms(1000);
         //until there are bytes, read them
