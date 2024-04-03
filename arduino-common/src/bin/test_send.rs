@@ -14,9 +14,9 @@ fn main(){
         let mut to_send = [0u8; 10];
         rng.fill(&mut to_send[..]);
         loop{
-            master.send(&to_send);
+            master.raw_send(&to_send);
             //println!("\n");
-            if let Some(x) = slave.read(){
+            if let Some(x) = slave.raw_read(){
                 //println!("\n");
                 if x==to_send{
                     corretti+=1;

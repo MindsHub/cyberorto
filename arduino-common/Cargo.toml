@@ -6,10 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-serialmessage = {version="0.1.1", default-features = false}
+serialmessage = {version="0.2.0", default-features = false}
 rand={version="0.8", optional = true}
 indicatif = {version = "0.17", optional = true}
 serialport = {version="4.3", optional=true}
+serde={version="1.0", features = ["derive"], default-features = false}
+postcard = "1.0.0"
+
 [features]
-std=["dep:rand", "dep:indicatif", "dep:serialport"]
 default=["std"]
+std=["dep:rand", "dep:indicatif", "dep:serialport"]

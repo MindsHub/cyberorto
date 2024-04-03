@@ -1,6 +1,9 @@
+use core::borrow::BorrowMut;
 use core::cell::RefCell;
+use core::future::Future;
+use core::task::Poll;
 
-use arduino_common::Serial;
+use arduino_common::{AsyncSerial, Serial};
 use arduino_hal::clock::MHz16;
 use arduino_hal::hal::port::PB5;
 
@@ -42,9 +45,6 @@ fn USART_UDRE() {
     interrupt::free(|cs| {
         if let Some(serial) = SERIAL_INNER.borrow(cs).borrow_mut().as_mut() {
             serial.led.set_high();
-            //serial.usart.ucsr0b.modify(|w| w.)
-            //serial.usart.udr0.write(|w| w.bits(b'r') );
-            //serial.usart.ucsr0b.modify(|_, w|{w.udrie0().clear_bit()});
             if let Some(s) = serial.out_buffer.pop_front() {
                 serial.usart.udr0.write(|w| w.bits(s));
             } else {
@@ -129,15 +129,6 @@ impl Serial for SerialHAL {
             }
         })
     }
-
-    /* fn advance_buffer(&mut self, to_remove: usize) {
-        interrupt::free(|cs| {
-            if let Some(serial) = SERIAL_READER.borrow(cs).borrow_mut().as_mut() {
-                let len = serial.buffer.len();
-                serial.buffer.truncate_front(len - to_remove);
-            }
-        });
-    }*/
     fn write(&mut self, buf: u8) -> bool {
         interrupt::free(|cs| {
             if let Some(serial) = SERIAL_INNER.borrow(cs).borrow_mut().as_mut() {
@@ -150,5 +141,53 @@ impl Serial for SerialHAL {
             }
             true
         })
+    }
+}
+struct AsyncSerialRead<'a>{
+    s: &'a mut SerialHAL,
+}
+impl<'a> Future for AsyncSerialRead<'a>{
+    type Output=u8;
+
+    fn poll(mut self: core::pin::Pin<&mut Self>, _cx: &mut core::task::Context<'_>) -> Poll<Self::Output> {
+        if let Some(v) = Serial::read(self.s.borrow_mut()){
+            Poll::Ready(v)
+        }else{
+            Poll::Pending
+        }
+    }
+}
+
+struct AsyncSerialWrite<'a>{
+    s: &'a mut SerialHAL,
+    to_send: u8,
+}
+
+impl<'a> Future for AsyncSerialWrite<'a>{
+    type Output=();
+
+    fn poll(mut self: core::pin::Pin<&mut Self>, _cx: &mut core::task::Context<'_>) -> Poll<Self::Output> {
+        let v = self.to_send;
+        if Serial::write(self.s.borrow_mut(), v){
+            Poll::Ready(())
+        }else{
+            Poll::Pending
+        }
+    }
+}
+
+
+impl AsyncSerial for SerialHAL{
+    fn read(&mut self) -> impl Future<Output=u8> {
+        AsyncSerialRead{
+            s: self
+        }
+    }
+
+    fn write(&mut self, buf: u8)->impl Future<Output=()> {
+        AsyncSerialWrite{
+            s: self,
+            to_send: buf,
+        }
     }
 }
