@@ -1,7 +1,9 @@
 extern crate std;
 //use std::sync::mpsc::{self, Receiver, Sender};
+use rand::{
+    rngs::{OsRng, SmallRng, StdRng, ThreadRng}, thread_rng, Rng, SeedableRng
+};
 use tokio::sync::mpsc::{self, Receiver, Sender};
-use rand::{rngs::{OsRng, StdRng}, Rng, SeedableRng};
 
 use crate::AsyncSerial;
 
@@ -10,7 +12,7 @@ pub struct Testable {
     rx: Receiver<u8>,
     error_rate: f64,
     omission_rate: f64,
-    rng: StdRng,
+    rng: SmallRng,
 }
 impl Testable {
     pub fn new(error_rate: f64, omission_rate: f64) -> (Self, Self) {
@@ -21,33 +23,33 @@ impl Testable {
             rx: master_rx,
             error_rate,
             omission_rate,
-            rng: StdRng::from_rng(OsRng).unwrap(),
+            rng: SmallRng::from_entropy(),//StdRng::from_rng(OsRng).unwrap(),
         };
         let slave = Self {
             tx: slave_tx,
             rx: slave_rx,
             error_rate,
             omission_rate,
-            rng: StdRng::from_rng(OsRng).unwrap(),
+            rng: SmallRng::from_entropy(),//StdRng::from_rng(OsRng).unwrap(),
         };
         (master, slave)
     }
 }
 impl AsyncSerial for Testable {
-    async fn read(&mut self) -> Option<u8> {
-        self.rx.recv().await
+    async fn read(&mut self) -> u8 {
+        // if closed is ok to crash
+        self.rx.recv().await.unwrap()
     }
 
-    async fn write(&mut self, buf: u8) -> bool {
+    async fn write(&mut self, buf: u8) {
+
         let buf = if self.rng.gen_bool(self.error_rate) {
             self.rng.gen()
         } else {
             buf
         };
         if self.rng.gen_bool(1.0 - self.omission_rate) {
-            let _ = self.tx.send(buf).await.is_ok();
+            let _ = self.tx.send(buf).await;
         }
-
-        true
     }
 }

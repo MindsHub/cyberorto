@@ -138,14 +138,14 @@ struct AsyncSerialRead<'a> {
     s: &'a mut SerialHAL,
 }
 impl<'a> Future for AsyncSerialRead<'a> {
-    type Output = Option<u8>;
+    type Output = u8;
 
     fn poll(
         mut self: core::pin::Pin<&mut Self>,
         _cx: &mut core::task::Context<'_>,
     ) -> Poll<Self::Output> {
         if let Some(v) = self.s.read() {
-            Poll::Ready(Some(v))
+            Poll::Ready(v)
         } else {
             Poll::Pending
         }
@@ -158,7 +158,7 @@ struct AsyncSerialWrite<'a> {
 }
 
 impl<'a> Future for AsyncSerialWrite<'a> {
-    type Output = bool;
+    type Output = ();
 
     fn poll(
         mut self: core::pin::Pin<&mut Self>,
@@ -166,7 +166,7 @@ impl<'a> Future for AsyncSerialWrite<'a> {
     ) -> Poll<Self::Output> {
         let v = self.to_send;
         if self.s.write(v) {
-            Poll::Ready(true)
+            Poll::Ready(())
         } else {
             Poll::Pending
         }
@@ -174,11 +174,11 @@ impl<'a> Future for AsyncSerialWrite<'a> {
 }
 
 impl AsyncSerial for SerialHAL {
-    fn read(&mut self) -> impl Future<Output = Option<u8>> {
+    fn read(&mut self) -> impl Future<Output = u8> {
         AsyncSerialRead { s: self }
     }
 
-    fn write(&mut self, buf: u8) -> impl Future<Output = bool> {
+    fn write(&mut self, buf: u8) -> impl Future<Output = ()> {
         AsyncSerialWrite {
             s: self,
             to_send: buf,

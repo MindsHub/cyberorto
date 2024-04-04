@@ -1,22 +1,40 @@
 extern crate std;
+use futures::Future;
 use serialport::SerialPort;
-use std::boxed::Box;
+use core::task::Poll;
+use std::{boxed::Box, io::Read};
 
 use crate::AsyncSerial;
 
-impl AsyncSerial for Box<dyn SerialPort> {
-    async fn read(&mut self) -> Option<u8> {
+
+struct Reader<'a>{
+    com: &'a mut dyn SerialPort
+}
+ impl<'a> Reader<'a>{
+    fn new(com: &'a mut dyn SerialPort)->Self{
+        Self { com }
+    }
+ }
+ impl<'a> Future for Reader<'a>{
+    type Output=u8;
+ 
+    fn poll(mut self: core::pin::Pin<&mut Self>, _cx: &mut core::task::Context<'_>) -> core::task::Poll<Self::Output> {
         let mut buf = [0u8];
-        let read = self.as_mut().read(&mut buf).ok()?;
-        if read > 0 {
-            Some(buf[0])
-        } else {
-            None
+        if Read::read( self.com, &mut buf).is_ok(){
+            Poll::Ready(buf[0])
+        }else{
+            Poll::Pending
         }
     }
+ }
 
-    async fn write(&mut self, buf: u8) -> bool {
-        self.write_all(&[buf]).is_ok()
+impl AsyncSerial for Box<dyn SerialPort> {
+    async fn read(&mut self) -> u8 {
+        Reader::new( self.as_mut()).await
+    }
+
+    async fn write(&mut self, buf: u8) {
+        while self.write_all(&[buf]).is_err(){}
     }
 }
 /*impl Serial for Box<dyn SerialPort>{

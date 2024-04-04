@@ -9,9 +9,9 @@ use core::{
     task::{Context, Waker},
 };
 
-use arduino_common::{Comunication, Slave};
+use arduino_common::Slave;
 
-use millis::MillisTimer0;
+use millis::{MillisTimer0, Wait};
 use panic_halt as _;
 use serial_hal::SerialHAL;
 
@@ -31,7 +31,7 @@ fn main() -> ! {
     // extract usart, and init it
     let serial = dp.USART0;
     let serial = SerialHAL::new(serial);
-    let com = Comunication::new(serial);
+    //let com = Comunication::new(serial);
 
     //enable interrupts
     unsafe { avr_device::interrupt::enable() };
@@ -45,8 +45,8 @@ fn main() -> ! {
 
     //create future serial for pooling
     let mut serial_async = pin!(async move {
-        let mut s = Slave::new(b"ciao      ".clone());
-        s.run(com).await;
+        let mut s: Slave<SerialHAL, Wait> = Slave::new(serial, 100, b"ciao      ".clone());
+        s.run().await;
     });
 
     //main loop

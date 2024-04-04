@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use arduino_common::Timer;
+use arduino_common::Sleep;
 use arduino_hal::pac::TC0;
 use avr_device::interrupt::Mutex;
 use core::{
@@ -89,11 +89,6 @@ impl MillisTimer0 {
         MillisTimer0
     }
 }
-impl Timer for MillisTimer0 {
-    fn ms_from_start(&self) -> u64 {
-        millis()
-    }
-}
 
 /// async future, it returns pending until some ms/micros are elapsed
 ///
@@ -114,9 +109,14 @@ impl Wait {
         Self { end: micros() + m }
     }
 }
+impl Sleep for Wait{
+    fn await_us(us: u64)->Self {
+        Self::from_micros(us)
+    }
+}
 impl Future for Wait {
     type Output = u64;
-
+    
     fn poll(
         self: core::pin::Pin<&mut Self>,
         _cx: &mut core::task::Context<'_>,
