@@ -2,10 +2,10 @@ extern crate std;
 use serialport::SerialPort;
 use std::boxed::Box;
 
-use crate::Serial;
+use crate::AsyncSerial;
 
-impl Serial for Box<dyn SerialPort> {
-    fn read(&mut self) -> Option<u8> {
+impl AsyncSerial for Box<dyn SerialPort> {
+    async fn read(&mut self) -> Option<u8> {
         let mut buf = [0u8];
         let read = self.as_mut().read(&mut buf).ok()?;
         if read > 0 {
@@ -15,7 +15,7 @@ impl Serial for Box<dyn SerialPort> {
         }
     }
 
-    fn write(&mut self, buf: u8) -> bool {
+    async fn write(&mut self, buf: u8) -> bool {
         self.write_all(&[buf]).is_ok()
     }
 }

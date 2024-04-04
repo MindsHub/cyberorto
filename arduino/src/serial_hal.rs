@@ -1,9 +1,8 @@
-use core::borrow::BorrowMut;
 use core::cell::RefCell;
 use core::future::Future;
 use core::task::Poll;
 
-use arduino_common::{AsyncSerial, Serial};
+use arduino_common::AsyncSerial;
 use arduino_hal::clock::MHz16;
 
 use arduino_hal::hal::usart::BaudrateExt;
@@ -109,7 +108,7 @@ impl SerialHAL {
     }
 }
 
-impl Serial for SerialHAL {
+impl SerialHAL {
     fn read(&mut self) -> Option<u8> {
         interrupt::free(|cs| {
             if let Some(serial) = SERIAL_INNER.borrow(cs).borrow_mut().as_mut() {
@@ -139,14 +138,14 @@ struct AsyncSerialRead<'a> {
     s: &'a mut SerialHAL,
 }
 impl<'a> Future for AsyncSerialRead<'a> {
-    type Output = u8;
+    type Output = Option<u8>;
 
     fn poll(
         mut self: core::pin::Pin<&mut Self>,
         _cx: &mut core::task::Context<'_>,
     ) -> Poll<Self::Output> {
-        if let Some(v) = Serial::read(self.s.borrow_mut()) {
-            Poll::Ready(v)
+        if let Some(v) = self.s.read() {
+            Poll::Ready(Some(v))
         } else {
             Poll::Pending
         }
@@ -159,15 +158,15 @@ struct AsyncSerialWrite<'a> {
 }
 
 impl<'a> Future for AsyncSerialWrite<'a> {
-    type Output = ();
+    type Output = bool;
 
     fn poll(
         mut self: core::pin::Pin<&mut Self>,
         _cx: &mut core::task::Context<'_>,
     ) -> Poll<Self::Output> {
         let v = self.to_send;
-        if Serial::write(self.s.borrow_mut(), v) {
-            Poll::Ready(())
+        if self.s.write(v) {
+            Poll::Ready(true)
         } else {
             Poll::Pending
         }
@@ -175,11 +174,11 @@ impl<'a> Future for AsyncSerialWrite<'a> {
 }
 
 impl AsyncSerial for SerialHAL {
-    fn read(&mut self) -> impl Future<Output = u8> {
+    fn read(&mut self) -> impl Future<Output = Option<u8>> {
         AsyncSerialRead { s: self }
     }
 
-    fn write(&mut self, buf: u8) -> impl Future<Output = ()> {
+    fn write(&mut self, buf: u8) -> impl Future<Output = bool> {
         AsyncSerialWrite {
             s: self,
             to_send: buf,

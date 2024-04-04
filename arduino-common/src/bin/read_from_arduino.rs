@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use arduino_common::Comunication;
+use arduino_common::{Comunication, Response};
 use serialport::{ClearBuffer, SerialPort};
 
 fn flush(port: &mut Box<dyn SerialPort>) {
@@ -18,7 +18,8 @@ fn flush(port: &mut Box<dyn SerialPort>) {
     port.clear(ClearBuffer::Output).unwrap();
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let mut port = serialport::new("/dev/ttyACM0", 115200)
         .timeout(Duration::from_millis(100))
         .parity(serialport::Parity::None)
@@ -31,18 +32,18 @@ fn main() {
     sleep(Duration::from_secs_f32(1.58));
     let mut comunication = Comunication::new(port);
     let first_time = Instant::now();
-    let mut first = None;
+    let mut first: Option<Response> = None;
     while first.is_none() {
-        first = comunication.try_read_deserialize();
+        first = comunication.try_read().await.unwrap().1;
     }
-    let first = first.unwrap().1;
+    let first = first.unwrap();
     let first = match first {
         arduino_common::Response::Wait { ms } => ms,
         _ => 0,
     };
 
     loop {
-        if let Some((_, m)) = comunication.try_read_deserialize() {
+        if let Some((_, m)) = comunication.try_read().await {
             let time_elapsed = first_time.elapsed().as_millis();
             let ex_elapsed = match m {
                 arduino_common::Response::Wait { ms } => ms - first,

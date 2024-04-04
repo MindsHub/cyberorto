@@ -1,8 +1,8 @@
 use arduino_common::{testable::Testable, Comunication};
 use indicatif::ProgressIterator;
 use rand::{thread_rng, Rng};
-
-fn main() {
+#[tokio::main]
+async fn main() {
     let (master, slave) = Testable::new(0.03, 0.03);
     let mut master = Comunication::new(master);
     let mut slave = Comunication::new(slave);
@@ -14,9 +14,9 @@ fn main() {
         let mut to_send = [0u8; 10];
         rng.fill(&mut to_send[..]);
         loop {
-            master.raw_send(&to_send);
+            master.send(&to_send, 0).await;
             //println!("\n");
-            if let Some(x) = slave.raw_read() {
+            if let Some((_, x)) = slave.try_read::<[u8; 10]>().await {
                 //println!("\n");
                 if x == to_send {
                     corretti += 1;

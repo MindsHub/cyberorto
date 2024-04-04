@@ -13,6 +13,8 @@ serialport = {version="4.3", optional=true}
 serde={version="1.0", features = ["derive"], default-features = false}
 postcard = "1.0.0"
 
+tokio ={version= "1.0", optional =  true, features = ["full"]}
+
 [features]
 default=["std"]
-std=["dep:rand", "dep:indicatif", "dep:serialport"]
+std=["dep:rand", "dep:indicatif", "dep:serialport", "dep:tokio"]

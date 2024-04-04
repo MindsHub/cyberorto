@@ -9,33 +9,21 @@ use core::{
     task::{Context, Waker},
 };
 
-use arduino_common::{Comunication, Timer};
+use arduino_common::{Comunication, Slave};
 
-use millis::{MillisTimer0, Wait};
+use millis::MillisTimer0;
 use panic_halt as _;
 use serial_hal::SerialHAL;
 
 mod millis;
 mod serial_hal;
 
-async fn wait_sec() {
-    Wait::from_millis(1000).await;
-}
-
-fn pooller() {
-    //let p = pin!(t);
-    let w = Waker::noop();
-    let mut cx = Context::from_waker(&w);
-    let t = wait_sec();
-    let mut w = pin!(t);
-    while w.as_mut().poll(&mut cx).is_pending() {}
-}
-
 #[arduino_hal::entry]
 fn main() -> ! {
     //getting peripherals
     let dp = arduino_hal::Peripherals::take().unwrap();
     let pins = arduino_hal::pins!(dp);
+
     // set led pin to low
     let mut led = pins.d13.into_output();
     led.set_low();
@@ -43,37 +31,26 @@ fn main() -> ! {
     // extract usart, and init it
     let serial = dp.USART0;
     let serial = SerialHAL::new(serial);
-    let mut com = Comunication::new(serial);
+    let com = Comunication::new(serial);
+
     //enable interrupts
     unsafe { avr_device::interrupt::enable() };
 
-    //let mut buf = [0u8; 30];
-    let x = MillisTimer0::new(dp.TC0);
-    /*let x = x.ms_from_start();
-    let x = x.to_le_bytes();
-    for x in x{
-        serial.write(x);
-    }*/
 
+    let _x = MillisTimer0::new(dp.TC0);
+
+    //create context for async
+    let w = Waker::noop();
+    let mut cx = Context::from_waker(&w);
+
+    //create future serial for pooling
+    let mut serial_async = pin!(async move {
+        let mut s = Slave::new(b"ciao      ".clone());
+        s.run(com).await;
+    });
+
+    //main loop
     loop {
-        com.send_serialize(arduino_common::Response::Wait {
-            ms: x.ms_from_start(),
-        });
-        pooller();
-        //arduino_hal::delay_ms(1000);
-        //until there are bytes, read them
-        //let mut index = 0;
-
-        /*while let Some(readen) = { serial.read() } {
-            buf[index] = readen;
-            index += 1;
-            if index >= 30 {
-                break;
-            }
-        }
-
-        for c in &buf[0..index] {
-            serial.write(*c);
-        }*/
+        let _ = serial_async.as_mut().poll(&mut cx);
     }
 }

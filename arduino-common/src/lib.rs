@@ -1,8 +1,7 @@
 #![no_std]
 
-use core::{future::Future, mem};
+use core::{future::Future, marker::PhantomData};
 
-use postcard::{from_bytes, to_slice};
 use serde::{Deserialize, Serialize};
 use serialmessage::{ParseState, SerMsg};
 
@@ -12,17 +11,17 @@ pub mod testable;
 #[cfg(feature = "std")]
 pub mod pc;
 
-pub trait Serial {
+/*pub trait Serial {
     ///tries to read a single byte from Serial
     fn read(&mut self) -> Option<u8>;
     ///writes a single byte over Serial
     fn write(&mut self, buf: u8) -> bool;
-}
+}*/
 pub trait AsyncSerial {
     ///tries to read a single byte from Serial
-    fn read(&mut self) -> impl Future<Output = u8>;
+    fn read(&mut self) -> impl Future<Output = Option<u8>>;
     ///writes a single byte over Serial
-    fn write(&mut self, buf: u8) -> impl Future<Output = ()>;
+    fn write(&mut self, buf: u8) -> impl Future<Output = bool>;
 }
 
 pub trait Timer {
@@ -30,111 +29,136 @@ pub trait Timer {
     fn ms_from_start(&self) -> u64;
 }
 
-/// -> message
-/// <- Response
+pub struct Comunication<Serial: AsyncSerial> {
+    serial: Serial,
+    input_buf: SerMsg,
+    buf: [u8; 20],
+}
+impl<Serial: AsyncSerial> Comunication<Serial> {
+    pub fn new(serial: Serial) -> Self {
+        Self {
+            serial,
+            input_buf: SerMsg::new(),
+            buf: [0u8; 20],
+        }
+    }
+
+    pub async fn try_read<Out: for<'a> Deserialize<'a>>(&mut self) -> Option<(u8, Out)> {
+        while let Some(b) = self.serial.read().await {
+            let (state, _) = self.input_buf.parse_read_bytes(&[b]);
+            if let ParseState::DataReady = state {
+                let data = self.input_buf.return_read_data();
+                let id = self.input_buf.return_msg_id();
+                return Some((id, postcard::from_bytes(data).ok()?));
+            }
+        }
+        None
+    }
+
+    pub async fn send<Input: Serialize>(&mut self, to_send: Input, id: u8) -> bool {
+        let Ok(msg) = postcard::to_slice(&to_send, &mut self.buf) else{ return false};
+        let Some((buf, len)) = SerMsg::create_msg_arr(&msg, id) else{ return false};
+        for b in &buf[0..len] {
+            if !self.serial.write(*b).await {
+                return false;
+            }
+        }
+        true
+    }
+}   
 
 #[repr(u8)]
+#[non_exhaustive]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Message {
+    /// asking for information about the slave
+    WhoAreYou,
     /// variant to move motor
-    ///
-    Move {
-        x: f32,
-        y: f32,
-        z: f32,
-    },
-    Debug([u8; 10]),
+    Move { x: f32, y: f32, z: f32 },
 }
 
 #[repr(u8)]
-#[derive(Serialize, Deserialize, Debug)]
+#[non_exhaustive]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum Response {
-    WhoAreYou,
-    Wait { ms: u64 },
+    /// response to WhoAreYou
+    Iam {
+        name: [u8; 10],
+        version: u8,
+    },
+    Wait {
+        ms: u64,
+    },
+    Debug([u8; 10]),
+    Done,
 }
-
-/// parses the data into a common message
-pub struct Comunication<S: Serial> {
-    id: u8,
-    serial: S,
-    input_msg: SerMsg,
+pub struct Slave<Serial: AsyncSerial>{
+    ph: PhantomData<Serial>,
+    name: [u8; 10],
 }
-impl<S: Serial> Comunication<S> {
-    pub fn new(serial: S) -> Self {
-        Self {
-            id: 0,
-            serial,
-            input_msg: SerMsg::new(),
-        }
+impl<Serial: AsyncSerial> Slave<Serial>{
+    pub fn new(name: [u8; 10])->Self{
+        Self { ph: PhantomData, name }
     }
-
-    pub fn raw_send(&mut self, send_data: &[u8]) {
-        let (msg, len) = SerMsg::create_msg_arr(send_data, 1).unwrap();
-        for c in &msg[..len] {
-            self.serial.write(*c);
-        }
-    }
-    pub fn raw_read(&mut self) -> Option<&[u8]> {
-        while let Some(c) = self.serial.read() {
-            let (state, _len) = self.input_msg.parse_read_bytes(&[c]);
-            match state {
-                ParseState::DataReady => {
-                    let t = self.input_msg.return_read_data();
-                    let _id = self.input_msg.return_msg_id();
-                    return Some(t);
+    pub async fn run(&mut self, mut com: Comunication<Serial>){
+        loop{
+            if let Some((id, message)) = com.try_read::<Message>().await{
+                match message{
+                    Message::WhoAreYou => {
+                        com.send(Response::Iam { name: self.name, version: 0 }, id).await;
+                    },
+                    Message::Move {  x: _, y: _, z: _ } => {
+                        com.send(Response::Wait { ms: 1 }, id).await;
+                    },
                 }
-                _ => {}
             }
         }
-        None
-    }
-    pub fn send_serialize<T: Serialize>(&mut self, m: T) {
-        let mut buf = [0u8; mem::size_of::<Message>()];
-        let used_buf = to_slice(&m, &mut buf).unwrap();
-        self.raw_send(&used_buf);
-    }
-    pub fn try_read_deserialize<T: for<'a> Deserialize<'a>>(&mut self) -> Option<(u8, T)> {
-        while let Some(x) = self.serial.read() {
-            let (state, _) = self.input_msg.parse_read_bytes(&[x]);
-            match state {
-                ParseState::DataReady => {
-                    let data = self.input_msg.return_read_data();
-                    let m = from_bytes(data).ok()?;
-                    let id = self.input_msg.return_msg_id();
-                    return Some((id, m));
-                }
-                _ => {}
-            }
-        }
-        None
     }
 }
-#[test]
-fn test_out() {
-    let m = Message::Move {
-        x: 1.0,
-        y: 2.0,
-        z: 10.0,
-    };
-    let mut buf = [0u8; 32];
-    let t = to_slice(&m, &mut buf).unwrap();
-    panic!("{:?}", t);
-}
-#[cfg(test)]
+
+
+#[cfg(all(test, feature = "std"))]
 mod test {
+
+
 
     use postcard::from_bytes;
     use serialmessage::SerMsg;
 
-    use crate::Message;
-
+    use crate::{testable::Testable, Comunication, Message, Response, Slave};
+    #[tokio::test]
+    async fn test_slave(){
+        let (master, slave) = Testable::new(0.0, 0.0);
+        let mut master = Comunication::new(master);
+        let s = Comunication::new(slave);
+        let name = b"ciao      ";
+        let mut slave = Slave::new(name.clone());
+        let q = tokio::spawn(async move {
+            
+            slave.run(s).await;
+            
+        });
+        master.send(Message::WhoAreYou, 0).await;        
+        let (id, r) = master.try_read::<Response>().await.unwrap();
+        assert_eq!( r, Response::Iam { name: name.clone(), version: 0 });
+        assert_eq!(id, 0);
+        q.abort();
+    }
+    #[tokio::test]
+    async fn test_send_receive(){
+        let (master, slave) = Testable::new(0.0, 0.0);
+        let mut master = Comunication::new(master);
+        let mut slave = Comunication::new(slave);
+        master.send(Message::WhoAreYou, 0).await;
+        slave.try_read::<Message>().await.unwrap();
+    }
     #[test]
     fn decompile() {
         let v = [0x7E, 0x01, 0xFF, 0x04, 0x01, 0xB0, 0xD5, 0x04, 0xD1, 0x81];
         let mut msg = SerMsg::new();
         let _ = msg.parse_read_bytes(&v);
         let data = msg.return_read_data();
-        let msg = from_bytes::<Message>(data).unwrap();
-        panic!("{:?}", msg);
+        let _msg = from_bytes::<Response>(data).unwrap();
+        //panic!("{:?}", msg);
     }
 }
