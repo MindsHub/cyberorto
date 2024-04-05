@@ -1,7 +1,6 @@
 extern crate std;
-use futures::Future;
 use serialport::SerialPort;
-use core::task::Poll;
+use core::{future::Future, task::Poll};
 use std::{boxed::Box, io::Read};
 
 use crate::AsyncSerial;

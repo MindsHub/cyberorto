@@ -1,4 +1,4 @@
-use core::cell::RefCell;
+use core::{cell::RefCell, task::Context};
 use core::future::Future;
 use core::task::Poll;
 
@@ -74,12 +74,14 @@ impl SerialHAL {
         usart.ucsr0a.write(|w| w.u2x0().bit(c.u2x));
 
         usart.ucsr0b.write(|w| {
-            w.rxcie0()
+            w
+                //rx complete interrupt enable
+                .rxcie0()
                 .set_bit()
-                //.udrie0().clear_bit()
-                //.txcie0().set_bit()
+                //enable tx
                 .txen0()
                 .set_bit()
+                //enable rx
                 .rxen0()
                 .set_bit()
         });
@@ -95,10 +97,11 @@ impl SerialHAL {
                 //8 bit
                 .ucsz0()
                 .chr8()
+                //set async mode (read while sending)
                 .umsel0()
                 .usart_async()
         });
-
+        // full the static
         let inp = SerialInner::new(usart);
         interrupt::free(|cs| {
             SERIAL_INNER.borrow(cs).replace(Some(inp));
@@ -109,6 +112,7 @@ impl SerialHAL {
 }
 
 impl SerialHAL {
+    /// tries to read one byte from serial buffer
     fn read(&mut self) -> Option<u8> {
         interrupt::free(|cs| {
             if let Some(serial) = SERIAL_INNER.borrow(cs).borrow_mut().as_mut() {
@@ -118,6 +122,7 @@ impl SerialHAL {
             }
         })
     }
+    /// tries to write on byte into serial buffer. If it is full it return false, on success it returns true
     fn write(&mut self, buf: u8) -> bool {
         interrupt::free(|cs| {
             if let Some(serial) = SERIAL_INNER.borrow(cs).borrow_mut().as_mut() {
@@ -132,8 +137,8 @@ impl SerialHAL {
     }
 }
 
-// ASYNC SERIAL
 
+/// Future for await that one byte is readable. 
 struct AsyncSerialRead<'a> {
     s: &'a mut SerialHAL,
 }
@@ -142,7 +147,7 @@ impl<'a> Future for AsyncSerialRead<'a> {
 
     fn poll(
         mut self: core::pin::Pin<&mut Self>,
-        _cx: &mut core::task::Context<'_>,
+        _cx: &mut Context<'_>,
     ) -> Poll<Self::Output> {
         if let Some(v) = self.s.read() {
             Poll::Ready(v)
@@ -162,7 +167,7 @@ impl<'a> Future for AsyncSerialWrite<'a> {
 
     fn poll(
         mut self: core::pin::Pin<&mut Self>,
-        _cx: &mut core::task::Context<'_>,
+        _cx: &mut Context<'_>,
     ) -> Poll<Self::Output> {
         let v = self.to_send;
         if self.s.write(v) {
@@ -173,11 +178,14 @@ impl<'a> Future for AsyncSerialWrite<'a> {
     }
 }
 
+/// async implementation
 impl AsyncSerial for SerialHAL {
+    ///returns the read future
     fn read(&mut self) -> impl Future<Output = u8> {
         AsyncSerialRead { s: self }
     }
 
+    ///returns the write future
     fn write(&mut self, buf: u8) -> impl Future<Output = ()> {
         AsyncSerialWrite {
             s: self,

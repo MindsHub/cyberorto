@@ -1,7 +1,7 @@
 extern crate std;
 //use std::sync::mpsc::{self, Receiver, Sender};
 use rand::{
-    rngs::{OsRng, SmallRng, StdRng, ThreadRng}, thread_rng, Rng, SeedableRng
+    rngs::SmallRng, Rng, SeedableRng
 };
 use tokio::sync::mpsc::{self, Receiver, Sender};
 

@@ -1,9 +1,6 @@
 extern  crate std;
-use std::{print, println};
+use std::println;
 
-
-use serialmessage::SerMsg;
-use tokio::time::Instant;
 
 use crate::{AsyncSerial, Comunication, Message, Response, Sleep};
 
@@ -25,7 +22,14 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Master<Serial, Sleeper>{
         self.id = self.id.wrapping_add(1);
         self.com.send(m, self.id).await
     }
-
+    async fn try_read(&mut self)->Option<Response>{
+        let (id, resp) = self.com.try_read::<Response>().await?;
+        if id==self.id{
+            Some(resp)
+        }else{
+            None
+        }
+    }
     pub async fn move_to(&mut self, x: f32, y: f32, z: f32)->Result<(), ()>{
         
         let m = Message::Move { x, y, z };
@@ -36,16 +40,14 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Master<Serial, Sleeper>{
                 continue;
             }
             let id = self.id;
-            //println!("{}", eq.elapsed().as_micros());
 
             while let Some((id_read, msg)) = self.com.try_read::<Response>().await{
                 if id_read!=id{
-                    //println!("{id_read} {}", self.id);
                     continue;
                 }
                 match msg{
                     Response::Wait { ms } => {
-                        Sleeper::await_us(0).await;
+                        Sleeper::await_us(ms*1000).await;
                         if !self.send(Message::Pool { id }).await{
                             continue 'complete;
                         }
@@ -64,7 +66,6 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Master<Serial, Sleeper>{
     }
     pub async fn who_are_you(&mut self)->Result<([u8; 10], u8), ()>{
           for _ in 0..50{
-            // send Move
             if !self.send(Message::WhoAreYou).await{
                 continue;
             }
@@ -72,17 +73,11 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Master<Serial, Sleeper>{
 
 
             while let Some((id_read, msg)) = self.com.try_read::<Response>().await{
-                //println!("{:?}", msg);
                 if id_read!=id{
-                    //println!("{id_read} {}", self.id);
                     continue;
                 }
-                match msg{
-                    Response::Iam {name, version } => {
-                        return  Ok((name, version));
-                    },
-                    
-                    _ => {}
+                if let Response::Iam {name, version } = msg{
+                    return  Ok((name, version));
                 }
             }
             
@@ -121,7 +116,9 @@ mod test{
                 println!("NO");
             }
         }
+        q.abort();
         panic!("{ok}/{total}");
+
     }
     #[tokio::test]
     async fn test_accuracy(){

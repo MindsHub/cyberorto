@@ -53,12 +53,14 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Comunication<Serial, Sleeper> {
         }
     }
     async fn try_read_byte(&mut self)->Option<u8>{
+        //let t = Select{ l: pin!(self.serial.read()), r: pin!(Sleeper::await_us(self.timeout_us)) };
         match select(pin!(self.serial.read()), pin!(Sleeper::await_us(self.timeout_us))).await{
             Either::Left((b, _)) => Some(b),
             Either::Right(_) => None,
         }
     }
     async fn try_send_byte(&mut self, to_send: u8)->bool{
+        //let t = Select{ l: pin!(self.serial.write(to_send)), r: pin!(Sleeper::await_us(self.timeout_us)) };
         match select(pin!(self.serial.write(to_send)), pin!(Sleeper::await_us(self.timeout_us))).await{
             Either::Left(_) => true,
             Either::Right(_) => {
@@ -79,7 +81,6 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Comunication<Serial, Sleeper> {
     }
 
     pub async fn send<Input: Serialize>(&mut self, to_send: Input, id: u8) -> bool {
-        
         let Ok(msg) = postcard::to_slice(&to_send, &mut self.buf) else {
             return false;
         };
@@ -158,7 +159,7 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Slave<Serial, Sleeper> {
                         .await;
                     }
                     Message::Move { x: _, y: _, z: _ } => {
-                        self.com.send(Response::Wait { ms: 0 }, id).await;
+                        self.com.send(Response::Wait { ms: 1 }, id).await;
                     }
                     Message::Pool { id } => {
                         self.com.send(Response::Done, id).await;

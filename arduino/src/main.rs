@@ -11,7 +11,7 @@ use core::{
 
 use arduino_common::Slave;
 
-use millis::{MillisTimer0, Wait};
+use millis::{init_millis, Wait};
 use panic_halt as _;
 use serial_hal::SerialHAL;
 
@@ -22,11 +22,11 @@ mod serial_hal;
 fn main() -> ! {
     //getting peripherals
     let dp = arduino_hal::Peripherals::take().unwrap();
-    let pins = arduino_hal::pins!(dp);
+    /*let pins = arduino_hal::pins!(dp);
 
     // set led pin to low
     let mut led = pins.d13.into_output();
-    led.set_low();
+    led.set_low();*/
 
     // extract usart, and init it
     let serial = dp.USART0;
@@ -37,7 +37,7 @@ fn main() -> ! {
     unsafe { avr_device::interrupt::enable() };
 
 
-    let _x = MillisTimer0::new(dp.TC0);
+    init_millis(dp.TC0);
 
     //create context for async
     let w = Waker::noop();

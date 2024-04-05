@@ -6,15 +6,31 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+#LIBRARY USED EVERYWHERE
+
+#serialize/deserialize libs
 serialmessage = {version="0.2.0", default-features = false}
-rand={version="0.8", optional = true, features = ["small_rng"]}
-indicatif = {version = "0.17", optional = true}
-serialport = {version="4.3", optional=true}
 serde={version="1.0", features = ["derive"], default-features = false}
-postcard = "1.0.0"
+postcard = {version="1.0.0", default-features = false}
+
+#used for join async (could be done by hand, but code reuse...)
 futures = { version = "0.3", default-features = false }
+
+
+#LIBRARY USED IN STD VERSION:
+#serial port
+serialport = {version="4.3", optional=true}
+
+#rand for testing
+rand={version="0.8", optional = true, features = ["small_rng"]}
+# tokio for async
 tokio ={version= "1.0", optional =  true, features = ["full"]}
+# for pretty bars
+indicatif = {version = "0.17", optional = true}
+
+
 
 [features]
+# activate std to have access to all std additional features/implementations
 default=["std"]
 std=["dep:rand", "dep:indicatif", "dep:serialport", "dep:tokio"]
