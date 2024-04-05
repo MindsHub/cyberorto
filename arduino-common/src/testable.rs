@@ -1,8 +1,6 @@
 extern crate std;
 //use std::sync::mpsc::{self, Receiver, Sender};
-use rand::{
-    rngs::SmallRng, Rng, SeedableRng
-};
+use rand::{rngs::SmallRng, Rng, SeedableRng};
 use tokio::sync::mpsc::{self, Receiver, Sender};
 
 use crate::AsyncSerial;
@@ -23,14 +21,14 @@ impl Testable {
             rx: master_rx,
             error_rate,
             omission_rate,
-            rng: SmallRng::from_entropy(),//StdRng::from_rng(OsRng).unwrap(),
+            rng: SmallRng::from_entropy(), //StdRng::from_rng(OsRng).unwrap(),
         };
         let slave = Self {
             tx: slave_tx,
             rx: slave_rx,
             error_rate,
             omission_rate,
-            rng: SmallRng::from_entropy(),//StdRng::from_rng(OsRng).unwrap(),
+            rng: SmallRng::from_entropy(), //StdRng::from_rng(OsRng).unwrap(),
         };
         (master, slave)
     }
@@ -42,7 +40,6 @@ impl AsyncSerial for Testable {
     }
 
     async fn write(&mut self, buf: u8) {
-
         let buf = if self.rng.gen_bool(self.error_rate) {
             self.rng.gen()
         } else {

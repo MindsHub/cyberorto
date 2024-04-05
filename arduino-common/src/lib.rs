@@ -38,8 +38,8 @@ pub struct Comunication<Serial: AsyncSerial, Sleeper: Sleep> {
     input_buf: SerMsg,
     buf: [u8; 20],
 }
-pub trait Sleep: Future{
-    fn await_us(us: u64)->Self;
+pub trait Sleep: Future {
+    fn await_us(us: u64) -> Self;
 }
 
 impl<Serial: AsyncSerial, Sleeper: Sleep> Comunication<Serial, Sleeper> {
@@ -52,20 +52,28 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Comunication<Serial, Sleeper> {
             buf: [0u8; 20],
         }
     }
-    async fn try_read_byte(&mut self)->Option<u8>{
+    async fn try_read_byte(&mut self) -> Option<u8> {
         //let t = Select{ l: pin!(self.serial.read()), r: pin!(Sleeper::await_us(self.timeout_us)) };
-        match select(pin!(self.serial.read()), pin!(Sleeper::await_us(self.timeout_us))).await{
+        match select(
+            pin!(self.serial.read()),
+            pin!(Sleeper::await_us(self.timeout_us)),
+        )
+        .await
+        {
             Either::Left((b, _)) => Some(b),
             Either::Right(_) => None,
         }
     }
-    async fn try_send_byte(&mut self, to_send: u8)->bool{
+    async fn try_send_byte(&mut self, to_send: u8) -> bool {
         //let t = Select{ l: pin!(self.serial.write(to_send)), r: pin!(Sleeper::await_us(self.timeout_us)) };
-        match select(pin!(self.serial.write(to_send)), pin!(Sleeper::await_us(self.timeout_us))).await{
+        match select(
+            pin!(self.serial.write(to_send)),
+            pin!(Sleeper::await_us(self.timeout_us)),
+        )
+        .await
+        {
             Either::Left(_) => true,
-            Either::Right(_) => {
-                false
-            },
+            Either::Right(_) => false,
         }
     }
     pub async fn try_read<Out: for<'a> Deserialize<'a>>(&mut self) -> Option<(u8, Out)> {
@@ -104,8 +112,14 @@ pub enum Message {
     /// asking for information about the slave
     WhoAreYou,
     /// variant to move motor
-    Move { x: f32, y: f32, z: f32 },
-    Pool{id: u8},
+    Move {
+        x: f32,
+        y: f32,
+        z: f32,
+    },
+    Pool {
+        id: u8,
+    },
 }
 
 #[repr(u8)]
@@ -113,15 +127,10 @@ pub enum Message {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum Response {
     /// response to WhoAreYou
-    Iam {
-        name: [u8; 10],
-        version: u8,
-    },
+    Iam { name: [u8; 10], version: u8 },
 
     /// you should wait for around ms
-    Wait {
-        ms: u64,
-    },
+    Wait { ms: u64 },
     ///send debug message
     Debug([u8; 10]),
 
@@ -129,15 +138,13 @@ pub enum Response {
     Done,
 }
 
-
 pub struct Slave<Serial: AsyncSerial, Sleeper: Sleep> {
     com: Comunication<Serial, Sleeper>,
     /// what is my name?
     name: [u8; 10],
 }
 impl<Serial: AsyncSerial, Sleeper: Sleep> Slave<Serial, Sleeper> {
-
-    pub fn new(serial: Serial, timeut_us: u64,  name: [u8; 10], ) -> Self {
+    pub fn new(serial: Serial, timeut_us: u64, name: [u8; 10]) -> Self {
         Self {
             com: Comunication::new(serial, timeut_us),
             name,
@@ -149,30 +156,27 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Slave<Serial, Sleeper> {
             if let Some((id, message)) = self.com.try_read::<Message>().await {
                 match message {
                     Message::WhoAreYou => {
-                        self.com.send(
-                            Response::Iam {
-                                name: self.name,
-                                version: 0,
-                            },
-                            id,
-                        )
-                        .await;
+                        self.com
+                            .send(
+                                Response::Iam {
+                                    name: self.name,
+                                    version: 0,
+                                },
+                                id,
+                            )
+                            .await;
                     }
                     Message::Move { x: _, y: _, z: _ } => {
                         self.com.send(Response::Wait { ms: 1 }, id).await;
                     }
                     Message::Pool { id } => {
                         self.com.send(Response::Done, id).await;
-                    },
+                    }
                 }
             }
         }
     }
 }
-
-
-
-
 
 #[cfg(all(test, feature = "std"))]
 mod test {
