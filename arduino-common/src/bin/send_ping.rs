@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use arduino_common::master::Master;
 use serialport::SerialPort;
-use tokio::{self, time::Sleep};
+use tokio::time::Sleep;
 #[tokio::main]
 async fn main() {
     let port = serialport::new("/dev/ttyACM0", 115200)
