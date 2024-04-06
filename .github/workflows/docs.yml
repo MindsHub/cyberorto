@@ -24,9 +24,8 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: nightly-2023-12-28
-          components: rust-src
-      - name: Build documentation (workspace)
+          toolchain: nightly
+      - name: tests (workspace)
         run: cargo test --all-features
   docs:
     name: Build Documentation
