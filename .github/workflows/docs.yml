@@ -13,6 +13,20 @@ concurrency:
   group: "pages"
   cancel-in-progress: false
 jobs:
+  tests:
+    name: ci-testing
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt install avr-libc gcc-avr pkg-config avrdude libudev-dev build-essential 
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: nightly-2023-12-28
+          components: rust-src
+      - name: Build documentation (workspace)
+        run: cargo test --all-features
   docs:
     name: Build Documentation
     environment:
@@ -39,6 +53,15 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./target/doc
+
+  # Deployment job
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: [tests, docs]
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
