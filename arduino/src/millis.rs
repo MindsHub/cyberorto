@@ -64,8 +64,8 @@ pub fn micros() -> u64 {
     })
 }
 
-/// init timer
 
+/// init timer
 pub fn init_millis(tc0: arduino_hal::pac::TC0) {
     // Configure the timer for the above interval (in CTC mode)
     // and enable its interrupt.
@@ -88,7 +88,6 @@ pub fn init_millis(tc0: arduino_hal::pac::TC0) {
         *TIMER0.borrow(cs).borrow_mut() = Some(tc0);
     });
 }
-
 
 /// async future, it returns pending until some ms/micros are elapsed
 ///

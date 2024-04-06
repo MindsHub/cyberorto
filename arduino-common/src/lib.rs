@@ -18,12 +18,6 @@ pub mod master;
 #[cfg(feature = "std")]
 pub mod tokio;
 
-/*pub trait Serial {
-    ///tries to read a single byte from Serial
-    fn read(&mut self) -> Option<u8>;
-    ///writes a single byte over Serial
-    fn write(&mut self, buf: u8) -> bool;
-}*/
 pub trait AsyncSerial {
     ///tries to read a single byte from Serial
     fn read(&mut self) -> impl Future<Output = u8>;
@@ -92,7 +86,7 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Comunication<Serial, Sleeper> {
         let Ok(msg) = postcard::to_slice(&to_send, &mut self.buf) else {
             return false;
         };
-        let Some((buf, len)) = SerMsg::create_msg_arr(&msg, id) else {
+        let Some((buf, len)) = SerMsg::create_msg_arr(msg, id) else {
             return false;
         };
         //println!("bytes wide {}", len);

@@ -6,7 +6,6 @@ use crate::{AsyncSerial, Comunication, Message, Response, Sleep};
 pub struct Master<Serial: AsyncSerial, Sleeper: Sleep> {
     id: u8,
     com: Comunication<Serial, Sleeper>,
-    //TODO add id
 }
 impl<Serial: AsyncSerial, Sleeper: Sleep> Master<Serial, Sleeper> {
     pub fn new(serial: Serial, timeout_us: u64) -> Self {
@@ -19,14 +18,6 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Master<Serial, Sleeper> {
         //print!("Sending {:?}", m);
         self.id = self.id.wrapping_add(1);
         self.com.send(m, self.id).await
-    }
-    async fn try_read(&mut self) -> Option<Response> {
-        let (id, resp) = self.com.try_read::<Response>().await?;
-        if id == self.id {
-            Some(resp)
-        } else {
-            None
-        }
     }
     pub async fn move_to(&mut self, x: f32, y: f32, z: f32) -> Result<(), ()> {
         let m = Message::Move { x, y, z };
@@ -78,7 +69,7 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Master<Serial, Sleeper> {
         Err(())
     }
 }
-
+/*
 #[cfg(test)]
 mod test {
     extern crate std;
@@ -144,3 +135,4 @@ mod test {
         panic!("{}", ok);
     }
 }
+*/

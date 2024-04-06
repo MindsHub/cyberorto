@@ -15,7 +15,7 @@ async fn main() {
     let mut master: Master<Box<dyn SerialPort>, Sleep> = Master::new(port, 1000);
     let mut ok = 0;
     for _ in 0..10000 {
-        if let Ok(_) = master.who_are_you().await {
+        if master.who_are_you().await.is_ok() {
             ok += 1;
         } else {
             println!("Nope");
