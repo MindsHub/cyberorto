@@ -1,21 +1,20 @@
 use std::{
-    sync::{Arc, Mutex, MutexGuard},
-    thread,
-    time::Duration,
-    vec,
+    future::Future, sync::{Arc, Mutex, MutexGuard}, thread, time::Duration, vec
 };
+
+use arduino_common::{master::Master, AsyncSerial, Sleep};
 
 use crate::constants::ARM_LENGTH;
 use crate::constants::WATER_TIME;
 
 #[derive(Debug, Clone)]
 pub struct State {
-    target_x: f64,
-    target_y: f64,
-    target_z: f64,
-    x: f64,
-    y: f64,
-    z: f64,
+    target_x: f32,
+    target_y: f32,
+    target_z: f32,
+    x: f32,
+    y: f32,
+    z: f32,
     water: bool,
     lights: bool,
     air_pump: bool,
@@ -42,22 +41,46 @@ impl Default for State {
 }
 #[derive(Debug, Clone)]
 pub struct Plant_time{
-    plant_timer: f64,
-    water_timer: f64,
+    plant_timer: f32,
+    water_timer: f32,
 }
 
 
 #[derive(Debug, Clone)]
 pub struct Plant {
-    x: f64,
-    y: f64,
-    z: f64,
+    x: f32,
+    y: f32,
+    z: f32,
 }
 
 #[derive(Debug, Clone)]
 pub struct StateHandler {
     state: Arc<Mutex<State>>,
+    master: Master<Plant, Plant>,
     // TODO add serial object
+}
+
+impl AsyncSerial for Plant {
+    async fn read(&mut self) -> u8{
+        todo!()
+    }
+
+    async fn write(&mut self, buf: u8) {
+        todo!()
+    }
+}
+
+impl Sleep for Plant {
+    fn await_us(us: u64) -> Self {
+        todo!()
+    }
+}
+impl Future for Plant{
+    type Output=();
+
+    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
+        todo!()
+    }
 }
 
 fn acquire(state: &Arc<Mutex<State>>) -> MutexGuard<'_, State> {
@@ -80,6 +103,7 @@ impl StateHandler {
     pub fn new() -> StateHandler {
         StateHandler {
             state: Arc::new(Mutex::new(State::default())),
+            master: todo!(),
         }
     }
 
@@ -87,12 +111,12 @@ impl StateHandler {
         acquire(&self.state).clone()
     }
 
-    pub fn water_a_plant(&self, x: f64, y: f64, z: f64) {
+    pub fn water_a_plant(&self, x: f32, y: f32, z: f32) {
         self.move_to(x, y, z);
-        self.water(Duration::from_secs_f64(WATER_TIME));
+        self.water(Duration::from_secs_f32(WATER_TIME));
     }
 
-    pub fn add_plant(&self, x: f64, y: f64, z: f64) {
+    pub fn add_plant(&self, x: f32, y: f32, z: f32) {
         let mut state = acquire(&self.state);
         state.plants.push(Plant { x: x, y: y, z: z });
     }
@@ -110,54 +134,41 @@ impl StateHandler {
     pub fn autopilot(&self) {}
 
     pub fn water(&self, duration: Duration) {
-        // TODO send command to Arduino to turn on water
         mutate_state!(&self.state, water = true);
-        thread::sleep(duration);
-        // TODO send command to Arduino to turn off water
+        self.master.water(duration);
         mutate_state!(&self.state, water = false);
     }
 
     pub fn lights(&self, duration: Duration) {
-        // TODO send command to Arduino to turn on the lights
         mutate_state!(&self.state, lights = true);
-        thread::sleep(duration);
-        // TODO send command to Arduino to turn off the lights
+        self.master.lights(duration);
         mutate_state!(&self.state, lights = false);
     }
 
     pub fn air_pump(&self, duration: Duration) {
-        // TODO send command to Arduino to turn on the air pump
         mutate_state!(&self.state, air_pump = true);
-        thread::sleep(duration);
-        // TODO send command to Arduino to turn off the air pump
+        self.master.pump(duration);
         mutate_state!(&self.state, air_pump = false);
     }
 
     pub fn plow(&self, duration: Duration) {
-        // TODO send command to Arduino to turn on the air pump
         mutate_state!(&self.state, plow = true);
-        thread::sleep(duration);
-        // TODO send command to Arduino to turn off the air pump
+        self.master.plow(duration);
         mutate_state!(&self.state, plow = false);
     }
 
     pub fn reset(&self) {
-        // TODO send command to Arduino
-        mutate_state!(
-            &self.state,
-            target_x = 0.0,
-            target_y = -ARM_LENGTH,
-            target_z = 0.0
-        );
+        self.master.reset(0.0, -ARM_LENGTH, 0.0);
+        mutate_state!(&self.state, target_x = 0.0, target_y = -ARM_LENGTH, target_z = 0.0);
     }
 
     pub fn retract(&self) {
-        // TODO send command to Arduino
+        self.master.retract(0.0);
         mutate_state!(&self.state, target_z = 0.0);
     }
 
-    pub fn move_to(&self, x: f64, y: f64, z: f64) {
-        // TODO send command to Arduino
+    pub fn move_to(&self, x: f32, y: f32, z: f32) {
+        self.master.move_to(x, y, z);
         mutate_state!(&self.state, target_x = x, target_y = y, target_z = z);
     }
 }

@@ -1,6 +1,6 @@
 #![no_std]
 
-use core::{future::Future, marker::PhantomData, pin::pin};
+use core::{future::Future, marker::PhantomData, pin::pin, time::Duration};
 
 use futures::future::{select, Either};
 use serde::{Deserialize, Serialize};
@@ -111,8 +111,28 @@ pub enum Message {
         y: f32,
         z: f32,
     },
+    Reset {
+        x: f32,
+        y: f32,
+        z: f32,
+    },
+    Retract {
+        z: f32,
+    },
     Pool {
         id: u8,
+    },
+    Water {
+        water_state: Duration,
+    },
+    Lights {
+        lights_state: Duration,
+    },
+    Pump {
+        pump_state: Duration,
+    },
+    Plow {
+        plow_state: Duration,
     },
 }
 
@@ -166,6 +186,13 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Slave<Serial, Sleeper> {
                     Message::Pool { id } => {
                         self.com.send(Response::Done, id).await;
                     }
+                    Message::Reset { x, y, z } => todo!(),
+                    Message::Retract { z } => todo!(),
+                    Message::Water { water_state } => todo!(),
+                    Message::Lights { lights_state } => todo!(),
+                    Message::Pump { pump_state } => todo!(),
+                    Message::Plow { plow_state } => todo!(),
+                    _ => todo!()
                 }
             }
         }

@@ -1,11 +1,20 @@
 extern crate std;
+use core::{fmt::Debug, time::Duration};
 use std::println;
 
 use crate::{AsyncSerial, Comunication, Message, Response, Sleep};
 
+
 pub struct Master<Serial: AsyncSerial, Sleeper: Sleep> {
     id: u8,
-    com: Comunication<Serial, Sleeper>,
+    com: Comunication<
+    Serial, Sleeper>,
+}
+impl<Serial: AsyncSerial, Sleeper: Sleep> Debug for Master<Serial, Sleeper> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Master").finish()
+    }
+
 }
 impl<Serial: AsyncSerial, Sleeper: Sleep> Master<Serial, Sleeper> {
     pub fn new(serial: Serial, timeout_us: u64) -> Self {
@@ -50,6 +59,31 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Master<Serial, Sleeper> {
         }
         Err(())
     }
+
+    pub async fn reset(&mut self, x: f32, y: f32, z: f32) -> Result<(), ()>{
+        todo!();
+    } 
+
+    pub async fn retract(&mut self, z: f32) -> Result<(), ()>{
+        todo!();
+    } 
+
+    pub async fn water(&mut self, water_state: Duration) -> Result<(), ()>{
+        todo!();
+    } 
+
+    pub async fn lights(&mut self, lights_state: Duration) -> Result<(), ()>{
+        todo!();
+    } 
+
+    pub async fn pump(&mut self, pump_state: Duration) -> Result<(), ()>{
+        todo!();
+    } 
+
+    pub async fn plow(&mut self, plow_state: Duration) -> Result<(), ()>{
+        todo!();
+    } 
+
     pub async fn who_are_you(&mut self) -> Result<([u8; 10], u8), ()> {
         for _ in 0..50 {
             if !self.send(Message::WhoAreYou).await {
