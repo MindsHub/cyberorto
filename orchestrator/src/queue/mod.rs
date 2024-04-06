@@ -1,7 +1,8 @@
 pub mod action_wrapper;
 
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
+    iter::Map,
     sync::{Arc, Condvar, Mutex},
 };
 
@@ -17,6 +18,12 @@ enum EmergencyStatus {
     None,
     WaitingForReset,
     Resetting,
+}
+
+#[derive(Debug)]
+pub enum ReorderError {
+    MismatchedExpectedNew,
+    QueueChanged,
 }
 
 #[derive(Debug)]
@@ -132,5 +139,43 @@ impl QueueHandler {
             queue.actions.push_back(action);
             id
         })
+    }
+
+    pub fn reorder(&self, expected: Vec<ActionId>, new: Vec<ActionId>) -> Result<(), ReorderError> {
+        {
+            let mut expected_sorted = expected.clone();
+            let mut new_sorted = new.clone();
+            expected_sorted.sort();
+            new_sorted.sort();
+            if expected_sorted != new_sorted {
+                return Err(ReorderError::MismatchedExpectedNew);
+            }
+        }
+
+        mutate_queue_and_notify!(self.queue, queue, {
+            let current = queue
+                .actions
+                .iter()
+                .map(|action| action.id)
+                .collect::<Vec<ActionId>>();
+            if expected != current {
+                return Err(ReorderError::QueueChanged);
+            }
+
+            let count = new.len();
+            let new: HashMap<ActionId, usize> = new
+                .into_iter()
+                .enumerate()
+                .map(|(i, val)| (val, i))
+                .collect();
+
+            let q = &mut queue.actions;
+            q.rotate_right(q.as_slices().1.len());
+            q.as_mut_slices()
+                .0
+                .sort_by_key(|action| new.get(&action.id).unwrap_or(&count))
+        });
+
+        Ok(())
     }
 }
