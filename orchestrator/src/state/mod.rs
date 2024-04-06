@@ -40,6 +40,12 @@ impl Default for State {
         }
     }
 }
+#[derive(Debug, Clone)]
+pub struct Plant_time{
+    plant_timer: f64,
+    water_timer: f64,
+}
+
 
 #[derive(Debug, Clone)]
 pub struct Plant{
@@ -104,6 +110,8 @@ impl StateHandler {
     }
 
     pub fn autopilot(&self) {
+        
+
 
 
     }
