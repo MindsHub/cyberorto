@@ -31,26 +31,30 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Master<Serial, Sleeper> {
     pub async fn move_to(&mut self, x: f32, y: f32, z: f32) -> Result<(), ()> {
         let m = Message::Move { x, y, z };
         //retry only 10 times
-        'complete: for i in 0..1 {
+        'complete: for i in 0..10 {
             // send Move
             if !self.send(m.clone()).await {
                 continue;
             }
             let id = self.id;
-
+            
+            // Iterate until the master receive a response
             while let Some((id_read, msg)) = self.com.try_read::<Response>().await {
+                // If the response is from another message he read again
                 if id_read != id {
                     continue;
                 }
+                // Matches the response and recognize the case
                 match msg {
+                    // If the response is wait I await for 1000ms
                     Response::Wait { ms } => {
                         Sleeper::await_us(ms * 1000).await;
                         if !self.send(Message::Pool { id }).await {
-                            continue 'complete;
+                            continue;
                         }
                     }
+                    // If is done I return OK
                     Response::Done => {
-                        println!("resend {i}");
                         return Ok(());
                     }
                     _ => {}
@@ -61,11 +65,73 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Master<Serial, Sleeper> {
     }
 
     pub async fn reset(&mut self, x: f32, y: f32, z: f32) -> Result<(), ()>{
-        todo!();
+        let r = Message::Reset { x, y, z};
+        'complete: for i in 0..1 {
+            // send Reset
+            if !self.send(r.clone()).await {
+                continue;
+            }
+            let id = self.id;
+            
+            // Iterate until the master receive a response
+            while let Some((id_read, msg)) = self.com.try_read::<Response>().await {
+                // If the response is from another message he read again
+                if id_read != id {
+                    continue;
+                }
+                // Matches the response and recognize the case
+                match msg {
+                    // If the response is wait I await for 1000ms
+                    Response::Wait { ms } => {
+                        Sleeper::await_us(ms * 1000).await;
+                        if !self.send(Message::Pool { id }).await {
+                            continue;
+                        }
+                    }
+                    // If is done I return OK
+                    Response::Done => {
+                        return Ok(());
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Err(())
     } 
 
     pub async fn retract(&mut self, z: f32) -> Result<(), ()>{
-        todo!();
+        let r = Message::Retract { z};
+        'complete: for i in 0..1 {
+            // send Reset
+            if !self.send(r.clone()).await {
+                continue;
+            }
+            let id = self.id;
+            
+            // Iterate until the master receive a response
+            while let Some((id_read, msg)) = self.com.try_read::<Response>().await {
+                // If the response is from another message he read again
+                if id_read != id {
+                    continue;
+                }
+                // Matches the response and recognize the case
+                match msg {
+                    // If the response is wait I await for 1000ms
+                    Response::Wait { ms } => {
+                        Sleeper::await_us(ms * 1000).await;
+                        if !self.send(Message::Pool { id }).await {
+                            continue;
+                        }
+                    }
+                    // If is done I return OK
+                    Response::Done => {
+                        return Ok(());
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Err(())
     } 
 
     pub async fn water(&mut self, water_state: Duration) -> Result<(), ()>{
