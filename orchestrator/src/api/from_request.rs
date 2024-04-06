@@ -7,17 +7,24 @@
 //! }
 //! ```
 
-use rocket::{request::{self, FromRequest}, Request};
+use rocket::{
+    request::{self, FromRequest},
+    Request,
+};
 
-use crate::{queue::QueueHandler, state::{State, StateHandler}};
-
+use crate::{
+    queue::QueueHandler,
+    state::{State, StateHandler},
+};
 
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for State {
     type Error = ();
 
     async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
-        request.guard::<&rocket::State<StateHandler>>().await
+        request
+            .guard::<&rocket::State<StateHandler>>()
+            .await
             .map(|request_handler| request_handler.get_state())
     }
 }
@@ -29,7 +36,9 @@ impl<'r> FromRequest<'r> for &'r QueueHandler {
     type Error = ();
 
     async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
-        request.guard::<&rocket::State<QueueHandler>>().await
+        request
+            .guard::<&rocket::State<QueueHandler>>()
+            .await
             .map(|request_handler| request_handler.inner())
     }
 }

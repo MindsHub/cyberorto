@@ -1,0 +1,65 @@
+name: Documentation
+
+on:
+  push:
+    branches:
+      - main
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+jobs:
+  tests:
+    name: ci-testing
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt install avr-libc gcc-avr pkg-config avrdude libudev-dev build-essential 
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: nightly
+      - name: tests (workspace)
+        run: cargo test --all-features-Awarnings
+  docs:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt install avr-libc gcc-avr pkg-config avrdude libudev-dev build-essential 
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: nightly-2023-12-28
+          components: rust-src
+      - name: Build documentation (workspace)
+        run: cargo doc --all-features --no-deps
+      - name: Build documentation (Arduino)
+        run: cd arduino/ && cargo doc --no-deps && cd ..
+      - name: Move arduino doc to common folder
+        run: mv  arduino/target/avr-atmega328p/doc/arduino/ ./target/doc
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./target/doc
+          name: github-pages
+
+  # Deployment job
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: [tests, docs]
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
