@@ -2,7 +2,6 @@ pub mod action_wrapper;
 
 use std::{
     collections::{HashMap, VecDeque},
-    iter::Map,
     sync::{Arc, Condvar, Mutex},
 };
 
