@@ -46,6 +46,8 @@ jobs:
         run: cd arduino/ && cargo doc --no-deps && cd ..
       - name: Move arduino doc to common folder
         run: mv  arduino/target/avr-atmega328p/doc/arduino/ ./target/doc
+      - name: remove lock
+        run: rm  target/doc/.lock
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
