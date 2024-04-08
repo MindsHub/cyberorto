@@ -1,12 +1,12 @@
-use arduino_common::{testable::Testable, Comunication};
+use arduino_common::prelude::*;
 use indicatif::ProgressIterator;
 use rand::{thread_rng, Rng};
-use tokio::time::Sleep;
+
 #[tokio::main]
 async fn main() {
     let (master, slave) = Testable::new(0.03, 0.03);
-    let mut master: Comunication<Testable, Sleep> = Comunication::new(master, 100);
-    let mut slave: Comunication<Testable, Sleep> = Comunication::new(slave, 100);
+    let mut master: Comunication<Testable, StdSleeper> = Comunication::new(master, 100);
+    let mut slave: Comunication<Testable, StdSleeper> = Comunication::new(slave, 100);
     let mut rng = thread_rng();
     let mut corretti = 0;
     let mut resend = 0;

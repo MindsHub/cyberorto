@@ -1,103 +1,21 @@
 #![no_std]
-
-use core::{future::Future, marker::PhantomData, pin::pin, time::Duration};
-
-use futures::future::{select, Either};
+use core::{marker::PhantomData, time::Duration};
+use core::fmt::Debug;
+use prelude::*;
 use serde::{Deserialize, Serialize};
-use serialmessage::{ParseState, SerMsg};
 
 #[cfg(feature = "std")]
 pub mod testable;
 
 #[cfg(feature = "std")]
-pub mod pc;
+pub mod std;
 
-#[cfg(feature = "std")]
-pub mod master;
+pub mod no_std;
 
-#[cfg(feature = "std")]
-pub mod tokio;
+pub mod traits;
 
-pub trait AsyncSerial {
-    ///tries to read a single byte from Serial
-    fn read(&mut self) -> impl Future<Output = u8>;
-    ///writes a single byte over Serial
-    fn write(&mut self, buf: u8) -> impl Future<Output = ()>;
-}
-
-pub struct Comunication<Serial: AsyncSerial, Sleeper: Sleep> {
-    ph: PhantomData<Sleeper>,
-    timeout_us: u64,
-    serial: Serial,
-    input_buf: SerMsg,
-    buf: [u8; 20],
-}
-pub trait Sleep: Future {
-    fn await_us(us: u64) -> Self;
-}
-
-impl<Serial: AsyncSerial, Sleeper: Sleep> Comunication<Serial, Sleeper> {
-    pub fn new(serial: Serial, timeout_us: u64) -> Self {
-        Self {
-            ph: PhantomData,
-            timeout_us,
-            serial,
-            input_buf: SerMsg::new(),
-            buf: [0u8; 20],
-        }
-    }
-    async fn try_read_byte(&mut self) -> Option<u8> {
-        //let t = Select{ l: pin!(self.serial.read()), r: pin!(Sleeper::await_us(self.timeout_us)) };
-        match select(
-            pin!(self.serial.read()),
-            pin!(Sleeper::await_us(self.timeout_us)),
-        )
-        .await
-        {
-            Either::Left((b, _)) => Some(b),
-            Either::Right(_) => None,
-        }
-    }
-    async fn try_send_byte(&mut self, to_send: u8) -> bool {
-        //let t = Select{ l: pin!(self.serial.write(to_send)), r: pin!(Sleeper::await_us(self.timeout_us)) };
-        match select(
-            pin!(self.serial.write(to_send)),
-            pin!(Sleeper::await_us(self.timeout_us)),
-        )
-        .await
-        {
-            Either::Left(_) => true,
-            Either::Right(_) => false,
-        }
-    }
-    pub async fn try_read<Out: for<'a> Deserialize<'a>>(&mut self) -> Option<(u8, Out)> {
-        while let Some(b) = self.try_read_byte().await {
-            let (state, _) = self.input_buf.parse_read_bytes(&[b]);
-            if let ParseState::DataReady = state {
-                let data = self.input_buf.return_read_data();
-                let id = self.input_buf.return_msg_id();
-                return Some((id, postcard::from_bytes(data).ok()?));
-            }
-        }
-        None
-    }
-
-    pub async fn send<Input: Serialize>(&mut self, to_send: Input, id: u8) -> bool {
-        let Ok(msg) = postcard::to_slice(&to_send, &mut self.buf) else {
-            return false;
-        };
-        let Some((buf, len)) = SerMsg::create_msg_arr(msg, id) else {
-            return false;
-        };
-        //println!("bytes wide {}", len);
-        for b in &buf[0..len] {
-            if !self.try_send_byte(*b).await {
-                return false;
-            }
-        }
-        true
-    }
-}
+pub mod prelude;
+pub mod comunication;
 
 #[repr(u8)]
 #[non_exhaustive]
@@ -199,52 +117,123 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Slave<Serial, Sleeper> {
     }
 }
 
-#[cfg(all(test, feature = "std"))]
-mod test {
-    use postcard::from_bytes;
-    use serialmessage::SerMsg;
+pub struct InnerMaster<Serial: AsyncSerial, Sleeper: Sleep>{
+    com: Comunication<Serial, Sleeper>,
+    id: u8,
+}
 
-    use crate::{testable::Testable, Comunication, Message, Response, Slave};
-    use tokio::time::Sleep;
-    #[tokio::test]
-    async fn test_slave() {
-        let (master, slave) = Testable::new(0.0, 0.0);
-        let mut master: Comunication<Testable, Sleep> = Comunication::new(master, 100);
-        //let s = Comunication::new(slave);
-        let name = b"ciao      ";
-        let mut slave: Slave<Testable, Sleep> = Slave::new(slave, 100, name.clone());
-        let q = tokio::spawn(async move {
-            slave.run().await;
-        });
-        master.send(Message::WhoAreYou, 0).await;
-        let (id, r) = master.try_read::<Response>().await.unwrap();
-        assert_eq!(
-            r,
-            Response::Iam {
-                name: name.clone(),
-                version: 0
+impl <Serial: AsyncSerial, Sleeper: Sleep> InnerMaster<Serial, Sleeper>{
+    async fn send(&mut self, m: Message)->bool{
+        self.id = self.id.wrapping_add(1);
+        self.com.send(m, self.id).await
+    }
+    
+    async fn try_read<Out: for<'a> Deserialize<'a>>(&mut self) -> Option<(u8, Out)> {
+        self.com.try_read().await
+    }
+}
+
+
+
+pub struct Master<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, Sleeper>>> {
+    ph: PhantomData<Serial>,
+    ph2: PhantomData<Sleeper>,
+    inner: Mutex,
+}
+
+impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, Sleeper>>> Master<Serial, Sleeper, Mutex> {
+    pub fn new(serial: Serial, timeout_us: u64) -> Self {
+        Self {
+            ph: PhantomData,
+            ph2: PhantomData,
+            inner: Mutex::new(InnerMaster{ com: Comunication::new(serial, timeout_us), id: 0}) ,
+        }
+    }
+    pub async fn move_to(&self, x: f32, y: f32, z: f32) -> Result<(), ()> {
+        let m = Message::Move { x, y, z };
+        let mut lock = Some(self.inner.mut_lock().await);
+        //retry only 10 times
+        for _ in 0..10 {
+            // send Move
+            if !lock.as_mut().unwrap().send(m.clone()).await {
+                continue;
             }
-        );
-        assert_eq!(id, 0);
-        q.abort();
+            let id = lock.as_mut().unwrap().id;
+
+            while let Some((id_read, msg)) = lock.as_mut().unwrap().try_read::<Response>().await {
+                if id_read != id {
+                    continue;
+                }
+                match msg {
+                    Response::Wait { ms } => {
+                        lock.take();
+                        Sleeper::await_us(ms * 1000).await;
+
+                        lock = Some(self.inner.mut_lock().await);
+                        if !lock.as_mut().unwrap().send(Message::Pool { id }).await {
+                            continue;
+                        }
+                    }
+                    Response::Done => {
+                        return Ok(());
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Err(())
     }
 
-    #[tokio::test]
-    async fn test_send_receive() {
-        let (master, slave) = Testable::new(0.0, 0.0);
-        let mut master: Comunication<Testable, Sleep> = Comunication::new(master, 100);
-        let mut slave: Comunication<Testable, Sleep> = Comunication::new(slave, 100);
-        master.send(Message::WhoAreYou, 0).await;
-        slave.try_read::<Message>().await.unwrap();
-    }
 
-    #[test]
-    fn decompile() {
-        let v = [0x7E, 0x01, 0xFF, 0x04, 0x01, 0xB0, 0xD5, 0x04, 0xD1, 0x81];
-        let mut msg = SerMsg::new();
-        let _ = msg.parse_read_bytes(&v);
-        let data = msg.return_read_data();
-        let _msg = from_bytes::<Response>(data).unwrap();
-        //panic!("{:?}", msg);
+    pub async fn reset(&mut self, x: f32, y: f32, z: f32) -> Result<(), ()>{
+        todo!();
+    } 
+
+    pub async fn retract(&mut self, z: f32) -> Result<(), ()>{
+        todo!();
+    } 
+
+    pub async fn water(&mut self, water_state: Duration) -> Result<(), ()>{
+        todo!();
+    } 
+
+    pub async fn lights(&mut self, lights_state: Duration) -> Result<(), ()>{
+        todo!();
+    } 
+
+    pub async fn pump(&mut self, pump_state: Duration) -> Result<(), ()>{
+        todo!();
+    } 
+
+    pub async fn plow(&mut self, plow_state: Duration) -> Result<(), ()>{
+        todo!();
+    } 
+
+    pub async fn who_are_you(&mut self) -> Result<([u8; 10], u8), ()> {
+        let mut lock = self.inner.mut_lock().await;
+
+        for _ in 0..50 {
+            if !lock.send(Message::WhoAreYou).await {
+                continue;
+            }
+            let id = lock.id;
+
+            while let Some((id_read, msg)) = lock.try_read::<Response>().await {
+                if id_read != id {
+                    continue;
+                }
+                if let Response::Iam { name, version } = msg {
+                    //println!("resend {} ", i);
+                    return Ok((name, version));
+                }
+            }
+        }
+        Err(())
+    }
+}
+
+impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, Sleeper>>,> Debug for Master<Serial, Sleeper, Mutex>{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Master").finish()
     }
 }
