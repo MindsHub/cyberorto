@@ -6,20 +6,46 @@ use arduino_common::prelude::*;
 
 use crate::constants::ARM_LENGTH;
 use crate::constants::WATER_TIME;
+use serde::{Deserialize, Serialize};
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WaterLevel {
+    percentage: f32,
+    liters:     f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatteryLevel {
+    percentage: f32,
+    volts:      f32,
+}
+
 
 #[derive(Debug, Clone)]
 pub struct State {
+    // coordinates where the robots is going
+    // TODO: convert to struct
     target_x: f32,
     target_y: f32,
     target_z: f32,
-    x: f32,
-    y: f32,
-    z: f32,
-    water: bool,
-    lights: bool,
+
+    // component flags
+    water:    bool,
+    lights:   bool,
     air_pump: bool,
+
     plow: bool,
+
     plants: Vec<Plant>,
+
+    // TODO: replace single vars with structs from api
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+
+    pub battery_level: BatteryLevel,
+    pub water_level:   WaterLevel,
 }
 
 impl Default for State {
@@ -28,14 +54,27 @@ impl Default for State {
             target_x: 0.0,
             target_y: 0.0,
             target_z: 0.0,
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
+
             water: false,
             lights: false,
             air_pump: false,
+
             plow: false,
+
             plants: Vec::new(),
+
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+
+            battery_level: BatteryLevel {
+                percentage: 0.0,
+                volts:      0.0,
+            },
+            water_level: WaterLevel {
+                percentage: 0.0,
+                liters:     0.0,
+            }
         }
     }
 }
