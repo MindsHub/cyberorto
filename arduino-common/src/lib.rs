@@ -4,22 +4,29 @@ use core::fmt::Debug;
 use prelude::*;
 use serde::{Deserialize, Serialize};
 
+/// Implementation used while testing. It is behind "std" flag
 #[cfg(feature = "std")]
 pub mod testable;
 
+/// common std implementations. It is behind "std" flag
 #[cfg(feature = "std")]
 pub mod std;
 
+/// default, no std implementation. Not all the implementation can be used in a std context
 pub mod no_std;
 
+/// common traits, they are used to abstract all dependencies from hardware
 pub mod traits;
 
+/// comodity import. Just type use arduino-common::prelude::*; and you are ready to go
 pub mod prelude;
+/// Comunication wrapper. Is used to serialize/deserialize and send/read messages, but it doens't have any clue on what that packets contain
 pub mod comunication;
 
 #[repr(u8)]
 #[non_exhaustive]
 #[derive(Serialize, Deserialize, Debug, Clone)]
+/// In our comunication protocol we send this structure from master-> slave
 pub enum Message {
     /// asking for information about the slave
     WhoAreYou,
@@ -37,7 +44,7 @@ pub enum Message {
     Retract {
         z: f32,
     },
-    Pool {
+    Poll {
         id: u8,
     },
     Water {
@@ -57,6 +64,7 @@ pub enum Message {
 #[repr(u8)]
 #[non_exhaustive]
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+/// In our comunication protocol we send this structure from slave-> master. Master should check if it is reasonable for the command that it has sent.
 pub enum Response {
     /// response to WhoAreYou
     Iam { name: [u8; 10], version: u8 },
@@ -70,19 +78,22 @@ pub enum Response {
     Done,
 }
 
+/// This is a slave builder. when we call run we get a never returning Futures to be polled.
 pub struct Slave<Serial: AsyncSerial, Sleeper: Sleep> {
+    /// comunication interface, that permit to read/send messages
     com: Comunication<Serial, Sleeper>,
     /// what is my name?
     name: [u8; 10],
 }
 impl<Serial: AsyncSerial, Sleeper: Sleep> Slave<Serial, Sleeper> {
-    pub fn new(serial: Serial, timeut_us: u64, name: [u8; 10]) -> Self {
+    /// init this struct, you should provide what serial you will use, and some other configs
+    pub fn new(serial: Serial, timeout_us: u64, name: [u8; 10]) -> Self {
         Self {
-            com: Comunication::new(serial, timeut_us),
+            com: Comunication::new(serial, timeout_us),
             name,
         }
     }
-    /// let's run as Slave
+    /// let's run as Slave. It should never returns
     pub async fn run(&mut self) {
         loop {
             if let Some((id, message)) = self.com.try_read::<Message>().await {
@@ -101,7 +112,7 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Slave<Serial, Sleeper> {
                     Message::Move { x: _, y: _, z: _ } => {
                         self.com.send(Response::Wait { ms: 1 }, id).await;
                     }
-                    Message::Pool { id } => {
+                    Message::Poll { id } => {
                         self.com.send(Response::Done, id).await;
                     }
                     Message::Reset { x, y, z } => todo!(),
@@ -170,7 +181,7 @@ impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, 
                         Sleeper::await_us(ms * 1000).await;
 
                         lock = Some(self.inner.mut_lock().await);
-                        if !lock.as_mut().unwrap().send(Message::Pool { id }).await {
+                        if !lock.as_mut().unwrap().send(Message::Poll { id }).await {
                             continue;
                         }
                     }

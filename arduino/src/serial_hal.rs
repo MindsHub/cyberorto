@@ -19,9 +19,13 @@ static SERIAL_INNER: Mutex<RefCell<Option<SerialInner>>> = Mutex::new(RefCell::n
 
 /// packed way to rapresent data. it should not be visible from outside this module
 struct SerialInner {
+    /// buffer used for output
     out_buffer: VecDeque<u8, BUF_SIZE>,
+    /// buffer used for input
     input_buffer: VecDeque<u8, BUF_SIZE>,
+    /// serial interface
     usart: USART0,
+    /// has this interface overflowed?
     overflowed: bool,
 }
 impl SerialInner {
@@ -157,6 +161,7 @@ impl<'a> Future for AsyncSerialRead<'a> {
     }
 }
 
+/// Future for await that one byte is writable inside the buffer. 
 struct AsyncSerialWrite<'a> {
     s: &'a mut SerialHAL,
     to_send: u8,

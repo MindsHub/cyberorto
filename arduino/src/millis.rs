@@ -21,9 +21,14 @@ use panic_halt as _;
 // ║      1024 ║          125 ║              8 ms ║
 // ║      1024 ║          250 ║             16 ms ║
 // ╚═══════════╩══════════════╩═══════════════════╝
+/// set the prescaler value, Default is 64 (so that 250*64/16000= 1ms)
+
 const PRESCALER: CS0_A = CS0_A::PRESCALE_64;
+
+/// how many timer ticks should the interrupt be fired?
 const TIMER_COUNTS: u64 = 249;
 
+/// every time the interrupt is triggered, how many ms should I move forward?
 const MILLIS_INCREMENT: u64 = 1; //PRESCALER * TIMER_COUNTS / 16000;
 
 /// shared timer counter. count's the millis, and so it should be good for 2^64/1000 secs or more or less half a milion years
@@ -93,6 +98,7 @@ pub fn init_millis(tc0: arduino_hal::pac::TC0) {
 ///
 /// it's precision depends on how many times it get's polled
 pub struct Wait {
+    /// When should I end? (us from start)
     end: u64,
 }
 
@@ -109,6 +115,7 @@ impl Wait {
     }
 }
 impl Sleep for Wait{
+    /// how much time should I wait? is async so it isn't blocking
     fn await_us(us: u64)->Self {
         Self::from_micros(us)
     }
