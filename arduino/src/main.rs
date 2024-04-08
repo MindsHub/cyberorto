@@ -15,9 +15,13 @@ use millis::{init_millis, Wait};
 use panic_halt as _;
 use serial_hal::SerialHAL;
 
-mod millis;
-mod serial_hal;
+///crate containing all timings stuff (init, millis, micros...)
+pub mod millis;
+/// crate containing all serial stugg (init, async traits, buffer dimensions...)
+pub mod serial_hal;
 
+
+///Main entry point
 #[arduino_hal::entry]
 fn main() -> ! {
     //getting peripherals

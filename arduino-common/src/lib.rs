@@ -1,107 +1,32 @@
 #![no_std]
-
-use core::{future::Future, marker::PhantomData, pin::pin};
-
-use futures::future::{select, Either};
+use core::{marker::PhantomData, time::Duration};
+use core::fmt::Debug;
+use prelude::*;
 use serde::{Deserialize, Serialize};
-use serialmessage::{ParseState, SerMsg};
 
+/// Implementation used while testing. It is behind "std" flag
 #[cfg(feature = "std")]
 pub mod testable;
 
+/// common std implementations. It is behind "std" flag
 #[cfg(feature = "std")]
-pub mod pc;
+pub mod std;
 
-#[cfg(feature = "std")]
-pub mod master;
+/// default, no std implementation. Not all the implementation can be used in a std context
+pub mod no_std;
 
-#[cfg(feature = "std")]
-pub mod tokio;
+/// common traits, they are used to abstract all dependencies from hardware
+pub mod traits;
 
-pub trait AsyncSerial {
-    ///tries to read a single byte from Serial
-    fn read(&mut self) -> impl Future<Output = u8>;
-    ///writes a single byte over Serial
-    fn write(&mut self, buf: u8) -> impl Future<Output = ()>;
-}
-
-pub struct Comunication<Serial: AsyncSerial, Sleeper: Sleep> {
-    ph: PhantomData<Sleeper>,
-    timeout_us: u64,
-    serial: Serial,
-    input_buf: SerMsg,
-    buf: [u8; 20],
-}
-pub trait Sleep: Future {
-    fn await_us(us: u64) -> Self;
-}
-
-impl<Serial: AsyncSerial, Sleeper: Sleep> Comunication<Serial, Sleeper> {
-    pub fn new(serial: Serial, timeout_us: u64) -> Self {
-        Self {
-            ph: PhantomData,
-            timeout_us,
-            serial,
-            input_buf: SerMsg::new(),
-            buf: [0u8; 20],
-        }
-    }
-    async fn try_read_byte(&mut self) -> Option<u8> {
-        //let t = Select{ l: pin!(self.serial.read()), r: pin!(Sleeper::await_us(self.timeout_us)) };
-        match select(
-            pin!(self.serial.read()),
-            pin!(Sleeper::await_us(self.timeout_us)),
-        )
-        .await
-        {
-            Either::Left((b, _)) => Some(b),
-            Either::Right(_) => None,
-        }
-    }
-    async fn try_send_byte(&mut self, to_send: u8) -> bool {
-        //let t = Select{ l: pin!(self.serial.write(to_send)), r: pin!(Sleeper::await_us(self.timeout_us)) };
-        match select(
-            pin!(self.serial.write(to_send)),
-            pin!(Sleeper::await_us(self.timeout_us)),
-        )
-        .await
-        {
-            Either::Left(_) => true,
-            Either::Right(_) => false,
-        }
-    }
-    pub async fn try_read<Out: for<'a> Deserialize<'a>>(&mut self) -> Option<(u8, Out)> {
-        while let Some(b) = self.try_read_byte().await {
-            let (state, _) = self.input_buf.parse_read_bytes(&[b]);
-            if let ParseState::DataReady = state {
-                let data = self.input_buf.return_read_data();
-                let id = self.input_buf.return_msg_id();
-                return Some((id, postcard::from_bytes(data).ok()?));
-            }
-        }
-        None
-    }
-
-    pub async fn send<Input: Serialize>(&mut self, to_send: Input, id: u8) -> bool {
-        let Ok(msg) = postcard::to_slice(&to_send, &mut self.buf) else {
-            return false;
-        };
-        let Some((buf, len)) = SerMsg::create_msg_arr(msg, id) else {
-            return false;
-        };
-        //println!("bytes wide {}", len);
-        for b in &buf[0..len] {
-            if !self.try_send_byte(*b).await {
-                return false;
-            }
-        }
-        true
-    }
-}
+/// comodity import. Just type use arduino-common::prelude::*; and you are ready to go
+pub mod prelude;
+/// Comunication wrapper. Is used to serialize/deserialize and send/read messages, but it doens't have any clue on what that packets contain
+pub mod comunication;
 
 #[repr(u8)]
 #[non_exhaustive]
 #[derive(Serialize, Deserialize, Debug, Clone)]
+/// In our comunication protocol we send this structure from master-> slave
 pub enum Message {
     /// asking for information about the slave
     WhoAreYou,
@@ -111,14 +36,35 @@ pub enum Message {
         y: f32,
         z: f32,
     },
-    Pool {
+    Reset {
+        x: f32,
+        y: f32,
+        z: f32,
+    },
+    Retract {
+        z: f32,
+    },
+    Poll {
         id: u8,
+    },
+    Water {
+        water_state: Duration,
+    },
+    Lights {
+        lights_state: Duration,
+    },
+    Pump {
+        pump_state: Duration,
+    },
+    Plow {
+        plow_state: Duration,
     },
 }
 
 #[repr(u8)]
 #[non_exhaustive]
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+/// In our comunication protocol we send this structure from slave-> master. Master should check if it is reasonable for the command that it has sent.
 pub enum Response {
     /// response to WhoAreYou
     Iam { name: [u8; 10], version: u8 },
@@ -132,19 +78,22 @@ pub enum Response {
     Done,
 }
 
+/// This is a slave builder. when we call run we get a never returning Futures to be polled.
 pub struct Slave<Serial: AsyncSerial, Sleeper: Sleep> {
+    /// comunication interface, that permit to read/send messages
     com: Comunication<Serial, Sleeper>,
     /// what is my name?
     name: [u8; 10],
 }
 impl<Serial: AsyncSerial, Sleeper: Sleep> Slave<Serial, Sleeper> {
-    pub fn new(serial: Serial, timeut_us: u64, name: [u8; 10]) -> Self {
+    /// init this struct, you should provide what serial you will use, and some other configs
+    pub fn new(serial: Serial, timeout_us: u64, name: [u8; 10]) -> Self {
         Self {
-            com: Comunication::new(serial, timeut_us),
+            com: Comunication::new(serial, timeout_us),
             name,
         }
     }
-    /// let's run as Slave
+    /// let's run as Slave. It should never returns
     pub async fn run(&mut self) {
         loop {
             if let Some((id, message)) = self.com.try_read::<Message>().await {
@@ -163,61 +112,139 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Slave<Serial, Sleeper> {
                     Message::Move { x: _, y: _, z: _ } => {
                         self.com.send(Response::Wait { ms: 1 }, id).await;
                     }
-                    Message::Pool { id } => {
+                    Message::Poll { id } => {
                         self.com.send(Response::Done, id).await;
                     }
+                    Message::Reset { x, y, z } => todo!(),
+                    Message::Retract { z } => todo!(),
+                    Message::Water { water_state } => todo!(),
+                    Message::Lights { lights_state } => todo!(),
+                    Message::Pump { pump_state } => todo!(),
+                    Message::Plow { plow_state } => todo!(),
+                    _ => todo!()
                 }
             }
         }
     }
 }
 
-#[cfg(all(test, feature = "std"))]
-mod test {
-    use postcard::from_bytes;
-    use serialmessage::SerMsg;
+pub struct InnerMaster<Serial: AsyncSerial, Sleeper: Sleep>{
+    com: Comunication<Serial, Sleeper>,
+    id: u8,
+}
 
-    use crate::{testable::Testable, Comunication, Message, Response, Slave};
-    use tokio::time::Sleep;
-    #[tokio::test]
-    async fn test_slave() {
-        let (master, slave) = Testable::new(0.0, 0.0);
-        let mut master: Comunication<Testable, Sleep> = Comunication::new(master, 100);
-        //let s = Comunication::new(slave);
-        let name = b"ciao      ";
-        let mut slave: Slave<Testable, Sleep> = Slave::new(slave, 100, name.clone());
-        let q = tokio::spawn(async move {
-            slave.run().await;
-        });
-        master.send(Message::WhoAreYou, 0).await;
-        let (id, r) = master.try_read::<Response>().await.unwrap();
-        assert_eq!(
-            r,
-            Response::Iam {
-                name: name.clone(),
-                version: 0
+impl <Serial: AsyncSerial, Sleeper: Sleep> InnerMaster<Serial, Sleeper>{
+    async fn send(&mut self, m: Message)->bool{
+        self.id = self.id.wrapping_add(1);
+        self.com.send(m, self.id).await
+    }
+    
+    async fn try_read<Out: for<'a> Deserialize<'a>>(&mut self) -> Option<(u8, Out)> {
+        self.com.try_read().await
+    }
+}
+
+
+
+pub struct Master<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, Sleeper>>> {
+    ph: PhantomData<Serial>,
+    ph2: PhantomData<Sleeper>,
+    inner: Mutex,
+}
+
+impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, Sleeper>>> Master<Serial, Sleeper, Mutex> {
+    pub fn new(serial: Serial, timeout_us: u64) -> Self {
+        Self {
+            ph: PhantomData,
+            ph2: PhantomData,
+            inner: Mutex::new(InnerMaster{ com: Comunication::new(serial, timeout_us), id: 0}) ,
+        }
+    }
+    pub async fn move_to(&self, x: f32, y: f32, z: f32) -> Result<(), ()> {
+        let m = Message::Move { x, y, z };
+        let mut lock = Some(self.inner.mut_lock().await);
+        //retry only 10 times
+        for _ in 0..10 {
+            // send Move
+            if !lock.as_mut().unwrap().send(m.clone()).await {
+                continue;
             }
-        );
-        assert_eq!(id, 0);
-        q.abort();
+            let id = lock.as_mut().unwrap().id;
+
+            while let Some((id_read, msg)) = lock.as_mut().unwrap().try_read::<Response>().await {
+                if id_read != id {
+                    continue;
+                }
+                match msg {
+                    Response::Wait { ms } => {
+                        lock.take();
+                        Sleeper::await_us(ms * 1000).await;
+
+                        lock = Some(self.inner.mut_lock().await);
+                        if !lock.as_mut().unwrap().send(Message::Poll { id }).await {
+                            continue;
+                        }
+                    }
+                    Response::Done => {
+                        return Ok(());
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Err(())
     }
 
-    #[tokio::test]
-    async fn test_send_receive() {
-        let (master, slave) = Testable::new(0.0, 0.0);
-        let mut master: Comunication<Testable, Sleep> = Comunication::new(master, 100);
-        let mut slave: Comunication<Testable, Sleep> = Comunication::new(slave, 100);
-        master.send(Message::WhoAreYou, 0).await;
-        slave.try_read::<Message>().await.unwrap();
-    }
 
-    #[test]
-    fn decompile() {
-        let v = [0x7E, 0x01, 0xFF, 0x04, 0x01, 0xB0, 0xD5, 0x04, 0xD1, 0x81];
-        let mut msg = SerMsg::new();
-        let _ = msg.parse_read_bytes(&v);
-        let data = msg.return_read_data();
-        let _msg = from_bytes::<Response>(data).unwrap();
-        //panic!("{:?}", msg);
+    pub async fn reset(&mut self, x: f32, y: f32, z: f32) -> Result<(), ()>{
+        todo!();
+    } 
+
+    pub async fn retract(&mut self, z: f32) -> Result<(), ()>{
+        todo!();
+    } 
+
+    pub async fn water(&mut self, water_state: Duration) -> Result<(), ()>{
+        todo!();
+    } 
+
+    pub async fn lights(&mut self, lights_state: Duration) -> Result<(), ()>{
+        todo!();
+    } 
+
+    pub async fn pump(&mut self, pump_state: Duration) -> Result<(), ()>{
+        todo!();
+    } 
+
+    pub async fn plow(&mut self, plow_state: Duration) -> Result<(), ()>{
+        todo!();
+    } 
+
+    pub async fn who_are_you(&mut self) -> Result<([u8; 10], u8), ()> {
+        let mut lock = self.inner.mut_lock().await;
+
+        for _ in 0..50 {
+            if !lock.send(Message::WhoAreYou).await {
+                continue;
+            }
+            let id = lock.id;
+
+            while let Some((id_read, msg)) = lock.try_read::<Response>().await {
+                if id_read != id {
+                    continue;
+                }
+                if let Response::Iam { name, version } = msg {
+                    //println!("resend {} ", i);
+                    return Ok((name, version));
+                }
+            }
+        }
+        Err(())
+    }
+}
+
+impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, Sleeper>>,> Debug for Master<Serial, Sleeper, Mutex>{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Master").finish()
     }
 }

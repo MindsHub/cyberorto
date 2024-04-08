@@ -1,4 +1,5 @@
 extern crate std;
+
 //use std::sync::mpsc::{self, Receiver, Sender};
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use tokio::sync::mpsc::{self, Receiver, Sender};
@@ -12,6 +13,7 @@ pub struct Testable {
     omission_rate: f64,
     rng: SmallRng,
 }
+
 impl Testable {
     pub fn new(error_rate: f64, omission_rate: f64) -> (Self, Self) {
         let (master_tx, slave_rx) = mpsc::channel::<u8>(1000);
@@ -33,9 +35,9 @@ impl Testable {
         (master, slave)
     }
 }
+
 impl AsyncSerial for Testable {
     async fn read(&mut self) -> u8 {
-        // if closed is ok to crash
         self.rx.recv().await.unwrap()
     }
 

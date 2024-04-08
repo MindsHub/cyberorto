@@ -1,5 +1,5 @@
 use crate::queue::QueueHandler;
-use crate::State;
+use crate::state::{State, WaterLevel, BatteryLevel};
 
 use rocket::serde::json::Json;
 use serde::{Deserialize, Serialize};
@@ -10,6 +10,7 @@ mod from_request;
 * used structures definitions *
 //region *********************/
 
+// TODO: move struct in State and import it here
 #[derive(Serialize, Deserialize)]
 pub struct Position {
     x: f32,
@@ -18,15 +19,10 @@ pub struct Position {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct WaterLevel {
-    percentage: f32,
-    liters: f32,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct BatteryLevel {
-    percentage: f32,
-    volts: f32,
+pub struct RobotState {
+    position:      Position,
+    water_level:   WaterLevel,
+    battery_level: BatteryLevel,
 }
 
 /**********************************
@@ -56,36 +52,19 @@ pub fn post_water(robot_state: State, queue_handler: &QueueHandler) {
     // TODO add action
 }
 
-// get position
-#[get("/position")]
-pub fn get_position(robot_state: State, queue_handler: &QueueHandler) -> Json<Position> {
-    let position_data: Position = Position {
-        x: 0.0, // TODO
-        y: 0.0, // TODO
-        z: 0.0, // TODO
+// get state
+#[get("/state")]
+pub fn get_state(robot_state: State) -> Json<RobotState> {
+
+    let position_data: RobotState = RobotState {
+        position: Position {
+            x: robot_state.x,
+            y: robot_state.y,
+            z: robot_state.z,
+        },
+        water_level:   robot_state.water_level,
+        battery_level: robot_state.battery_level,
     };
 
     return Json(position_data);
-}
-
-// get water level
-#[get("/water-level")]
-pub fn get_water_level(robot_state: State, queue_handler: &QueueHandler) -> Json<WaterLevel> {
-    let water_level: WaterLevel = WaterLevel {
-        percentage: 0.0, // TODO
-        liters: 0.0,     // TODO
-    };
-
-    return Json(water_level);
-}
-
-// get battery level
-#[get("/battery-level")]
-pub fn get_battery_level(robot_state: State, queue_handler: &QueueHandler) -> Json<BatteryLevel> {
-    let battery_level: BatteryLevel = BatteryLevel {
-        percentage: 0.0, // TODO
-        volts: 0.0,      // TODO
-    };
-
-    return Json(battery_level);
 }

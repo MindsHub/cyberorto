@@ -24,9 +24,10 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
+          rustflags: ""
           toolchain: nightly
       - name: tests (workspace)
-        run: RUSTFLAGS=-Awarnings cargo test --all-features
+        run:  cargo test --all-features
   docs:
     name: Build Documentation
     runs-on: ubuntu-latest
@@ -38,6 +39,7 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
+          rustflags: ""
           toolchain: nightly-2023-12-28
           components: rust-src
       - name: Build documentation (workspace)
@@ -46,11 +48,12 @@ jobs:
         run: cd arduino/ && cargo doc --no-deps && cd ..
       - name: Move arduino doc to common folder
         run: mv  arduino/target/avr-atmega328p/doc/arduino/ ./target/doc
+      - name: remove lock
+        run: rm  target/doc/.lock
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./target/doc
-          name: github-pages
 
   # Deployment job
   deploy:
@@ -62,4 +65,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v3
+        uses: actions/deploy-pages@v4

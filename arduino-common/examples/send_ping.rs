@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use arduino_common::master::Master;
+use arduino_common::prelude::*;
 use serialport::SerialPort;
-use tokio::time::Sleep;
+use tokio::sync::Mutex;
 #[tokio::main]
 async fn main() {
     let port = serialport::new("/dev/ttyACM0", 115200)
@@ -12,7 +12,7 @@ async fn main() {
         .flow_control(serialport::FlowControl::None)
         .open()
         .expect("Failed to open port");
-    let mut master: Master<Box<dyn SerialPort>, Sleep> = Master::new(port, 1000);
+    let mut master: Master<Box<dyn SerialPort>, StdSleeper, Mutex<InnerMaster<Box<dyn SerialPort>, StdSleeper>>> = Master::new(port, 1000);
     let mut ok = 0;
     for _ in 0..10000 {
         if master.who_are_you().await.is_ok() {
