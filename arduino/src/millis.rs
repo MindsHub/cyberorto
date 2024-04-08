@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use arduino_common::Sleep;
+use arduino_common::prelude::*;
 use arduino_hal::pac::{tc0::tccr0b::CS0_A, TC0};
 use avr_device::interrupt::Mutex;
 use core::{

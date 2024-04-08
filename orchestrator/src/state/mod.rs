@@ -1,8 +1,8 @@
 use std::{
-    future::Future, sync::{Arc, Mutex, MutexGuard}, thread, time::Duration, vec
+    cell::RefCell, future::Future, sync::{Arc, Mutex, MutexGuard}, thread, time::Duration, vec
 };
 
-use arduino_common::{master::Master, AsyncSerial, Sleep};
+use arduino_common::prelude::*;
 
 use crate::constants::ARM_LENGTH;
 use crate::constants::WATER_TIME;
@@ -56,7 +56,7 @@ pub struct Plant {
 #[derive(Debug, Clone)]
 pub struct StateHandler {
     state: Arc<Mutex<State>>,
-    master: Master<Plant, Plant>,
+    master: Arc<Master<Plant, Plant, tokio::sync::Mutex<InnerMaster<Plant, Plant>>>>,
     // TODO add serial object
 }
 
@@ -103,7 +103,8 @@ impl StateHandler {
     pub fn new() -> StateHandler {
         StateHandler {
             state: Arc::new(Mutex::new(State::default())),
-            master: todo!(),
+            master: Arc::new(Master::new(todo!(), 100)),
+            //master: todo!(),
         }
     }
 
@@ -135,40 +136,40 @@ impl StateHandler {
 
     pub fn water(&self, duration: Duration) {
         mutate_state!(&self.state, water = true);
-        self.master.water(duration);
+        //self.master.water(duration);
         mutate_state!(&self.state, water = false);
     }
 
     pub fn lights(&self, duration: Duration) {
         mutate_state!(&self.state, lights = true);
-        self.master.lights(duration);
+        //self.master.lights(duration);
         mutate_state!(&self.state, lights = false);
     }
 
     pub fn air_pump(&self, duration: Duration) {
         mutate_state!(&self.state, air_pump = true);
-        self.master.pump(duration);
+        //self.master.pump(duration);
         mutate_state!(&self.state, air_pump = false);
     }
 
     pub fn plow(&self, duration: Duration) {
         mutate_state!(&self.state, plow = true);
-        self.master.plow(duration);
+        //self.master.plow(duration);
         mutate_state!(&self.state, plow = false);
     }
 
     pub fn reset(&self) {
-        self.master.reset(0.0, -ARM_LENGTH, 0.0);
+        //self.master.reset(0.0, -ARM_LENGTH, 0.0);
         mutate_state!(&self.state, target_x = 0.0, target_y = -ARM_LENGTH, target_z = 0.0);
     }
 
     pub fn retract(&self) {
-        self.master.retract(0.0);
+        //self.master.retract(0.0);
         mutate_state!(&self.state, target_z = 0.0);
     }
 
     pub fn move_to(&self, x: f32, y: f32, z: f32) {
-        self.master.move_to(x, y, z);
+        //self.master.move_to(x, y, z);
         mutate_state!(&self.state, target_x = x, target_y = y, target_z = z);
     }
 }

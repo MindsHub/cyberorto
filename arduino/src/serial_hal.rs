@@ -2,7 +2,7 @@ use core::{cell::RefCell, task::Context};
 use core::future::Future;
 use core::task::Poll;
 
-use arduino_common::AsyncSerial;
+use arduino_common::prelude::*;
 use arduino_hal::clock::MHz16;
 
 use arduino_hal::hal::usart::BaudrateExt;
