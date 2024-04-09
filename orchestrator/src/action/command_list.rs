@@ -1,13 +1,15 @@
-use std::{collections::VecDeque, time::Duration};
+use std::{collections::VecDeque, fs::File, time::Duration};
 
-use super::Action;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
+use super::{Action, Context};
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CommandListAction {
     commands: VecDeque<Command>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Command {
     Move {
         x: f32,
@@ -43,5 +45,19 @@ impl Action for CommandListAction {
         }
 
         !self.commands.is_empty()
+    }
+
+    fn get_type_name() -> &'static str where Self: Sized {
+        "command_list"
+    }
+
+    fn save_to_disk(&self, ctx: &Context) -> Result<(), String> {
+        let file = File::create(ctx.get_save_dir().join("data.json")).map_err(|e| e.to_string())?;
+        serde_json::to_writer(file, &self).map_err(|e| e.to_string())
+    }
+
+    fn load_from_disk(ctx: &Context) -> Result<Self, String> where Self: Sized {
+        let file = File::open(ctx.get_save_dir().join("data.json")).map_err(|e| e.to_string())?;
+        serde_json::from_reader(file).map_err(|e| e.to_string())
     }
 }
