@@ -1,4 +1,5 @@
 pub mod emergency;
+pub mod command_list;
 
 use std::fmt::Debug;
 
