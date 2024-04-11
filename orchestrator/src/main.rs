@@ -1,11 +1,8 @@
-use crate::state::State;
+#![allow(unused)] // TODO remove
+
 use std::thread;
 
 use queue::QueueHandler;
-use rocket::{
-    request::{self, FromRequest},
-    Request,
-};
 use state::StateHandler;
 
 mod action;
