@@ -12,7 +12,7 @@ async fn main() {
         .flow_control(serialport::FlowControl::None)
         .open()
         .expect("Failed to open port");
-    let mut master: Master<Box<dyn SerialPort>, StdSleeper, Mutex<InnerMaster<Box<dyn SerialPort>, StdSleeper>>> = Master::new(port, 1000);
+    let mut master: Master<Box<dyn SerialPort>, StdSleeper, Mutex<InnerMaster<Box<dyn SerialPort>, StdSleeper>>> = Master::new(port, 1000, 20);
     let mut ok = 0;
     for _ in 0..10000 {
         if master.who_are_you().await.is_ok() {

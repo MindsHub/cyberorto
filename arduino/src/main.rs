@@ -9,17 +9,18 @@ use core::{
     task::{Context, Waker},
 };
 
-use arduino_common::Slave;
+use arduino_common::{traits::AsyncSerial, SlaveBot};
 
-use millis::{init_millis, Wait};
+use arduino_hal::delay_ms;
+use avr_device::asm::sleep;
+use millis::{init_millis, millis, Wait};
 use panic_halt as _;
 use serial_hal::SerialHAL;
 
-///crate containing all timings stuff (init, millis, micros...)
+/// module containing all timings stuff (init, millis, micros...)
 pub mod millis;
-/// crate containing all serial stugg (init, async traits, buffer dimensions...)
+/// module containing all serial stugg (init, async traits, buffer dimensions...)
 pub mod serial_hal;
-
 
 ///Main entry point
 #[arduino_hal::entry]
@@ -46,10 +47,12 @@ fn main() -> ! {
     //create context for async
     let w = Waker::noop();
     let mut cx = Context::from_waker(&w);
-
-    //create future serial for pooling
+    
+    
+    
+    let mut s: SlaveBot<SerialHAL, Wait> = SlaveBot::new(serial, 100, b"ciao      ".clone());
     let mut serial_async = pin!(async move {
-        let mut s: Slave<SerialHAL, Wait> = Slave::new(serial, 100, b"ciao      ".clone());
+        
         s.run().await;
     });
 
@@ -57,4 +60,8 @@ fn main() -> ! {
     loop {
         let _ = serial_async.as_mut().poll(&mut cx);
     }
+    /*loop{
+        let _ =pin!(serial.write(b'r')).poll(&mut cx);
+        delay_ms(10);
+    }*/
 }

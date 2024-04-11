@@ -142,7 +142,7 @@ impl StateHandler {
     pub fn new() -> StateHandler {
         StateHandler {
             state: Arc::new(Mutex::new(State::default())),
-            master: Arc::new(Master::new(todo!(), 100)),
+            master: Arc::new(Master::new(todo!(), 100, 20)),
             //master: todo!(),
         }
     }

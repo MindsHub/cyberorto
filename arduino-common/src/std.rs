@@ -82,4 +82,3 @@ impl<T> MutexTrait<T> for tokio::sync::Mutex<T>{
 
 pub type TokioMaster<Serial> = Master<Serial, StdSleeper, Mutex<InnerMaster<Serial, StdSleeper>>>;
 
-pub type TestMaster<Serial> = Master<Serial, StdSleeper, Mutex<InnerMaster<Serial, StdSleeper>>>;

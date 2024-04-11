@@ -2,9 +2,11 @@ extern crate std;
 
 //use std::sync::mpsc::{self, Receiver, Sender};
 use rand::{rngs::SmallRng, Rng, SeedableRng};
-use tokio::sync::mpsc::{self, Receiver, Sender};
+use tokio::sync::{mpsc::{self, Receiver, Sender}, Mutex};
 
-use crate::AsyncSerial;
+use crate::prelude::*;
+pub type TestMaster<Serial> = Master<Serial, StdSleeper, Mutex<InnerMaster<Serial, StdSleeper>>>;
+
 
 pub struct Testable {
     tx: Sender<u8>,
@@ -50,5 +52,24 @@ impl AsyncSerial for Testable {
         if self.rng.gen_bool(1.0 - self.omission_rate) {
             let _ = self.tx.send(buf).await;
         }
+    }
+}
+
+#[cfg(test)]
+mod test{
+    use crate::prelude::*;
+
+    async fn init_test()->(TestMaster<Testable>, SlaveBot<Testable, StdSleeper>){
+        let (master, slave) = Testable::new(0.0, 0.0);
+        let master: TestMaster<Testable> = Master::new(master, 10, 10);
+        let slave: SlaveBot<Testable, StdSleeper> = SlaveBot::new(slave, 10, b"ciao      ".clone());
+        
+        (master, slave)
+    }
+    
+    #[tokio::test]
+    async fn test(){
+        let (master, mut slave) = init_test().await;
+        let _  = tokio::spawn(async move{ slave.run().await});
     }
 }
