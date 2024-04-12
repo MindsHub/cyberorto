@@ -1,8 +1,8 @@
 extern crate std;
 use core::{future::Future, ops::DerefMut, task::Poll};
 use serialport::SerialPort;
-use tokio::sync::Mutex;
 use std::{boxed::Box, io::Read, time::Instant};
+use tokio::sync::Mutex;
 
 use crate::prelude::*;
 struct Reader<'a> {
@@ -28,7 +28,6 @@ impl<'a> Future for Reader<'a> {
             cx.waker().wake_by_ref();
             Poll::Pending
         }
-
     }
 }
 
@@ -43,42 +42,45 @@ impl AsyncSerial for Box<dyn SerialPort> {
 }
 
 ///function used to sleep in std enviroments
-pub struct StdSleeper{
+pub struct StdSleeper {
     instant: Instant,
     us_to_wait: u128,
 }
 
-impl Future for StdSleeper{
-    type Output=();
+impl Future for StdSleeper {
+    type Output = ();
 
-    fn poll(self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(
+        self: core::pin::Pin<&mut Self>,
+        cx: &mut core::task::Context<'_>,
+    ) -> Poll<Self::Output> {
         //println!("wait_pool");
-        if self.instant.elapsed().as_micros()>self.us_to_wait{
+        if self.instant.elapsed().as_micros() > self.us_to_wait {
             Poll::Ready(())
-        }else{
+        } else {
             cx.waker().wake_by_ref();
             Poll::Pending
-            
         }
-
     }
 }
-impl Sleep for StdSleeper{
+impl Sleep for StdSleeper {
     fn await_us(us: u64) -> Self {
         //println!("wait");
-        Self { instant: Instant::now(), us_to_wait: us as u128 }
+        Self {
+            instant: Instant::now(),
+            us_to_wait: us as u128,
+        }
     }
 }
 
-impl<T> MutexTrait<T> for tokio::sync::Mutex<T>{
-    fn new(t: T)->Self {
+impl<T> MutexTrait<T> for tokio::sync::Mutex<T> {
+    fn new(t: T) -> Self {
         Self::new(t)
     }
 
-    fn mut_lock(& self)->impl Future<Output= impl DerefMut<Target =  T>> {
+    fn mut_lock(&self) -> impl Future<Output = impl DerefMut<Target = T>> {
         self.lock()
     }
 }
 
 pub type TokioMaster<Serial> = Master<Serial, StdSleeper, Mutex<InnerMaster<Serial, StdSleeper>>>;
-

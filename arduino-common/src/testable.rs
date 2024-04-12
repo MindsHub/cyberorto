@@ -2,11 +2,13 @@ extern crate std;
 
 //use std::sync::mpsc::{self, Receiver, Sender};
 use rand::{rngs::SmallRng, Rng, SeedableRng};
-use tokio::sync::{mpsc::{self, Receiver, Sender}, Mutex};
+use tokio::sync::{
+    mpsc::{self, Receiver, Sender},
+    Mutex,
+};
 
 use crate::prelude::*;
 pub type TestMaster<Serial> = Master<Serial, StdSleeper, Mutex<InnerMaster<Serial, StdSleeper>>>;
-
 
 pub struct Testable {
     tx: Sender<u8>,
@@ -56,20 +58,29 @@ impl AsyncSerial for Testable {
 }
 
 #[cfg(test)]
-mod test{
-    use crate::prelude::*;
+mod test {
+    extern crate std;
+    use crate::{prelude::*, BotState};
+    use std::boxed::Box;
+    use tokio::sync::Mutex;
 
-    async fn init_test()->(TestMaster<Testable>, SlaveBot<Testable, StdSleeper>){
+    async fn init_test() -> (
+        TestMaster<Testable>,
+        SlaveBot<'static, Testable, StdSleeper, Mutex<BotState>>,
+    ) {
         let (master, slave) = Testable::new(0.0, 0.0);
         let master: TestMaster<Testable> = Master::new(master, 10, 10);
-        let slave: SlaveBot<Testable, StdSleeper> = SlaveBot::new(slave, 10, b"ciao      ".clone());
-        
+        let state = Box::new(Mutex::new(BotState::new()));
+        let state = &*Box::leak(state);
+        let slave: SlaveBot<Testable, StdSleeper, _> =
+            SlaveBot::new(slave, 10, b"ciao      ".clone(), state);
+
         (master, slave)
     }
-    
+
     #[tokio::test]
-    async fn test(){
-        let (master, mut slave) = init_test().await;
-        let _  = tokio::spawn(async move{ slave.run().await});
+    async fn test() {
+        let (_master, mut slave) = init_test().await;
+        let _ = tokio::spawn(async move { slave.run().await });
     }
 }

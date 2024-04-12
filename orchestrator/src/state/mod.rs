@@ -79,7 +79,7 @@ impl Default for State {
     }
 }
 #[derive(Debug, Clone)]
-pub struct Plant_time{
+pub struct PlantTime{
     plant_timer: f32,
     water_timer: f32,
 }

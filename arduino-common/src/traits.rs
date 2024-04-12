@@ -14,9 +14,9 @@ pub trait Sleep: Future {
 }
 
 /// we need dynamic mutable access in order to use serial even if we are waiting for a big message.
-/// 
+///
 /// This trait is needed to abstract from the hardware implementation of the mutex
-pub trait MutexTrait<T>{
-    fn new(t: T)->Self;
-    fn mut_lock(& self)->impl Future<Output= impl DerefMut<Target =  T>>;
+pub trait MutexTrait<T> {
+    fn new(t: T) -> Self;
+    fn mut_lock(&self) -> impl Future<Output = impl DerefMut<Target = T>>;
 }

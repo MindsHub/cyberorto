@@ -9,11 +9,10 @@ use core::{
     task::{Context, Waker},
 };
 
-use arduino_common::{traits::AsyncSerial, SlaveBot};
+use arduino_common::{no_std::SingleCoreMutex, traits:: MutexTrait, BotState, SlaveBot};
 
-use arduino_hal::delay_ms;
-use avr_device::asm::sleep;
-use millis::{init_millis, millis, Wait};
+
+use millis::{init_millis, Wait};
 use panic_halt as _;
 use serial_hal::SerialHAL;
 
@@ -48,9 +47,9 @@ fn main() -> ! {
     let w = Waker::noop();
     let mut cx = Context::from_waker(&w);
     
+    let state = SingleCoreMutex::new(BotState::new());
     
-    
-    let mut s: SlaveBot<SerialHAL, Wait> = SlaveBot::new(serial, 100, b"ciao      ".clone());
+    let mut s: SlaveBot<SerialHAL, Wait, _> = SlaveBot::new(serial, 100, b"ciao      ".clone(), &state);
     let mut serial_async = pin!(async move {
         
         s.run().await;

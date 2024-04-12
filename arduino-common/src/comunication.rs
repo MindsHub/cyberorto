@@ -10,17 +10,16 @@ pub struct Comunication<Serial: AsyncSerial, Sleeper: Sleep> {
     /// phantom data
     ph: PhantomData<Sleeper>,
     /// how much time should I wait for a Byte to become available?
-    /// 
+    ///
     /// Or How much time should I wait for a Byte to become Writable?
     timeout_us: u64,
     /// Serial interface
     serial: Serial,
-    /// serial buffer 
+    /// serial buffer
     input_buf: SerMsg,
     /// max incoming message size.
     buf: [u8; 50],
 }
-
 
 impl<Serial: AsyncSerial, Sleeper: Sleep> Comunication<Serial, Sleeper> {
     /// create a new Comunication Instance
@@ -46,9 +45,9 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Comunication<Serial, Sleeper> {
         }
     }
     /// try read a single byte.
-    /// 
+    ///
     /// On success it returns true
-    /// 
+    ///
     /// If waits more than timeout_us microseconds, then it returns false.
     async fn try_send_byte(&mut self, to_send: u8) -> bool {
         //let t = Select{ l: pin!(self.serial.write(to_send)), r: pin!(Sleeper::await_us(self.timeout_us)) };
@@ -63,9 +62,9 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Comunication<Serial, Sleeper> {
         }
     }
     /// tries to read a complex message.
-    /// 
+    ///
     /// On success returns the message and the corresponding Id
-    /// 
+    ///
     /// On failure None
     pub async fn try_read<Out: for<'a> Deserialize<'a>>(&mut self) -> Option<(u8, Out)> {
         while let Some(b) = self.try_read_byte().await {
@@ -79,7 +78,7 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Comunication<Serial, Sleeper> {
         None
     }
     ///tries to send a complex message.
-    /// 
+    ///
     /// On success returns true, on timeout false.
     pub async fn send<Input: Serialize>(&mut self, to_send: Input, id: u8) -> bool {
         let Ok(msg) = postcard::to_slice(&to_send, &mut self.buf) else {

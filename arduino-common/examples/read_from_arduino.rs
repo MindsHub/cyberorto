@@ -30,7 +30,8 @@ async fn main() {
 
     flush(&mut port);
     sleep(Duration::from_secs_f32(1.58));
-    let mut comunication: Comunication<Box<dyn SerialPort>, StdSleeper> = Comunication::new(port, 100);
+    let mut comunication: Comunication<Box<dyn SerialPort>, StdSleeper> =
+        Comunication::new(port, 100);
     let first_time = Instant::now();
     let mut first: Option<Response> = None;
     while first.is_none() {
