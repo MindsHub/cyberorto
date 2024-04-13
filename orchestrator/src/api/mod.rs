@@ -1,6 +1,6 @@
 use crate::queue::QueueHandler;
-use crate::state::{State, WaterLevel, BatteryLevel};
-
+use crate::state::{BatteryLevel, StateHandler, WaterLevel};
+use rocket::State;
 use rocket::serde::json::Json;
 use serde::{Deserialize, Serialize};
 
@@ -28,7 +28,7 @@ pub struct RobotState {
 /**********************************
 * end used structures definitions *
 //endregion **********************/
-
+/*
 #[get("/")]
 pub fn hello(robot_state: State, queue_handler: &QueueHandler) -> String {
     format!("Hello, {:?} {:?}!", robot_state, queue_handler)
@@ -67,4 +67,10 @@ pub fn get_state(robot_state: State) -> Json<RobotState> {
     };
 
     return Json(position_data);
+}*/
+
+#[get("/toggle_led")]
+pub async fn toggle_led(robot_state: &State<StateHandler>){
+    let t = robot_state.toggle_led().await;
+    //robot_state.
 }

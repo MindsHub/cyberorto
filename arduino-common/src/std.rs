@@ -1,7 +1,7 @@
 extern crate std;
 use core::{future::Future, ops::DerefMut, task::Poll};
-use serialport::SerialPort;
-use std::{boxed::Box, io::Read, time::Instant};
+use serialport::{SerialPort, TTYPort};
+use std::{boxed::Box, io::{Read, Write}, time::Instant};
 use tokio::sync::Mutex;
 
 use crate::prelude::*;
@@ -31,9 +31,9 @@ impl<'a> Future for Reader<'a> {
     }
 }
 
-impl AsyncSerial for Box<dyn SerialPort> {
+impl AsyncSerial for TTYPort {
     async fn read(&mut self) -> u8 {
-        Reader::new(self.as_mut()).await
+        Reader::new(self).await
     }
 
     async fn write(&mut self, buf: u8) {

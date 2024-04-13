@@ -25,7 +25,7 @@ async fn main() {
     rocket::build()
         .manage(state_handler) // used by `impl FromRequest for State`
         .manage(queue_handler) // used by `impl FromRequest for &QueueHandler`
-        .mount("/hello", routes![api::hello])
+        .mount("/", routes![api::toggle_led])
         .launch()
         .await
         .unwrap();

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use arduino_common::prelude::*;
-use serialport::SerialPort;
+use serialport::{SerialPort, TTYPort};
 use tokio::{sync::Mutex, time::{sleep, Instant}};
 #[tokio::main]
 async fn main(){
@@ -10,12 +10,12 @@ async fn main(){
         .parity(serialport::Parity::None)
         .stop_bits(serialport::StopBits::One)
         .flow_control(serialport::FlowControl::None)
-        .open()
+        .open_native()
         .expect("Failed to open port");
     let master: Master<
-        Box<dyn SerialPort>,
+        TTYPort,
         StdSleeper,
-        Mutex<InnerMaster<Box<dyn SerialPort>, StdSleeper>>,
+        Mutex<InnerMaster<TTYPort, StdSleeper>>,
     > = Master::new(port, 4000, 1);
     let mut state = true;
     sleep(Duration::from_millis(3000)).await;
