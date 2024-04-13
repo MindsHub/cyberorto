@@ -1,8 +1,9 @@
+rustflags = ["-Z emit-stack-sizes"]
 [build]
 target = "avr-specs/avr-atmega328p.json"
 
 [target.'cfg(target_arch = "avr")']
 runner = "ravedude uno -cb 115200"
-
+#runner = "qemu-system-avr -M uno -nographic -bios"
 [unstable]
 build-std = ["core"]

@@ -1,25 +1,51 @@
 use std::{
-    future::Future, sync::{Arc, Mutex, MutexGuard}, thread, time::Duration, vec
+    cell::RefCell, future::Future, sync::{Arc, Mutex, MutexGuard}, thread, time::Duration, vec
 };
 
-use arduino_common::{master::Master, AsyncSerial, Sleep};
+use arduino_common::prelude::*;
 
 use crate::constants::ARM_LENGTH;
 use crate::constants::WATER_TIME;
+use serde::{Deserialize, Serialize};
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WaterLevel {
+    percentage: f32,
+    liters:     f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatteryLevel {
+    percentage: f32,
+    volts:      f32,
+}
+
 
 #[derive(Debug, Clone)]
 pub struct State {
+    // coordinates where the robots is going
+    // TODO: convert to struct
     target_x: f32,
     target_y: f32,
     target_z: f32,
-    x: f32,
-    y: f32,
-    z: f32,
-    water: bool,
-    lights: bool,
+
+    // component flags
+    water:    bool,
+    lights:   bool,
     air_pump: bool,
+
     plow: bool,
+
     plants: Vec<Plant>,
+
+    // TODO: replace single vars with structs from api
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+
+    pub battery_level: BatteryLevel,
+    pub water_level:   WaterLevel,
 }
 
 impl Default for State {
@@ -28,19 +54,32 @@ impl Default for State {
             target_x: 0.0,
             target_y: 0.0,
             target_z: 0.0,
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
+
             water: false,
             lights: false,
             air_pump: false,
+
             plow: false,
+
             plants: Vec::new(),
+
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+
+            battery_level: BatteryLevel {
+                percentage: 0.0,
+                volts:      0.0,
+            },
+            water_level: WaterLevel {
+                percentage: 0.0,
+                liters:     0.0,
+            }
         }
     }
 }
 #[derive(Debug, Clone)]
-pub struct Plant_time{
+pub struct PlantTime{
     plant_timer: f32,
     water_timer: f32,
 }
@@ -56,7 +95,7 @@ pub struct Plant {
 #[derive(Debug, Clone)]
 pub struct StateHandler {
     state: Arc<Mutex<State>>,
-    master: Master<Plant, Plant>,
+    master: Arc<Master<Plant, Plant, tokio::sync::Mutex<InnerMaster<Plant, Plant>>>>,
     // TODO add serial object
 }
 
@@ -103,7 +142,8 @@ impl StateHandler {
     pub fn new() -> StateHandler {
         StateHandler {
             state: Arc::new(Mutex::new(State::default())),
-            master: todo!(),
+            master: Arc::new(Master::new(todo!(), 100, 20)),
+            //master: todo!(),
         }
     }
 
@@ -135,25 +175,25 @@ impl StateHandler {
 
     pub fn water(&self, duration: Duration) {
         mutate_state!(&self.state, water = true);
-        self.master.water(duration);
+        //self.master.water(duration);
         mutate_state!(&self.state, water = false);
     }
 
     pub fn lights(&self, duration: Duration) {
         mutate_state!(&self.state, lights = true);
-        self.master.lights(duration);
+        //self.master.lights(duration);
         mutate_state!(&self.state, lights = false);
     }
 
     pub fn air_pump(&self, duration: Duration) {
         mutate_state!(&self.state, air_pump = true);
-        self.master.pump(duration);
+        //self.master.pump(duration);
         mutate_state!(&self.state, air_pump = false);
     }
 
     pub fn plow(&self, duration: Duration) {
         mutate_state!(&self.state, plow = true);
-        self.master.plow(duration);
+        //self.master.plow(duration);
         mutate_state!(&self.state, plow = false);
     }
 
@@ -173,7 +213,7 @@ impl StateHandler {
     }
 
     pub fn move_to(&self, x: f32, y: f32, z: f32) {
-        self.master.move_to(x, y, z);
+        //self.master.move_to(x, y, z);
         mutate_state!(&self.state, target_x = x, target_y = y, target_z = z);
     }
 }

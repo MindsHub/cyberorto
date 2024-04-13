@@ -1,17 +1,12 @@
-pub mod action_wrapper;
-
 use std::{
     collections::{HashMap, VecDeque},
-    iter::Map,
     sync::{Arc, Condvar, Mutex},
 };
 
 use crate::{
-    action::{emergency::EmergencyAction, Action},
+    action::{action_wrapper::{ActionId, ActionWrapper}, emergency::EmergencyAction, Action},
     state::StateHandler,
 };
-
-use self::action_wrapper::{ActionId, ActionWrapper};
 
 #[derive(Debug, PartialEq)]
 enum EmergencyStatus {
@@ -35,11 +30,8 @@ struct Queue {
 }
 
 impl Queue {
-    fn create_action_wrapper(&mut self, action: Box<dyn Action>) -> ActionWrapper {
-        let res = ActionWrapper {
-            action: Some(action),
-            id: self.id_counter,
-        };
+    fn create_action_wrapper<A: Action + 'static>(&mut self, action: A) -> ActionWrapper {
+        let res = ActionWrapper::new(action, self.id_counter);
         self.id_counter = self.id_counter.wrapping_add(1);
         res
     }
@@ -86,7 +78,7 @@ impl QueueHandler {
         // This allows moving even the action being currently executed.
         if let Some(action) = last_current_action {
             if action.action.is_some() {
-                if let Some(item) = queue.actions.iter_mut().find(|item| item.id == action.id) {
+                if let Some(item) = queue.actions.iter_mut().find(|item| item.get_id() == action.get_id()) {
                     // If the placeholder corresponding to the current action is in the queue,
                     // replace it with the non-placeholder current action. This not only moves
                     // the Action object back in the queue, but also updates other fields in
@@ -97,7 +89,7 @@ impl QueueHandler {
                 // `else`, it means that the placeholder has been deleted from the queue
                 // in the meantime, so just let the current action be dropped. The loop below
                 // will decide which action will come next.
-            } else if let Some(index) = queue.actions.iter().position(|item| item.id == action.id) {
+            } else if let Some(index) = queue.actions.iter().position(|item| item.get_id() == action.get_id()) {
                 // If the current action has finished executing,
                 // remove its corresponding placeholder from the queue.
                 queue.actions.remove(index);
@@ -110,7 +102,7 @@ impl QueueHandler {
             if queue.paused || queue.emergency != EmergencyStatus::None {
                 if queue.emergency == EmergencyStatus::WaitingForReset {
                     queue.emergency = EmergencyStatus::Resetting;
-                    return queue.create_action_wrapper(Box::new(EmergencyAction {}));
+                    return queue.create_action_wrapper(EmergencyAction {});
                 }
             } else if let Some(current_action) = queue.actions.front_mut() {
                 return current_action.make_placeholder_and_extract();
@@ -132,10 +124,10 @@ impl QueueHandler {
         }
     }
 
-    pub fn add_action(&self, action: Box<dyn Action>) -> ActionId {
+    pub fn add_action<A: Action + 'static>(&self, action: A) -> ActionId {
         mutate_queue_and_notify!(self.queue, queue, {
             let action = queue.create_action_wrapper(action);
-            let id = action.id;
+            let id = action.get_id();
             queue.actions.push_back(action);
             id
         })
@@ -156,7 +148,7 @@ impl QueueHandler {
             let current = queue
                 .actions
                 .iter()
-                .map(|action| action.id)
+                .map(|action| action.get_id())
                 .collect::<Vec<ActionId>>();
             if expected != current {
                 return Err(ReorderError::QueueChanged);
@@ -173,7 +165,7 @@ impl QueueHandler {
             q.rotate_right(q.as_slices().1.len());
             q.as_mut_slices()
                 .0
-                .sort_by_key(|action| new.get(&action.id).unwrap_or(&count))
+                .sort_by_key(|action| new.get(&action.get_id()).unwrap_or(&count))
         });
 
         Ok(())
