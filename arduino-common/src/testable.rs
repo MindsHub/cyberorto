@@ -83,4 +83,15 @@ mod test {
         let (_master, mut slave) = init_test().await;
         let _ = tokio::spawn(async move { slave.run().await });
     }
+    #[tokio::test]
+    async fn test_led_set() {
+        let (master, mut slave) = init_test().await;
+        let refer = slave.state;
+        assert!(!refer.mut_lock().await.led);
+        let _ = tokio::spawn(async move { slave.run().await });
+        master.set_led(true).await.unwrap();
+        assert!(refer.mut_lock().await.led);
+        
+    }
+
 }

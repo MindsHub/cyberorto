@@ -57,6 +57,9 @@ pub enum Message {
     Plow {
         wait_ms: u64,
     },
+    SetLed{
+        led: bool,
+    }
 }
 
 #[repr(u8)]
@@ -69,6 +72,7 @@ pub enum Response {
 
     /// you should wait for around ms
     Wait { ms: u64 },
+
     ///send debug message
     Debug([u8; 10]),
 
@@ -85,10 +89,11 @@ pub struct BotState {
     pub obj_pos: Option<(f32, f32, f32)>,
     pub cur_pos: (f32, f32, f32),
     pub command: Option<Command>,
+    pub led: bool,
 }
 impl BotState{
     pub fn new()->Self{
-        BotState { obj_pos: None, cur_pos: (0.0, 0.0, 0.0), command: None}
+        BotState { obj_pos: None, cur_pos: (0.0, 0.0, 0.0), command: None, led: false}
     }
 }
 
@@ -141,7 +146,11 @@ impl<'a, Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<BotState>>
                             self.com.send(Response::Done, id).await;
                         }
                     }
-                    _ => todo!(),
+                    Message::SetLed { led } => {
+                        lock.led=led;
+                        self.com.send(Response::Done, id).await;
+                    },
+                    _ => {},
                 }
             }
         }
@@ -297,6 +306,17 @@ impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, 
             _ => {}
         );
         todo!();
+    }
+    pub async fn set_led(& self, led: bool)->Result<(), ()>{
+        let m = Message::SetLed { led};
+        let mut lock = Some(self.inner.mut_lock().await);
+        blocking_send!(self, lock, m: 
+            Response::Done => {
+                return Ok(());
+            },
+            _ => {}
+        );
+        Err(())
     }
 
     pub async fn who_are_you(&mut self) -> Result<([u8; 10], u8), ()> {

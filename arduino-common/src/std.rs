@@ -38,6 +38,7 @@ impl AsyncSerial for Box<dyn SerialPort> {
 
     async fn write(&mut self, buf: u8) {
         while self.write_all(&[buf]).is_err() {}
+        self.flush().unwrap();
     }
 }
 
