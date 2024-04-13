@@ -31,7 +31,7 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Master<Serial, Sleeper> {
     pub async fn move_to(&mut self, x: f32, y: f32, z: f32) -> Result<(), ()> {
         let m = Message::Move { x, y, z };
         //retry only 10 times
-        'complete: for i in 0..1 {
+        for i in 0..10 {
             // send Move
             if !self.send(m.clone()).await {
                 continue;
@@ -46,11 +46,10 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Master<Serial, Sleeper> {
                     Response::Wait { ms } => {
                         Sleeper::await_us(ms * 1000).await;
                         if !self.send(Message::Pool { id }).await {
-                            continue 'complete;
+                            continue;
                         }
                     }
                     Response::Done => {
-                        println!("resend {i}");
                         return Ok(());
                     }
                     _ => {}
@@ -60,11 +59,15 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Master<Serial, Sleeper> {
         Err(())
     }
 
-    pub async fn reset(&mut self, x: f32, y: f32, z: f32) -> Result<(), ()>{
+    pub async fn reset(&mut self) -> Result<(), ()>{
         todo!();
     } 
 
-    pub async fn retract(&mut self, z: f32) -> Result<(), ()>{
+    pub async fn home(&mut self) -> Result<(), ()>{
+        todo!();
+    } 
+
+    pub async fn retract(&mut self) -> Result<(), ()>{
         todo!();
     } 
 
