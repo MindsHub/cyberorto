@@ -3,6 +3,7 @@ use std::{
 };
 
 use arduino_common::prelude::*;
+use serialport::TTYPort;
 
 use crate::constants::ARM_LENGTH;
 use crate::constants::WATER_TIME;
@@ -38,6 +39,7 @@ pub struct State {
     plow: bool,
 
     plants: Vec<Plant>,
+    pub led_state: bool,
 
     // TODO: replace single vars with structs from api
     pub x: f32,
@@ -60,7 +62,7 @@ impl Default for State {
             air_pump: false,
 
             plow: false,
-
+            led_state: false,
             plants: Vec::new(),
 
             x: 0.0,
@@ -92,10 +94,12 @@ pub struct Plant {
     z: f32,
 }
 
+
+type Serial = TTYPort;
 #[derive(Debug, Clone)]
 pub struct StateHandler {
     state: Arc<Mutex<State>>,
-    master: Arc<Master<Plant, Plant, tokio::sync::Mutex<InnerMaster<Plant, Plant>>>>,
+    master: Arc<Master<Serial, StdSleeper, tokio::sync::Mutex<InnerMaster<Serial, StdSleeper>>>>,
     // TODO add serial object
 }
 
@@ -108,20 +112,6 @@ impl AsyncSerial for Plant {
         todo!()
     }
 }
-
-impl Sleep for Plant {
-    fn await_us(us: u64) -> Self {
-        todo!()
-    }
-}
-impl Future for Plant{
-    type Output=();
-
-    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
-        todo!()
-    }
-}
-
 fn acquire(state: &Arc<Mutex<State>>) -> MutexGuard<'_, State> {
     match state.lock() {
         Ok(guard) => guard,
@@ -140,9 +130,16 @@ macro_rules! mutate_state {
 
 impl StateHandler {
     pub fn new() -> StateHandler {
+        let port = serialport::new("/dev/ttyACM0", 115200)
+            .timeout(Duration::from_millis(3))
+            .parity(serialport::Parity::None)
+            .stop_bits(serialport::StopBits::One)
+            .flow_control(serialport::FlowControl::None)
+            .open_native()
+            .expect("Failed to open port"); 
         StateHandler {
             state: Arc::new(Mutex::new(State::default())),
-            master: Arc::new(Master::new(todo!(), 100, 20)),
+            master: Arc::new(Master::new(port, 100, 20)),
             //master: todo!(),
         }
     }
@@ -175,6 +172,11 @@ impl StateHandler {
         mutate_state!(&self.state, water = true);
         //self.master.water(duration);
         mutate_state!(&self.state, water = false);
+    }
+    pub async fn toggle_led(&self){
+        let s = !self.get_state().led_state;
+        self.master.set_led(s).await;
+        mutate_state!(&self.state, led_state=s)
     }
 
     pub fn lights(&self, duration: Duration) {
