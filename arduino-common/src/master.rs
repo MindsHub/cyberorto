@@ -73,7 +73,7 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Master<Serial, Sleeper> {
 
     pub async fn water(&mut self, water_state: Duration) -> Result<(), ()>{
         todo!();
-    } 
+    }
 
     pub async fn lights(&mut self, lights_state: Duration) -> Result<(), ()>{
         todo!();

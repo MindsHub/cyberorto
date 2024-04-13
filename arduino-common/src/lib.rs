@@ -262,11 +262,15 @@ impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, 
         Err(())
     }
 
-    pub async fn reset(&mut self, x: f32, y: f32, z: f32) -> Result<(), ()> {
+    pub async fn reset(&mut self) -> Result<(), ()> {
         todo!();
     }
 
-    pub async fn retract(&mut self, z: f32) -> Result<(), ()> {
+    pub async fn home(&mut self) -> Result<(), ()> {
+        todo!();
+    }
+
+    pub async fn retract(&mut self) -> Result<(), ()> {
         todo!();
     }
 
