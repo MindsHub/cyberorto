@@ -168,8 +168,6 @@ impl StateHandler {
         }
     }
 
-    pub fn autopilot(&self) {}
-
     pub fn water(&self, duration: Duration) {
         mutate_state!(&self.state, water = true);
         //self.master.water(duration);
@@ -199,18 +197,23 @@ impl StateHandler {
         mutate_state!(&self.state, plow = false);
     }
 
+    pub fn home(&self) {
+        //self.master.home();
+        mutate_state!(&self.state, target_x = 0.0, target_y = 0.0, target_z = 0.0);
+    }
+
     pub fn reset(&self) {
-        //self.master.reset(0.0, -ARM_LENGTH, 0.0);
+        //self.master.reset();
         mutate_state!(&self.state, target_x = 0.0, target_y = -ARM_LENGTH, target_z = 0.0);
     }
 
     pub fn retract(&self) {
-        //self.master.retract(0.0);
+        //self.master.retract();
         mutate_state!(&self.state, target_z = 0.0);
     }
 
     pub fn move_to(&self, x: f32, y: f32, z: f32) {
-        //self.master.move_to(x, y, z);
+        self.master.move_to(x, y, z);
         mutate_state!(&self.state, target_x = x, target_y = y, target_z = z);
     }
 }
