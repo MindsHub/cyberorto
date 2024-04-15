@@ -14,7 +14,6 @@ use arduino_common::{no_std::SingleCoreMutex, traits:: MutexTrait, BotState, Sla
 
 use arduino_hal::port::{mode::Output, Pin, PinOps};
 
-use embedded_hal::digital::v2::{OutputPin, PinState};
 use millis::{init_millis, Wait};
 use panic_halt as _;
 use serial_hal::SerialHAL;
@@ -25,7 +24,7 @@ pub mod millis;
 pub mod serial_hal;
 
 async fn set_state<PIN: PinOps>(state: &SingleCoreMutex<BotState>, p: &mut Pin<Output, PIN>){
-    let mut inner = true;
+    let mut inner;
     loop {
         
         
@@ -56,23 +55,19 @@ fn main() -> ! {
     // set led pin to low
     let mut led = pins.d13.into_output();
     led.set_low();
-
     // extract usart, and init it
     let serial = dp.USART0;
     let serial = SerialHAL::new(serial);
     //let com = Comunication::new(serial);
-
     //enable interrupts
     unsafe { avr_device::interrupt::enable() };
-
-
+    
     init_millis(dp.TC0);
-
     //create context for async
     let w = Waker::noop();
     let mut cx = Context::from_waker(&w);
     
-    let state = SingleCoreMutex::new(BotState::new());
+    let state = SingleCoreMutex::new(BotState::default());
     
     let mut s: SlaveBot<SerialHAL, Wait, _> = SlaveBot::new(serial, 100, b"ciao      ".clone(), &state);
 

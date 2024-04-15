@@ -1,22 +1,11 @@
 use std::{
+    io::Write,
     thread::sleep,
     time::{Duration, Instant},
 };
 
 use arduino_common::prelude::*;
-use serialport::{ClearBuffer, SerialPort};
-
-fn flush(port: &mut Box<dyn SerialPort>) {
-    port.flush().unwrap();
-    let to_read = port.bytes_to_read().unwrap();
-    if to_read == 0 {
-        return;
-    }
-    let mut buf: Vec<u8> = vec![0u8; to_read as usize];
-    port.read_exact(buf.as_mut_slice()).unwrap();
-    port.clear(ClearBuffer::Input).unwrap();
-    port.clear(ClearBuffer::Output).unwrap();
-}
+use serialport::TTYPort;
 
 #[tokio::main]
 async fn main() {
@@ -25,13 +14,11 @@ async fn main() {
         .parity(serialport::Parity::None)
         .stop_bits(serialport::StopBits::One)
         .flow_control(serialport::FlowControl::None)
-        .open()
+        .open_native()
         .expect("Failed to open port");
-
-    flush(&mut port);
+    let _ = port.flush();
     sleep(Duration::from_secs_f32(1.58));
-    let mut comunication: Comunication<Box<dyn SerialPort>, StdSleeper> =
-        Comunication::new(port, 100);
+    let mut comunication: Comunication<TTYPort, StdSleeper> = Comunication::new(port, 100);
     let first_time = Instant::now();
     let mut first: Option<Response> = None;
     while first.is_none() {

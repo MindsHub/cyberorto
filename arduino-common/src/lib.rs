@@ -1,9 +1,10 @@
 #![no_std]
 use core::fmt::Debug;
 use core::{marker::PhantomData, time::Duration};
+
 use prelude::*;
 use serde::{Deserialize, Serialize};
-
+pub mod motor;
 /// Implementation used while testing. It is behind "std" flag
 #[cfg(feature = "std")]
 pub mod testable;
@@ -57,9 +58,9 @@ pub enum Message {
     Plow {
         wait_ms: u64,
     },
-    SetLed{
+    SetLed {
         led: bool,
-    }
+    },
 }
 
 #[repr(u8)]
@@ -80,7 +81,7 @@ pub enum Response {
     Done,
 }
 
-pub enum Command{
+pub enum Command {
     Moving,
 }
 
@@ -91,9 +92,14 @@ pub struct BotState {
     pub command: Option<Command>,
     pub led: bool,
 }
-impl BotState{
-    pub fn new()->Self{
-        BotState { obj_pos: None, cur_pos: (0.0, 0.0, 0.0), command: None, led: false}
+impl Default for BotState{
+    fn default() -> Self {
+        BotState {
+            obj_pos: None,
+            cur_pos: (0.0, 0.0, 0.0),
+            command: None,
+            led: false,
+        }
     }
 }
 
@@ -140,17 +146,18 @@ impl<'a, Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<BotState>>
                         self.com.send(Response::Wait { ms: 100 }, id).await;
                     }
                     Message::Poll => {
-                        if let Some(_) = &lock.command{
+                        //println!("pool")
+                        if lock.command.is_some() {
                             self.com.send(Response::Wait { ms: 100 }, id).await;
-                        }else{
+                        } else {
                             self.com.send(Response::Done, id).await;
                         }
                     }
                     Message::SetLed { led } => {
-                        lock.led=led;
+                        lock.led = led;
                         self.com.send(Response::Done, id).await;
-                    },
-                    _ => {},
+                    }
+                    _ => {}
                 }
             }
         }
@@ -195,18 +202,19 @@ pub struct Master<
 // self, lock, message: pattern => block...
 macro_rules! blocking_send {
     ($self:ident, $lock:ident, $m:ident : $($p:pat => $block:block),+) => {
-        
+
         for _ in 0..$self.resend_times {
             // send Move
             if !$lock.as_mut().unwrap().send($m.clone()).await {
                 continue;
             }
-            let id = $lock.as_mut().unwrap().id;
+            //let id = $lock.as_mut().unwrap().id;
 
             while let Some((id_read, msg)) = $lock.as_mut().unwrap().try_read::<Response>().await {
-                if id_read != id {
+                if id_read != $lock.as_mut().unwrap().id {
                     continue;
                 }
+
                 match msg {
                     $(
                         $p => $block
@@ -247,7 +255,7 @@ impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, 
     /// Let's tell the bot to move to a particular x, y, z point
     pub async fn move_to(&self, x: f32, y: f32, z: f32) -> Result<(), ()> {
         let m = Message::Move { x, y, z };
-        
+
         let mut lock = Some(self.inner.mut_lock().await);
 
         blocking_send!(self, lock, m:
@@ -257,7 +265,8 @@ impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, 
             Response::Done => {
                 return Ok(());
             },
-            _ => {}
+            _ => {
+            }
         );
         Err(())
     }
@@ -271,12 +280,14 @@ impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, 
     }
 
     pub async fn water(&mut self, water_state: Duration) -> Result<(), ()> {
-        let m = Message::Water { wait_ms: water_state.as_millis() as u64 };
+        let m = Message::Water {
+            wait_ms: water_state.as_millis() as u64,
+        };
         let mut lock = Some(self.inner.mut_lock().await);
-        blocking_send!(self, lock, m: 
+        blocking_send!(self, lock, m:
             Response::Wait { ms } => {
                 wait!(self, lock, ms);
-            }, 
+            },
             Response::Done => {
                 return Ok(())
             },
@@ -293,13 +304,15 @@ impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, 
         todo!();
     }
 
-    pub async fn plow(&mut self, duration: Duration) -> Result<(), ()> {
-        let m = Message::Plow { wait_ms: duration.as_millis() as u64 };
+    pub async fn plow(&self, duration: Duration) -> Result<(), ()> {
+        let m = Message::Plow {
+            wait_ms: duration.as_millis() as u64,
+        };
         let mut lock = Some(self.inner.mut_lock().await);
-        blocking_send!(self, lock, m: 
+        blocking_send!(self, lock, m:
             Response::Wait { ms } => {
                 wait!(self, lock, ms);
-            }, 
+            },
             Response::Done => {
                 return Ok(())
             },
@@ -307,10 +320,10 @@ impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, 
         );
         todo!();
     }
-    pub async fn set_led(& self, led: bool)->Result<(), ()>{
-        let m = Message::SetLed { led};
+    pub async fn set_led(&self, led: bool) -> Result<(), ()> {
+        let m = Message::SetLed { led };
         let mut lock = Some(self.inner.mut_lock().await);
-        blocking_send!(self, lock, m: 
+        blocking_send!(self, lock, m:
             Response::Done => {
                 return Ok(());
             },
@@ -319,7 +332,7 @@ impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, 
         Err(())
     }
 
-    pub async fn who_are_you(&mut self) -> Result<([u8; 10], u8), ()> {
+    pub async fn who_are_you(&self) -> Result<([u8; 10], u8), ()> {
         let mut lock = self.inner.mut_lock().await;
 
         for _ in 0..self.resend_times {

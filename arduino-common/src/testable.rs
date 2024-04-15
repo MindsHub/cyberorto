@@ -61,37 +61,84 @@ impl AsyncSerial for Testable {
 mod test {
     extern crate std;
     use crate::{prelude::*, BotState};
+    use core::time::Duration;
     use std::boxed::Box;
+    use std::sync::Arc;
     use tokio::sync::Mutex;
 
-    async fn init_test() -> (
+    async fn init_test(
+        timeout_us: u64,
+    ) -> (
         TestMaster<Testable>,
         SlaveBot<'static, Testable, StdSleeper, Mutex<BotState>>,
+        &'static Mutex<BotState>,
     ) {
         let (master, slave) = Testable::new(0.0, 0.0);
-        let master: TestMaster<Testable> = Master::new(master, 10, 10);
-        let state = Box::new(Mutex::new(BotState::new()));
+        let master: TestMaster<Testable> = Master::new(master, timeout_us, 10);
+        let state = Box::new(Mutex::new(BotState::default()));
         let state = &*Box::leak(state);
         let slave: SlaveBot<Testable, StdSleeper, _> =
             SlaveBot::new(slave, 10, b"ciao      ".clone(), state);
 
-        (master, slave)
+        (master, slave, state)
     }
 
     #[tokio::test]
-    async fn test() {
-        let (_master, mut slave) = init_test().await;
-        let _ = tokio::spawn(async move { slave.run().await });
-    }
-    #[tokio::test]
     async fn test_led_set() {
-        let (master, mut slave) = init_test().await;
+        let (master, mut slave, _) = init_test(10).await;
         let refer = slave.state;
         assert!(!refer.mut_lock().await.led);
         let _ = tokio::spawn(async move { slave.run().await });
         master.set_led(true).await.unwrap();
         assert!(refer.mut_lock().await.led);
-        
+        master.set_led(false).await.unwrap();
+        assert!(!refer.mut_lock().await.led);
+    }
+    #[tokio::test]
+    async fn test_who_are_you() {
+        let (master, mut slave, _) = init_test(10).await;
+        let _ = tokio::spawn(async move { slave.run().await });
+        let (name, version) = master.who_are_you().await.unwrap();
+        assert_eq!(name, b"ciao      ".clone());
+        assert_eq!(version, 0);
+    }
+    #[tokio::test]
+    async fn test_move_to() {
+        let (master, mut slave, _) = init_test(10).await;
+        let _ = tokio::spawn(async move { slave.run().await });
+        master.move_to(0.0, 0.0, 0.0).await.unwrap();
+        //assert_eq!(name, b"ciao      ".clone());
+        //assert_eq!(version, 0);
     }
 
+    #[tokio::test]
+    async fn test_blocking() {
+        let (master, mut slave, state) = init_test(10000).await;
+        let _ = tokio::spawn(async move { slave.run().await });
+        let master = Arc::new(master);
+        let m1 = master.clone();
+        let q = tokio::spawn(async move { m1.move_to(1.0, 1.0, 1.0).await });
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        let (name, version) = master.who_are_you().await.unwrap();
+        assert_eq!(name, b"ciao      ".clone());
+        assert_eq!(version, 0);
+        assert!(!q.is_finished());
+        state.mut_lock().await.command = None;
+        let res = q.await.unwrap();
+        assert_eq!(res, Ok(()))
+    }
+
+    #[tokio::test]
+    async fn test_timeout() {
+        let (master, slave) = Testable::new(0.0, 1.0);
+        let master: TestMaster<Testable> = Master::new(master, 10, 10);
+        let state = Box::new(Mutex::new(BotState::default()));
+        let state = &*Box::leak(state);
+        let mut slave: SlaveBot<Testable, StdSleeper, _> =
+            SlaveBot::new(slave, 10, b"ciao      ".clone(), state);
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        let _ = tokio::spawn(async move { slave.run().await });
+        let ret = master.who_are_you().await;
+        assert_eq!(ret, Err(()));
+    }
 }

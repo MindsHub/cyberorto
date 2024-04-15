@@ -1,7 +1,10 @@
 extern crate std;
 use core::{future::Future, ops::DerefMut, task::Poll};
 use serialport::{SerialPort, TTYPort};
-use std::{boxed::Box, io::{Read, Write}, time::Instant};
+use std::{
+    io::{Read, Write},
+    time::Instant,
+};
 use tokio::sync::Mutex;
 
 use crate::prelude::*;
