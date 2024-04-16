@@ -33,7 +33,7 @@ impl ActionWrapper {
     }
 
     pub fn get_id(&self) -> ActionId {
-        return self.ctx.id;
+        self.ctx.id
     }
 
     pub fn make_placeholder_and_extract(&mut self) -> ActionWrapper {

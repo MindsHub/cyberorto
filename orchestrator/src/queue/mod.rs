@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    action::{action_wrapper::{ActionId, ActionWrapper}, emergency::EmergencyAction, Action},
+    action::{action_wrapper::{self, ActionId, ActionWrapper}, emergency::EmergencyAction, Action},
     state::StateHandler,
 };
 
@@ -70,44 +70,79 @@ impl QueueHandler {
         }
     }
 
-    fn get_current_action(&self, last_current_action: Option<ActionWrapper>) -> ActionWrapper {
+    /// Readds the last current action to the queue at the position where its
+    /// placeholder is. This allows the current action to be moved around the
+    /// queue even while it is being executed. This also calls
+    /// [release\(\)](Action::release) on the action before putting it back
+    /// into the queue.
+    fn release_last_current_action(queue: &mut Queue, mut action: ActionWrapper) {
+        if action.action.is_some() {
+            // call release() on the action to save resources while it
+            // is not being executed anymore (or if it has been deleted)
+            action.action.as_mut().unwrap().release(&action.ctx);
+
+            if let Some(item) = queue.actions.iter_mut().find(|item| item.get_id() == action.get_id()) {
+                // If the placeholder corresponding to the current action is in the queue,
+                // replace it with the non-placeholder current action. This not only moves
+                // the Action object back in the queue, but also updates other fields in
+                // ActionWrapper and effectively pauses the action if it's not going to be
+                // taken again right after in the loop below.
+                *item = action;
+            }
+            // `else`, it means that the placeholder has been deleted from the queue
+            // in the meantime, so just let the current action be dropped. The loop below
+            // will decide which action will come next.
+        } else if let Some(index) = queue.actions.iter().position(|item| item.get_id() == action.get_id()) {
+            // If the current action has finished executing,
+            // remove its corresponding placeholder from the queue.
+            // No need to call release() since it has already been called
+            // in the main loop.
+            queue.actions.remove(index);
+        }
+        // `else`, the current action has finished executing and its corresponding
+        // placeholder has already been deleted from the queue, so nothing to do
+    }
+
+    fn get_current_action(&self, mut last_current_action: Option<ActionWrapper>) -> ActionWrapper {
         let (queue, condvar) = &*self.queue;
         let mut queue = queue.lock().unwrap();
-
-        // Readd the last current action to the queue at the position where its placeholder is.
-        // This allows moving even the action being currently executed.
-        if let Some(action) = last_current_action {
-            if action.action.is_some() {
-                if let Some(item) = queue.actions.iter_mut().find(|item| item.get_id() == action.get_id()) {
-                    // If the placeholder corresponding to the current action is in the queue,
-                    // replace it with the non-placeholder current action. This not only moves
-                    // the Action object back in the queue, but also updates other fields in
-                    // ActionWrapper and effectively pauses the action if it's not going to be
-                    // taken again right after in the loop below.
-                    *item = action;
-                }
-                // `else`, it means that the placeholder has been deleted from the queue
-                // in the meantime, so just let the current action be dropped. The loop below
-                // will decide which action will come next.
-            } else if let Some(index) = queue.actions.iter().position(|item| item.get_id() == action.get_id()) {
-                // If the current action has finished executing,
-                // remove its corresponding placeholder from the queue.
-                queue.actions.remove(index);
-            }
-            // `else`, the current action has finished executing and its corresponding
-            // placeholder has already been deleted from the queue, so nothing to do
-        }
 
         loop {
             if queue.paused || queue.emergency != EmergencyStatus::None {
                 if queue.emergency == EmergencyStatus::WaitingForReset {
                     queue.emergency = EmergencyStatus::Resetting;
+                    if let Some(last_current_action) = std::mem::take(&mut last_current_action) {
+                        // we are pausing for a while during the emergency,
+                        // so release resources for the current action
+                        Self::release_last_current_action(&mut queue, last_current_action)
+                    }
                     return queue.create_action_wrapper(EmergencyAction {});
                 }
-            } else if let Some(current_action) = queue.actions.front_mut() {
-                return current_action.make_placeholder_and_extract();
+            } else if let Some(id) = queue.actions.front().map(|a| a.get_id()) {
+                if let Some(last_current_action) = std::mem::take(&mut last_current_action) {
+                    if id == last_current_action.get_id() && last_current_action.action.is_some() {
+                        // just continue executing the current action for another step
+                        return last_current_action;
+                    } else {
+                        // the action to execute just changed, or the current action has finished
+                        // executing, so release it
+                        Self::release_last_current_action(&mut queue, last_current_action)
+                    }
+                }
+
+                // The id of the first action in the queue changed, so we are going to execute a new
+                // action. Unwrapping since we already checked that the queue is not empty above.
+                let mut new_current_action = queue.actions.front_mut().unwrap().make_placeholder_and_extract();
+                // We call acquire() to abide by the action lifecycle. Unwrapping since
+                // make_placeholder_and_extract() is guaranteed not to return a placeholder.
+                new_current_action.action.as_mut().unwrap().acquire(&new_current_action.ctx);
+                return new_current_action;
             }
 
+            if let Some(last_current_action) = std::mem::take(&mut last_current_action) {
+                // we are pausing for a while, so release resources for the current action
+                Self::release_last_current_action(&mut queue, last_current_action)
+            }
             queue = condvar.wait(queue).unwrap();
         }
     }
@@ -115,12 +150,14 @@ impl QueueHandler {
     pub fn main_loop(&self) {
         let mut last_action = None; // will be None only the first iteration
         loop {
-            let mut action = self.get_current_action(last_action);
+            let mut action_wrapper = self.get_current_action(last_action);
             // unwrapping since the returned action can't be a placeholder
-            if !action.action.as_mut().unwrap().step(&action.ctx, &self.state_handler) {
-                action.action = None;
+            let mut action = action_wrapper.action.as_mut().unwrap();
+            if !action.step(&action_wrapper.ctx, &self.state_handler) {
+                action.release(&action_wrapper.ctx);
+                action_wrapper.action = None;
             }
-            last_action = Some(action);
+            last_action = Some(action_wrapper);
         }
     }
 
