@@ -6,7 +6,7 @@ use super::{Action, Context};
 pub struct EmergencyAction {}
 
 impl Action for EmergencyAction {
-    fn step(&mut self, state_handler: &StateHandler) -> bool {
+    fn step(&mut self, ctx: &Context, state_handler: &StateHandler) -> bool {
         // TODO implement better emergency logic
         state_handler.reset();
         false

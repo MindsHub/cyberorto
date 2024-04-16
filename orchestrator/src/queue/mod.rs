@@ -117,7 +117,7 @@ impl QueueHandler {
         loop {
             let mut action = self.get_current_action(last_action);
             // unwrapping since the returned action can't be a placeholder
-            if !action.action.as_mut().unwrap().step(&self.state_handler) {
+            if !action.action.as_mut().unwrap().step(&action.ctx, &self.state_handler) {
                 action.action = None;
             }
             last_action = Some(action);

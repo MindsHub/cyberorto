@@ -2,6 +2,8 @@ use std::{collections::VecDeque, fs::File, time::Duration};
 
 use serde::{Deserialize, Serialize};
 
+use crate::state::StateHandler;
+
 use super::{Action, Context};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -26,7 +28,7 @@ pub enum Command {
 }
 
 impl Action for CommandListAction {
-    fn step(&mut self, state_handler: &crate::state::StateHandler) -> bool {
+    fn step(&mut self, ctx: &Context, state_handler: &StateHandler) -> bool {
         let command = if let Some(command) = self.commands.pop_front() {
             command
         } else {

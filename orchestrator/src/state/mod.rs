@@ -136,7 +136,7 @@ impl StateHandler {
             .stop_bits(serialport::StopBits::One)
             .flow_control(serialport::FlowControl::None)
             .open_native()
-            .expect("Failed to open port"); 
+            .expect("Failed to open port");
         StateHandler {
             state: Arc::new(Mutex::new(State::default())),
             master: Arc::new(Master::new(port, 100, 20)),
