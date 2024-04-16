@@ -1,11 +1,12 @@
 use std::{
-    collections::{HashMap, VecDeque},
-    sync::{Arc, Condvar, Mutex},
+    collections::{HashMap, VecDeque}, f32::consts::E, fs, path::PathBuf, sync::{Arc, Condvar, Mutex}
 };
+
+use serde::{Deserialize, Serialize};
 
 use crate::{
     action::{action_wrapper::{self, ActionId, ActionWrapper}, emergency::EmergencyAction, Action},
-    state::StateHandler,
+    state::StateHandler, util::serde::{deserialize_from_json_file, serialize_to_json_file},
 };
 
 #[derive(Debug, PartialEq)]
@@ -42,6 +43,7 @@ impl Queue {
 pub struct QueueHandler {
     queue: Arc<(Mutex<Queue>, Condvar)>,
     state_handler: StateHandler,
+    save_dir: PathBuf,
     // TODO add serial object
 }
 
@@ -55,8 +57,14 @@ macro_rules! mutate_queue_and_notify {
     }};
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct QueueData {
+    action_ids: Vec<ActionId>,
+    id_counter: ActionId,
+}
+
 impl QueueHandler {
-    pub fn new(state_handler: StateHandler) -> QueueHandler {
+    pub fn new(state_handler: StateHandler, save_dir: PathBuf) -> QueueHandler {
         QueueHandler {
             queue: Arc::new((
                 Mutex::new(Queue {
@@ -69,6 +77,7 @@ impl QueueHandler {
                 Condvar::new(),
             )),
             state_handler,
+            save_dir,
         }
     }
 
@@ -160,7 +169,7 @@ impl QueueHandler {
         }
     }
 
-    pub fn main_loop(&self) {
+    fn main_loop(&self) {
         let mut prev_action = None; // will be None only the first iteration
         loop {
             let mut action_wrapper = self.get_next_action(prev_action);
@@ -178,6 +187,39 @@ impl QueueHandler {
                 return; // the queue was asked to stop
             }
         }
+    }
+
+    fn load_from_disk(&self) {
+        let data = deserialize_from_json_file::<QueueData>(&self.save_dir.join("queue.json"));
+        let Ok(data) = data else {
+            return; // TODO log error
+        };
+
+        let mut queue = self.queue.0.lock().unwrap();
+        queue.id_counter = data.id_counter;
+        queue.actions.clear();
+        for id in data.action_ids {
+            match ActionWrapper::load_from_disk(&self.save_dir.join(id.to_string())) {
+                Ok(action) => queue.actions.push_back(action),
+                Err(error) => {}, // TODO log error
+            }
+        }
+    }
+
+    fn save_to_disk(self) {
+        let queue = self.queue.0.lock().unwrap();
+        let data = QueueData {
+            action_ids: queue.actions.iter().map(|a| a.get_id()).collect(),
+            id_counter: queue.id_counter,
+        };
+
+        serialize_to_json_file(&data, &self.save_dir.join("queue.json"));
+    }
+
+    pub fn run(self) {
+        self.load_from_disk();
+        self.main_loop();
+        self.save_to_disk();
     }
 
     pub fn add_action<A: Action + 'static>(&self, action: A) -> ActionId {

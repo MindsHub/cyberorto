@@ -18,10 +18,10 @@ extern crate rocket;
 #[rocket::main]
 async fn main() {
     let state_handler = StateHandler::new();
-    let queue_handler = QueueHandler::new(state_handler.clone());
+    let queue_handler = QueueHandler::new(state_handler.clone(), PathBuf::from("~/.cyberorto/queue"));
 
     let queue_handler_clone = queue_handler.clone();
-    let _queue_handler_thread = thread::spawn(move || queue_handler_clone.main_loop());
+    let _queue_handler_thread = thread::spawn(move || queue_handler_clone.run());
 
     rocket::build()
         .manage(state_handler) // used by `impl FromRequest for State`
