@@ -75,7 +75,7 @@ impl QueueHandler {
     /// queue even while it is being executed. This also calls
     /// [release\(\)](Action::release) on the action before putting it back
     /// into the queue.
-    fn release_last_current_action(queue: &mut Queue, mut action: ActionWrapper) {
+    fn release_prev_action(queue: &mut Queue, mut action: ActionWrapper) {
         if action.action.is_some() {
             // call release() on the action to save resources while it
             // is not being executed anymore (or if it has been deleted)
@@ -103,7 +103,7 @@ impl QueueHandler {
         // placeholder has already been deleted from the queue, so nothing to do
     }
 
-    fn get_current_action(&self, mut last_current_action: Option<ActionWrapper>) -> ActionWrapper {
+    fn get_next_action(&self, mut prev_action: Option<ActionWrapper>) -> ActionWrapper {
         let (queue, condvar) = &*self.queue;
         let mut queue = queue.lock().unwrap();
 
@@ -111,60 +111,60 @@ impl QueueHandler {
             if queue.paused || queue.emergency != EmergencyStatus::None {
                 if queue.emergency == EmergencyStatus::WaitingForReset {
                     queue.emergency = EmergencyStatus::Resetting;
-                    if let Some(last_current_action) = std::mem::take(&mut last_current_action) {
+                    if let Some(prev_action) = std::mem::take(&mut prev_action) {
                         // we are pausing for a while during the emergency,
                         // so release resources for the current action
-                        Self::release_last_current_action(&mut queue, last_current_action)
+                        Self::release_prev_action(&mut queue, prev_action)
                     }
                     return queue.create_action_wrapper(EmergencyAction {});
                 }
             } else if let Some(id) = queue.actions.front().map(|a| a.get_id()) {
-                if let Some(last_current_action) = std::mem::take(&mut last_current_action) {
-                    if id == last_current_action.get_id() && last_current_action.action.is_some() {
+                if let Some(prev_action) = std::mem::take(&mut prev_action) {
+                    if id == prev_action.get_id() && prev_action.action.is_some() {
                         // just continue executing the current action for another step
-                        return last_current_action;
+                        return prev_action;
                     } else {
                         // the action to execute just changed, or the current action has finished
                         // executing, so release it
-                        Self::release_last_current_action(&mut queue, last_current_action)
+                        Self::release_prev_action(&mut queue, prev_action)
                     }
                 }
 
                 // The id of the first action in the queue changed, so we are going to execute a new
                 // action. The action is therefore extracted from the queue, and replaced with a
                 // placeholder (i.e. an ActionWrapper with action=None)
-                let mut new_current_action = queue.actions.front_mut().unwrap();
-                let mut new_current_action = ActionWrapper {
-                    action: std::mem::take(&mut new_current_action.action),
-                    ctx: new_current_action.ctx.clone(),
+                let mut action_in_queue = queue.actions.front_mut().unwrap();
+                let mut next_action = ActionWrapper {
+                    action: std::mem::take(&mut action_in_queue.action),
+                    ctx: action_in_queue.ctx.clone(),
                 };
 
                 // We call acquire() to abide by the action lifecycle.
-                new_current_action.action.as_mut()
+                next_action.action.as_mut()
                     .expect("Unxpected placeholder in the queue")
-                    .acquire(&new_current_action.ctx);
-                return new_current_action;
+                    .acquire(&next_action.ctx);
+                return next_action;
             }
 
-            if let Some(last_current_action) = std::mem::take(&mut last_current_action) {
+            if let Some(prev_action) = std::mem::take(&mut prev_action) {
                 // we are pausing for a while, so release resources for the current action
-                Self::release_last_current_action(&mut queue, last_current_action)
+                Self::release_prev_action(&mut queue, prev_action)
             }
             queue = condvar.wait(queue).unwrap();
         }
     }
 
     pub fn main_loop(&self) {
-        let mut last_action = None; // will be None only the first iteration
+        let mut prev_action = None; // will be None only the first iteration
         loop {
-            let mut action_wrapper = self.get_current_action(last_action);
+            let mut action_wrapper = self.get_next_action(prev_action);
             // unwrapping since the returned action can't be a placeholder
             let mut action = action_wrapper.action.as_mut().unwrap();
             if !action.step(&action_wrapper.ctx, &self.state_handler) {
                 action.release(&action_wrapper.ctx);
                 action_wrapper.action = None;
             }
-            last_action = Some(action_wrapper);
+            prev_action = Some(action_wrapper);
         }
     }
 
