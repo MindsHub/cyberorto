@@ -131,11 +131,18 @@ impl QueueHandler {
                 }
 
                 // The id of the first action in the queue changed, so we are going to execute a new
-                // action. Unwrapping since we already checked that the queue is not empty above.
-                let mut new_current_action = queue.actions.front_mut().unwrap().make_placeholder_and_extract();
-                // We call acquire() to abide by the action lifecycle. Unwrapping since
-                // make_placeholder_and_extract() is guaranteed not to return a placeholder.
-                new_current_action.action.as_mut().unwrap().acquire(&new_current_action.ctx);
+                // action. The action is therefore extracted from the queue, and replaced with a
+                // placeholder (i.e. an ActionWrapper with action=None)
+                let mut new_current_action = queue.actions.front_mut().unwrap();
+                let mut new_current_action = ActionWrapper {
+                    action: std::mem::take(&mut new_current_action.action),
+                    ctx: new_current_action.ctx.clone(),
+                };
+
+                // We call acquire() to abide by the action lifecycle.
+                new_current_action.action.as_mut()
+                    .expect("Unxpected placeholder in the queue")
+                    .acquire(&new_current_action.ctx);
                 return new_current_action;
             }
 

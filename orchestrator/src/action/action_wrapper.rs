@@ -36,16 +36,6 @@ impl ActionWrapper {
         self.ctx.id
     }
 
-    pub fn make_placeholder_and_extract(&mut self) -> ActionWrapper {
-        assert!(self.action.is_some()); // can't make a placeholder... a placeholder
-        let mut new_action_wrapper = ActionWrapper {
-            action: None,
-            ctx: self.ctx.clone(),
-        };
-        std::mem::swap(self, &mut new_action_wrapper);
-        new_action_wrapper
-    }
-
     pub fn load_from_disk(dir: &Path) -> Result<ActionWrapper, String> {
         if !dir.is_dir() {
             return Err(format!("Not a directory: {dir:?}"))
