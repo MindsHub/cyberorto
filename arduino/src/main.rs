@@ -83,8 +83,4 @@ fn main() -> ! {
         let _ = serial_async.as_mut().poll(&mut cx);
         let _ = state.as_mut().poll(&mut cx);
     }
-    /*loop{
-        let _ =pin!(serial.write(b'r')).poll(&mut cx);
-        delay_ms(10);
-    }*/
 }
