@@ -25,6 +25,7 @@ pub enum ReorderError {
 struct Queue {
     actions: VecDeque<ActionWrapper>,
     paused: bool,
+    stopped: bool,
     emergency: EmergencyStatus,
     id_counter: ActionId,
 }
@@ -61,6 +62,7 @@ impl QueueHandler {
                 Mutex::new(Queue {
                     actions: VecDeque::new(),
                     paused: false,
+                    stopped: false,
                     emergency: EmergencyStatus::None,
                     id_counter: 0,
                 }),
@@ -103,12 +105,15 @@ impl QueueHandler {
         // placeholder has already been deleted from the queue, so nothing to do
     }
 
-    fn get_next_action(&self, mut prev_action: Option<ActionWrapper>) -> ActionWrapper {
+    fn get_next_action(&self, mut prev_action: Option<ActionWrapper>) -> Option<ActionWrapper> {
         let (queue, condvar) = &*self.queue;
         let mut queue = queue.lock().unwrap();
 
         loop {
-            if queue.paused || queue.emergency != EmergencyStatus::None {
+            if queue.stopped {
+                return None;
+
+            } else if queue.paused || queue.emergency != EmergencyStatus::None {
                 if queue.emergency == EmergencyStatus::WaitingForReset {
                     queue.emergency = EmergencyStatus::Resetting;
                     if let Some(prev_action) = std::mem::take(&mut prev_action) {
@@ -116,13 +121,14 @@ impl QueueHandler {
                         // so release resources for the current action
                         Self::release_prev_action(&mut queue, prev_action)
                     }
-                    return queue.create_action_wrapper(EmergencyAction {});
+                    return Some(queue.create_action_wrapper(EmergencyAction {}));
                 }
+
             } else if let Some(id) = queue.actions.front().map(|a| a.get_id()) {
                 if let Some(prev_action) = std::mem::take(&mut prev_action) {
                     if id == prev_action.get_id() && prev_action.action.is_some() {
                         // just continue executing the current action for another step
-                        return prev_action;
+                        return Some(prev_action);
                     } else {
                         // the action to execute just changed, or the current action has finished
                         // executing, so release it
@@ -143,7 +149,7 @@ impl QueueHandler {
                 next_action.action.as_mut()
                     .expect("Unxpected placeholder in the queue")
                     .acquire(&next_action.ctx);
-                return next_action;
+                return Some(next_action);
             }
 
             if let Some(prev_action) = std::mem::take(&mut prev_action) {
@@ -158,13 +164,19 @@ impl QueueHandler {
         let mut prev_action = None; // will be None only the first iteration
         loop {
             let mut action_wrapper = self.get_next_action(prev_action);
-            // unwrapping since the returned action can't be a placeholder
-            let mut action = action_wrapper.action.as_mut().unwrap();
-            if !action.step(&action_wrapper.ctx, &self.state_handler) {
-                action.release(&action_wrapper.ctx);
-                action_wrapper.action = None;
+
+            if let Some(mut action_wrapper) = action_wrapper {
+                // unwrapping since the returned action can't be a placeholder
+                let mut action = action_wrapper.action.as_mut().unwrap();
+                if !action.step(&action_wrapper.ctx, &self.state_handler) {
+                    action.release(&action_wrapper.ctx);
+                    action_wrapper.action = None;
+                }
+                prev_action = Some(action_wrapper);
+
+            } else {
+                return; // the queue was asked to stop
             }
-            prev_action = Some(action_wrapper);
         }
     }
 
@@ -218,6 +230,12 @@ impl QueueHandler {
     pub fn clear(&self) {
         mutate_queue_and_notify!(self.queue, queue, {
             queue.actions.clear()
+        })
+    }
+
+    pub fn stop(&self) {
+        mutate_queue_and_notify!(self.queue, queue, {
+            queue.stopped = true
         })
     }
 }
