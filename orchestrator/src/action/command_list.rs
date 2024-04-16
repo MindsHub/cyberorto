@@ -2,7 +2,7 @@ use std::{collections::VecDeque, fs::File, time::Duration};
 
 use serde::{Deserialize, Serialize};
 
-use crate::state::StateHandler;
+use crate::{state::StateHandler, util::serde::{deserialize_from_json_file, serialize_to_json_file}};
 
 use super::{Action, Context};
 
@@ -54,12 +54,10 @@ impl Action for CommandListAction {
     }
 
     fn save_to_disk(&self, ctx: &Context) -> Result<(), String> {
-        let file = File::create(ctx.get_save_dir().join("data.json")).map_err(|e| e.to_string())?;
-        serde_json::to_writer(file, &self).map_err(|e| e.to_string())
+        serialize_to_json_file(&self, &ctx.get_save_dir().join("data.json"))
     }
 
     fn load_from_disk(ctx: &Context) -> Result<Self, String> where Self: Sized {
-        let file = File::open(ctx.get_save_dir().join("data.json")).map_err(|e| e.to_string())?;
-        serde_json::from_reader(file).map_err(|e| e.to_string())
+        deserialize_from_json_file(&ctx.get_save_dir().join("data.json"))
     }
 }

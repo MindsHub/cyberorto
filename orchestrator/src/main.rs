@@ -1,6 +1,6 @@
 #![allow(unused)] // TODO remove
 
-use std::thread;
+use std::{path::PathBuf, thread};
 
 use queue::QueueHandler;
 use state::StateHandler;
@@ -10,6 +10,7 @@ mod api;
 mod constants;
 mod queue;
 mod state;
+mod util;
 
 #[macro_use]
 extern crate rocket;
