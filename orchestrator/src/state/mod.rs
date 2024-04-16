@@ -155,7 +155,7 @@ impl StateHandler {
 
     pub fn add_plant(&self, x: f32, y: f32, z: f32) {
         let mut state = acquire(&self.state);
-        state.plants.push(Plant { x: x, y: y, z: z });
+        state.plants.push(Plant { x, y, z });
     }
 
     pub fn water_all(&self) {

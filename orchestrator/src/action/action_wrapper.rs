@@ -44,13 +44,13 @@ impl ActionWrapper {
             .ok_or_else(|| format!("Directory does not exist: {dir:?}"))?
             .to_string_lossy();
 
-        let mut filename_pieces = filename.splitn(2, "_");
+        let mut filename_pieces = filename.splitn(2, '_');
         let id = filename_pieces.next().ok_or_else(|| format!("Invalid filename: {filename}"))?;
         let id = id.parse::<ActionId>().map_err(|e| format!("Invalid filename: {filename}: {e}"))?;
         let type_name = filename_pieces.next().ok_or_else(|| format!("Invalid filename: {filename}"))?;
         let ctx = Context { id, type_name: type_name.to_string(), save_dir: dir.into() };
 
-        return if type_name == EmergencyAction::get_type_name() {
+        if type_name == EmergencyAction::get_type_name() {
             Ok(ActionWrapper { action: Some(Box::new(EmergencyAction::load_from_disk(&ctx)?)), ctx })
         } else if type_name == CommandListAction::get_type_name() {
             Ok(ActionWrapper { action: Some(Box::new(CommandListAction::load_from_disk(&ctx)?)), ctx })
@@ -74,7 +74,7 @@ impl ActionWrapper {
 }
 
 impl Context {
-    pub fn get_save_dir<'a>(&'a self) -> &'a PathBuf {
+    pub fn get_save_dir(&self) -> &PathBuf {
         &self.save_dir
     }
 }
