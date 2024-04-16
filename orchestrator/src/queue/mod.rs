@@ -214,4 +214,10 @@ impl QueueHandler {
 
         Ok(())
     }
+
+    pub fn clear(&self) {
+        mutate_queue_and_notify!(self.queue, queue, {
+            queue.actions.clear()
+        })
+    }
 }
