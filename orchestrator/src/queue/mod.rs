@@ -335,4 +335,24 @@ impl QueueHandler {
             queue.stopped = true
         })
     }
+
+    /// Always pauses the queue. Then tries to kill the currently running action.
+    /// Returns `true` if the action was killed successfully, or `false` otherwise.
+    ///
+    /// * `running_id` the id of the action that the caller thinks is currently
+    ///                being executed; if this is not equal to the id of the
+    ///                action currently being executed
+    /// * `keep_in_queue` whether the killed action should be kept in queue after
+    ///                   being killed (which is possibly risky), or not
+    pub fn kill_running_action(&self, running_id: ActionId, keep_in_queue: bool) -> bool {
+        mutate_queue_and_notify!(self.queue, queue, {
+            queue.paused = true;
+            if queue.running_id == Some(running_id) {
+                if let Some(running_killer) = queue.running_killer.take() {
+                    return running_killer.send(keep_in_queue).is_ok();
+                }
+            }
+            return false;
+        })
+    }
 }
