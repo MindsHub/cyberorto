@@ -330,6 +330,18 @@ impl QueueHandler {
         })
     }
 
+    pub fn pause(&self) {
+        mutate_queue_and_notify!(self.queue, queue, {
+            queue.paused = true
+        })
+    }
+
+    pub fn unpause(&self) {
+        mutate_queue_and_notify!(self.queue, queue, {
+            queue.paused = false
+        })
+    }
+
     pub fn stop(&self) {
         mutate_queue_and_notify!(self.queue, queue, {
             queue.stopped = true
