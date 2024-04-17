@@ -8,8 +8,9 @@ use crate::state::StateHandler;
 
 use self::{action_wrapper::Context, emergency::EmergencyAction};
 
+#[async_trait]
 pub trait Action: Debug + Send {
-    fn step(&mut self, ctx: &Context, state_handler: &StateHandler) -> bool;
+    async fn step(&mut self, ctx: &Context, state_handler: &StateHandler) -> bool;
 
     // lifecycle
     fn acquire(&mut self, ctx: &Context) {}

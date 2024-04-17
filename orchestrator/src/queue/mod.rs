@@ -3,6 +3,7 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+use tokio::runtime::Runtime;
 
 use crate::{
     action::{action_wrapper::{self, ActionId, ActionWrapper}, emergency::EmergencyAction, Action},
@@ -170,6 +171,11 @@ impl QueueHandler {
     }
 
     fn main_loop(&self) {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
         let mut prev_action = None; // will be None only the first iteration
         loop {
             let mut action_wrapper = self.get_next_action(prev_action);
@@ -177,7 +183,8 @@ impl QueueHandler {
             if let Some(mut action_wrapper) = action_wrapper {
                 // unwrapping since the returned action can't be a placeholder
                 let mut action = action_wrapper.action.as_mut().unwrap();
-                if !action.step(&action_wrapper.ctx, &self.state_handler) {
+
+                if runtime.block_on(action.step(&action_wrapper.ctx, &self.state_handler)) {
                     action.release(&action_wrapper.ctx);
                     action_wrapper.action = None;
                 }

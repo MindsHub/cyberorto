@@ -27,8 +27,9 @@ pub enum Command {
     Plow(Duration),
 }
 
+#[async_trait]
 impl Action for CommandListAction {
-    fn step(&mut self, ctx: &Context, state_handler: &StateHandler) -> bool {
+    async fn step(&mut self, ctx: &Context, state_handler: &StateHandler) -> bool {
         let command = if let Some(command) = self.commands.pop_front() {
             command
         } else {
