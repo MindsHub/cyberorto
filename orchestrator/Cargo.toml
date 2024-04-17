@@ -9,7 +9,7 @@ edition = "2021"
 serde = "1.0.197"
 serde_json = "1.0.115"
 arduino-common = {path="../arduino-common"}
-tokio = {version = "1.0"}
+tokio = { version = "1.0", features = ["macros", "sync"] }
 serialport = {version="4.3"}
 async-trait = "0.1.80"
 

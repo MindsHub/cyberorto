@@ -10,6 +10,8 @@ use self::{action_wrapper::Context, emergency::EmergencyAction};
 
 #[async_trait]
 pub trait Action: Debug + Send {
+    /// Returns `true` if there are some more steps available,
+    /// or `false` if the action has finished executing.
     async fn step(&mut self, ctx: &Context, state_handler: &StateHandler) -> bool;
 
     // lifecycle

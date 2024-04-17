@@ -1,9 +1,10 @@
 use std::{
-    collections::{HashMap, VecDeque}, f32::consts::E, fs, path::PathBuf, sync::{Arc, Condvar, Mutex}
+    collections::{HashMap, VecDeque}, f32::consts::E, fs, future::Future, path::PathBuf, sync::{Arc, Condvar, Mutex}
 };
 
 use serde::{Deserialize, Serialize};
 use tokio::runtime::Runtime;
+use tokio::sync::oneshot;
 
 use crate::{
     action::{action_wrapper::{self, ActionId, ActionWrapper}, emergency::EmergencyAction, Action},
@@ -30,6 +31,8 @@ struct Queue {
     stopped: bool,
     emergency: EmergencyStatus,
     id_counter: ActionId,
+    running_id: Option<ActionId>,
+    running_killer: Option<oneshot::Sender<bool>>
 }
 
 impl Queue {
@@ -74,6 +77,8 @@ impl QueueHandler {
                     stopped: false,
                     emergency: EmergencyStatus::None,
                     id_counter: 0,
+                    running_id: None,
+                    running_killer: None,
                 }),
                 Condvar::new(),
             )),
@@ -85,7 +90,7 @@ impl QueueHandler {
     /// Readds the last current action to the queue at the position where its
     /// placeholder is. This allows the current action to be moved around the
     /// queue even while it is being executed. This also calls
-    /// [release\(\)](Action::release) on the action before putting it back
+    /// [`release()`](Action::release) on the action before putting it back
     /// into the queue.
     fn release_prev_action(queue: &mut Queue, mut action: ActionWrapper) {
         if action.action.is_some() {
@@ -170,6 +175,24 @@ impl QueueHandler {
         }
     }
 
+    /// Just a utility function to obtain a future from [`tokio::select`](tokio::select).
+    /// Waits for `stepper` to finish executing, unless a message from `killer_rx` is received
+    /// before `stepper` terminates.
+    /// Returns `true` if there are some more steps available,
+    /// or `false` if the action has finished executing.
+    async fn step_or_kill<F: Future<Output = bool>>(stepper: F, killer_rx: oneshot::Receiver<bool>) -> bool {
+        tokio::select! {
+            // Just forward the value from `stepper()`
+            output = stepper => output,
+
+            // Calling unwrap() here, since the tx is never going to be dropped,
+            // without sending anything, while this future is still being executed.
+            // The tx is only dropped after it sends something, or after the other branch of
+            // this select! has returned before this one.
+            output = killer_rx => output.unwrap(),
+        }
+    }
+
     fn main_loop(&self) {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -182,11 +205,36 @@ impl QueueHandler {
 
             if let Some(mut action_wrapper) = action_wrapper {
                 // unwrapping since the returned action can't be a placeholder
+                let id = action_wrapper.get_id();
                 let mut action = action_wrapper.action.as_mut().unwrap();
+                let (killer_tx, killer_rx) = oneshot::channel();
 
-                if runtime.block_on(action.step(&action_wrapper.ctx, &self.state_handler)) {
+                {
+                    let mut queue = self.queue.0.lock().unwrap();
+                    queue.running_id = Some(id);
+                    queue.running_killer = Some(killer_tx);
+                }
+
+                // `action.step()` returns `true` if there are some more steps available,
+                // or `false` if the action has finished executing. The `killer_rx` channel
+                // will also do the same, i.e. return `true` if the action should be kept
+                // in the queue, or `false` otherwise.
+                if !runtime.block_on(
+                    Self::step_or_kill(
+                        action.step(&action_wrapper.ctx, &self.state_handler),
+                        killer_rx,
+                    )
+                ) {
+                    // The action has finished executing, release its resources and remove
+                    // it from the queue.
                     action.release(&action_wrapper.ctx);
                     action_wrapper.action = None;
+                }
+
+                {
+                    let mut queue = self.queue.0.lock().unwrap();
+                    queue.running_id = None;
+                    queue.running_killer = None;
                 }
                 prev_action = Some(action_wrapper);
 
