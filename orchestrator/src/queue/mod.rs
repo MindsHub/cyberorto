@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, VecDeque}, f32::consts::E, fs, future::Future, path::PathBuf, sync::{Arc, Condvar, Mutex}
+    collections::{HashMap, VecDeque}, f32::consts::E, fs, future::Future, path::PathBuf, sync::{Arc, Condvar, Mutex, MutexGuard}
 };
 
 use serde::{Deserialize, Serialize};
@@ -89,14 +89,28 @@ impl QueueHandler {
 
     /// Readds the last current action to the queue at the position where its
     /// placeholder is. This allows the current action to be moved around the
-    /// queue even while it is being executed. This also calls
-    /// [`release()`](Action::release) on the action before putting it back
-    /// into the queue.
-    fn release_prev_action(queue: &mut Queue, mut action: ActionWrapper) {
+    /// queue or deleted even while it is being executed.
+    ///
+    /// This also calls [`release()`](Action::release) on the action, before
+    /// putting it back into the queue, or before deleting it.
+    ///
+    /// Note that this function may temporarily release the lock in `queue`,
+    /// since [`release()`](Action::release) may take some time to execute,
+    /// and holding the lock for that time may cause problems. This is why in
+    /// [`get_next_action()`](Self::get_next_action()) every call to this
+    /// function should be followed by a `continue`, to allow all checks to
+    /// be performed again.
+    ///
+    /// Returns the original lock (aka the parameter `queue`), or a new lock
+    /// if the original lock was temporarily released while
+    /// [`release()`](Action::release) was being executed.
+    fn release_prev_action<'a>(&'a self, mut queue: MutexGuard<'a, Queue>, mut action: ActionWrapper) -> MutexGuard<'a, Queue> {
         if action.action.is_some() {
             // call release() on the action to save resources while it
             // is not being executed anymore (or if it has been deleted)
+            drop(queue);
             action.action.as_mut().unwrap().release(&action.ctx);
+            queue = self.queue.0.lock().unwrap();
 
             if let Some(item) = queue.actions.iter_mut().find(|item| item.get_id() == action.get_id()) {
                 // If the placeholder corresponding to the current action is in the queue,
@@ -118,11 +132,12 @@ impl QueueHandler {
         }
         // `else`, the current action has finished executing and its corresponding
         // placeholder has already been deleted from the queue, so nothing to do
+        queue
     }
 
     fn get_next_action(&self, mut prev_action: Option<ActionWrapper>) -> Option<ActionWrapper> {
-        let (queue, condvar) = &*self.queue;
-        let mut queue = queue.lock().unwrap();
+        let (queue_mutex, condvar) = &*self.queue;
+        let mut queue = queue_mutex.lock().unwrap();
 
         loop {
             if queue.stopped {
@@ -130,12 +145,13 @@ impl QueueHandler {
 
             } else if queue.paused || queue.emergency != EmergencyStatus::None {
                 if queue.emergency == EmergencyStatus::WaitingForReset {
-                    queue.emergency = EmergencyStatus::Resetting;
                     if let Some(prev_action) = std::mem::take(&mut prev_action) {
                         // we are pausing for a while during the emergency,
                         // so release resources for the current action
-                        Self::release_prev_action(&mut queue, prev_action)
+                        queue = self.release_prev_action(queue, prev_action);
+                        continue;
                     }
+                    queue.emergency = EmergencyStatus::Resetting;
                     return Some(queue.create_action_wrapper(EmergencyAction {}));
                 }
 
@@ -147,7 +163,8 @@ impl QueueHandler {
                     } else {
                         // the action to execute just changed, or the current action has finished
                         // executing, so release it
-                        Self::release_prev_action(&mut queue, prev_action)
+                        queue = self.release_prev_action(queue, prev_action);
+                        continue;
                     }
                 }
 
@@ -160,6 +177,9 @@ impl QueueHandler {
                     ctx: action_in_queue.ctx.clone(),
                 };
 
+                // Release the lock before calling `.acquire()`.
+                drop(queue);
+
                 // We call acquire() to abide by the action lifecycle.
                 next_action.action.as_mut()
                     .expect("Unxpected placeholder in the queue")
@@ -169,7 +189,8 @@ impl QueueHandler {
 
             if let Some(prev_action) = std::mem::take(&mut prev_action) {
                 // we are pausing for a while, so release resources for the current action
-                Self::release_prev_action(&mut queue, prev_action)
+                queue = self.release_prev_action(queue, prev_action);
+                continue;
             }
             queue = condvar.wait(queue).unwrap();
         }
