@@ -1,5 +1,5 @@
 pub(crate) mod tests;
-mod fake_slave_bot;
+pub(crate) mod fake_slave_bot;
 
 use std::{
     cell::RefCell, future::Future, sync::{Arc, Mutex, MutexGuard}, thread, time::Duration, vec

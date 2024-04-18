@@ -7,26 +7,26 @@ use serialport::TTYPort;
 pub struct FakeSlaveBot {
     com: Comunication<TTYPort, StdSleeper>,
     name: [u8; 10],
-    data: Arc<Mutex<FakeBotData>>,
+    data: Arc<Mutex<FakeSlaveBotData>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct FakeBotData {
-    received_messages: Vec<Message>,
+pub struct FakeSlaveBotData {
+    pub received_messages: Vec<Message>,
 }
 
 impl FakeSlaveBot {
-    fn new(serial: TTYPort, name: [u8; 10]) -> FakeSlaveBot {
+    pub fn new(serial: TTYPort, name: [u8; 10]) -> FakeSlaveBot {
         FakeSlaveBot {
             com: Comunication::new(serial, 3),
             name,
-            data: Arc::new(Mutex::new(FakeBotData{
+            data: Arc::new(Mutex::new(FakeSlaveBotData{
                 received_messages: Vec::new(),
             })),
         }
     }
 
-    pub fn get_data_ref(&self) -> Arc<Mutex<FakeBotData>> {
+    pub fn get_data_ref(&self) -> Arc<Mutex<FakeSlaveBotData>> {
         self.data.clone()
     }
 
