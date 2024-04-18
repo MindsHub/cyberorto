@@ -31,11 +31,11 @@ async fn main() {
     let queue_handler = QueueHandler::new(state_handler.clone(), PathBuf::from("~/.cyberorto/queue"));
 
     let queue_handler_clone = queue_handler.clone();
-    let _queue_handler_thread = thread::spawn(move || queue_handler_clone.run());
+    let queue_handler_thread = thread::spawn(move || queue_handler_clone.run());
 
     rocket::build()
         .manage(state_handler) // used by `impl FromRequest for State`
-        .manage(queue_handler) // used by `impl FromRequest for &QueueHandler`
+        .manage(queue_handler.clone()) // used by `impl FromRequest for &QueueHandler`
         .mount("/", routes![api::toggle_led])
         .launch()
         .await
@@ -43,4 +43,6 @@ async fn main() {
 
     // launch().await will block until it receives a shutdown request (e.g. Ctrl+C)
     println!("Shutting down Cyberorto orchestrator...");
+    queue_handler.stop();
+    queue_handler_thread.join();
 }
