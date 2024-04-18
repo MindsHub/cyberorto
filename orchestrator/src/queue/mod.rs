@@ -1,3 +1,5 @@
+mod tests;
+
 use std::{
     collections::{HashMap, VecDeque}, f32::consts::E, fs::{self, create_dir_all}, future::Future, path::PathBuf, sync::{Arc, Condvar, Mutex, MutexGuard}
 };

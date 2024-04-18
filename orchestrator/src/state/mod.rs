@@ -1,3 +1,5 @@
+pub(crate) mod tests;
+
 use std::{
     cell::RefCell, future::Future, sync::{Arc, Mutex, MutexGuard}, thread, time::Duration, vec
 };
