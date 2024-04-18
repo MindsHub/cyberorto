@@ -17,6 +17,7 @@ extern crate rocket;
 
 #[rocket::main]
 async fn main() {
+    let home = env::var("HOME").expect("$HOME must be set");
     let args = env::args().collect::<Vec<_>>();
     let tty = args.get(1).unwrap_or(&"/dev/ttyACM0".to_string()).clone();
 
@@ -28,7 +29,7 @@ async fn main() {
         .open_native()
         .expect("Failed to open port");
     let state_handler = StateHandler::new(port);
-    let queue_handler = QueueHandler::new(state_handler.clone(), PathBuf::from("~/.cyberorto/queue"));
+    let queue_handler = QueueHandler::new(state_handler.clone(), PathBuf::from(home + "/.cyberorto/queue"));
 
     let queue_handler_clone = queue_handler.clone();
     let queue_handler_thread = thread::spawn(move || queue_handler_clone.run());
