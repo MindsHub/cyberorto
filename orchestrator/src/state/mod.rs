@@ -129,14 +129,7 @@ macro_rules! mutate_state {
 }
 
 impl StateHandler {
-    pub fn new() -> StateHandler {
-        let port = serialport::new("/dev/ttyACM0", 115200)
-            .timeout(Duration::from_millis(3))
-            .parity(serialport::Parity::None)
-            .stop_bits(serialport::StopBits::One)
-            .flow_control(serialport::FlowControl::None)
-            .open_native()
-            .expect("Failed to open port");
+    pub fn new(port: TTYPort) -> StateHandler {
         StateHandler {
             state: Arc::new(Mutex::new(State::default())),
             master: Arc::new(Master::new(port, 100, 20)),

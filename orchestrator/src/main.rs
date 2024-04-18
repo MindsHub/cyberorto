@@ -1,6 +1,6 @@
 #![allow(unused)] // TODO remove
 
-use std::{path::PathBuf, thread};
+use std::{env, path::PathBuf, thread, time::Duration};
 
 use queue::QueueHandler;
 use state::StateHandler;
@@ -17,7 +17,17 @@ extern crate rocket;
 
 #[rocket::main]
 async fn main() {
-    let state_handler = StateHandler::new();
+    let args = env::args().collect::<Vec<_>>();
+    let tty = args.get(1).unwrap_or(&"/dev/ttyACM0".to_string()).clone();
+
+    let port = serialport::new(&tty, 115200)
+        .timeout(Duration::from_millis(3))
+        .parity(serialport::Parity::None)
+        .stop_bits(serialport::StopBits::One)
+        .flow_control(serialport::FlowControl::None)
+        .open_native()
+        .expect("Failed to open port");
+    let state_handler = StateHandler::new(port);
     let queue_handler = QueueHandler::new(state_handler.clone(), PathBuf::from("~/.cyberorto/queue"));
 
     let queue_handler_clone = queue_handler.clone();
