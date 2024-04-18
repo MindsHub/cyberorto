@@ -30,14 +30,16 @@ struct Queue {
     paused: bool,
     stopped: bool,
     emergency: EmergencyStatus,
-    id_counter: ActionId,
     running_id: Option<ActionId>,
-    running_killer: Option<oneshot::Sender<bool>>
+    running_killer: Option<oneshot::Sender<bool>>,
+
+    id_counter: ActionId,
+    save_dir: PathBuf,
 }
 
 impl Queue {
     fn create_action_wrapper<A: Action + 'static>(&mut self, action: A) -> ActionWrapper {
-        let res = ActionWrapper::new(action, self.id_counter);
+        let res = ActionWrapper::new(action, self.id_counter, &self.save_dir);
         self.id_counter = self.id_counter.wrapping_add(1);
         res
     }
@@ -47,7 +49,6 @@ impl Queue {
 pub struct QueueHandler {
     queue: Arc<(Mutex<Queue>, Condvar)>,
     state_handler: StateHandler,
-    save_dir: PathBuf,
     // TODO add serial object
 }
 
@@ -63,7 +64,7 @@ macro_rules! mutate_queue_and_notify {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct QueueData {
-    action_ids: Vec<ActionId>,
+    action_save_dirs: Vec<PathBuf>,
     id_counter: ActionId,
 }
 
@@ -76,14 +77,14 @@ impl QueueHandler {
                     paused: false,
                     stopped: false,
                     emergency: EmergencyStatus::None,
-                    id_counter: 0,
                     running_id: None,
                     running_killer: None,
+                    id_counter: 0,
+                    save_dir,
                 }),
                 Condvar::new(),
             )),
             state_handler,
-            save_dir,
         }
     }
 
@@ -141,6 +142,12 @@ impl QueueHandler {
 
         loop {
             if queue.stopped {
+                if let Some(prev_action) = std::mem::take(&mut prev_action) {
+                    // the queue is being terminated,
+                    // so release resources for the current action
+                    queue = self.release_prev_action(queue, prev_action);
+                    continue;
+                }
                 return None;
 
             } else if queue.paused || queue.emergency != EmergencyStatus::None {
@@ -266,33 +273,45 @@ impl QueueHandler {
     }
 
     fn load_from_disk(&self) {
-        let data = deserialize_from_json_file::<QueueData>(&self.save_dir.join("queue.json"));
+        let mut queue: MutexGuard<'_, Queue> = self.queue.0.lock().unwrap();
+        let data = deserialize_from_json_file::<QueueData>(&queue.save_dir.join("queue.json"));
         let Ok(data) = data else {
             return; // TODO log error
         };
 
-        let mut queue = self.queue.0.lock().unwrap();
         queue.id_counter = data.id_counter;
         queue.actions.clear();
-        for id in data.action_ids {
-            match ActionWrapper::load_from_disk(&self.save_dir.join(id.to_string())) {
+        for save_dir in data.action_save_dirs {
+            match ActionWrapper::load_from_disk(&save_dir) {
                 Ok(action) => queue.actions.push_back(action),
-                Err(error) => {}, // TODO log error
+                Err(e) => {
+                    println!("Error deserializing action {:?}: {e}", save_dir)
+                }, // TODO log error
             }
         }
     }
 
-    fn save_to_disk(self) {
+    fn save_to_disk(&self) {
         let queue = self.queue.0.lock().unwrap();
         let data = QueueData {
-            action_ids: queue.actions.iter().map(|a| a.get_id()).collect(),
+            action_save_dirs: queue.actions.iter().map(|a| a.get_save_dir().clone()).collect(),
             id_counter: queue.id_counter,
         };
 
-        serialize_to_json_file(&data, &self.save_dir.join("queue.json"));
+        if let Err(e) = serialize_to_json_file(&data, &queue.save_dir.join("queue.json")) {
+            // TODO log error
+            println!("Error serializing queue.json: {e}")
+        }
+
+        for action in &queue.actions {
+            // TODO log any error to disk
+            if let Err(e) = action.save_to_disk() {
+                println!("Error serializing action {:?}: {e}", action.ctx)
+            }
+        }
     }
 
-    pub fn run(self) {
+    pub fn run(&self) {
         self.load_from_disk();
         self.main_loop();
         self.save_to_disk();

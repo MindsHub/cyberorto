@@ -47,13 +47,13 @@ impl ActionWrapper {
     ///            call the correct
     ///            [`Action::get_type_name()`](Action::get_type_name()))
     /// * `id` a **unique** ID for this action
-    pub fn new<A: Action + 'static>(action: A, id: ActionId) -> ActionWrapper {
+    pub fn new<A: Action + 'static>(action: A, id: ActionId, save_dir: &Path) -> ActionWrapper {
         ActionWrapper {
             action: Some(Box::new(action)),
             ctx: Context {
                 id,
                 type_name: A::get_type_name().to_string(),
-                save_dir: PathBuf::new(),
+                save_dir: save_dir.join(format!("{}_{}", id, A::get_type_name())),
             },
         }
     }
@@ -61,6 +61,13 @@ impl ActionWrapper {
     /// Returns the **unique** ID of the action being wrapped.
     pub fn get_id(&self) -> ActionId {
         self.ctx.id
+    }
+
+    /// Returns the directory in which to store files about this action, both
+    /// during execution (e.g. to cache images/data for later usage) or when
+    /// saving the action to disk.
+    pub fn get_save_dir(&self) -> &PathBuf {
+        &self.ctx.save_dir
     }
 
     /// Returns an `Action` after loading it from disk at the location `dir`,
