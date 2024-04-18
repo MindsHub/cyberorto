@@ -6,6 +6,7 @@ use crate::{state::StateHandler, util::serde::{deserialize_from_json_file, seria
 
 use super::{Action, Context};
 
+/// Executes a list of commands directly on the robot state.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CommandListAction {
     commands: VecDeque<Command>,

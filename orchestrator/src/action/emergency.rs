@@ -2,6 +2,7 @@ use crate::state::StateHandler;
 
 use super::{Action, Context};
 
+/// Puts the robot in a safe anchored position, so that strong wind can't damage it.
 #[derive(Debug)]
 pub struct EmergencyAction {}
 
