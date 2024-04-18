@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, VecDeque}, f32::consts::E, fs, future::Future, path::PathBuf, sync::{Arc, Condvar, Mutex, MutexGuard}
+    collections::{HashMap, VecDeque}, f32::consts::E, fs::{self, create_dir_all}, future::Future, path::PathBuf, sync::{Arc, Condvar, Mutex, MutexGuard}
 };
 
 use serde::{Deserialize, Serialize};
@@ -275,8 +275,13 @@ impl QueueHandler {
     fn load_from_disk(&self) {
         let mut queue: MutexGuard<'_, Queue> = self.queue.0.lock().unwrap();
         let data = deserialize_from_json_file::<QueueData>(&queue.save_dir.join("queue.json"));
-        let Ok(data) = data else {
-            return; // TODO log error
+        let data = match data {
+            Ok(data) => data,
+            Err(e) => {
+                // TODO log error
+                println!("Error deserializing queue.json: {e}");
+                return;
+            },
         };
 
         queue.id_counter = data.id_counter;
@@ -285,8 +290,9 @@ impl QueueHandler {
             match ActionWrapper::load_from_disk(&save_dir) {
                 Ok(action) => queue.actions.push_back(action),
                 Err(e) => {
-                    println!("Error deserializing action {:?}: {e}", save_dir)
-                }, // TODO log error
+                    // TODO log error
+                    println!("Error deserializing action {:?}: {}", save_dir, e)
+                },
             }
         }
     }
@@ -298,6 +304,7 @@ impl QueueHandler {
             id_counter: queue.id_counter,
         };
 
+        create_dir_all(&queue.save_dir);
         if let Err(e) = serialize_to_json_file(&data, &queue.save_dir.join("queue.json")) {
             // TODO log error
             println!("Error serializing queue.json: {e}")
