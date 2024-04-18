@@ -8,6 +8,9 @@ use crate::state::StateHandler;
 
 use self::{action_wrapper::Context, emergency::EmergencyAction};
 
+/// An "action" that the robot can perform, possibly made up of multiple
+/// steps to allow pausing in-between. While being paused, the state of
+/// an `Action` can be saved/loaded to/from disk.
 #[async_trait]
 pub trait Action: Debug + Send {
     //----
