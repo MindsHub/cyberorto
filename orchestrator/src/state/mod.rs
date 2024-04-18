@@ -1,4 +1,5 @@
 pub(crate) mod tests;
+mod fake_slave_bot;
 
 use std::{
     cell::RefCell, future::Future, sync::{Arc, Mutex, MutexGuard}, thread, time::Duration, vec
@@ -97,23 +98,12 @@ pub struct Plant {
 }
 
 
-type Serial = TTYPort;
 #[derive(Debug, Clone)]
 pub struct StateHandler {
     state: Arc<Mutex<State>>,
-    master: Arc<Master<Serial, StdSleeper, tokio::sync::Mutex<InnerMaster<Serial, StdSleeper>>>>,
-    // TODO add serial object
+    master: Arc<Master<TTYPort, StdSleeper, tokio::sync::Mutex<InnerMaster<TTYPort, StdSleeper>>>>,
 }
 
-impl AsyncSerial for Plant {
-    async fn read(&mut self) -> u8{
-        todo!()
-    }
-
-    async fn write(&mut self, buf: u8) {
-        todo!()
-    }
-}
 fn acquire(state: &Arc<Mutex<State>>) -> MutexGuard<'_, State> {
     match state.lock() {
         Ok(guard) => guard,
