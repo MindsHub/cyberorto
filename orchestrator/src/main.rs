@@ -2,6 +2,7 @@
 
 use std::{env, path::PathBuf, thread, time::Duration};
 
+use clap::{command, Parser};
 use queue::QueueHandler;
 use state::StateHandler;
 
@@ -15,13 +16,26 @@ mod util;
 #[macro_use]
 extern crate rocket;
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    #[arg(short, long)]
+    port: Option<String>,
+
+    #[arg(short, long)]
+    save_dir: Option<PathBuf>,
+}
+
 #[rocket::main]
 async fn main() {
-    let home = env::var("HOME").expect("$HOME must be set");
-    let args = env::args().collect::<Vec<_>>();
-    let tty = args.get(1).unwrap_or(&"/dev/ttyACM0".to_string()).clone();
+    let args = Args::parse();
+    let port = args.port.unwrap_or("/dev/ttyACM0".to_string());
+    let save_dir = args.save_dir.unwrap_or_else(|| {
+        let home = env::var("HOME").expect("$HOME must be set");
+        PathBuf::from(home + "/.cyberorto/queue")
+    });
 
-    let port = serialport::new(&tty, 115200)
+    let port = serialport::new(&port, 115200)
         .timeout(Duration::from_millis(3))
         .parity(serialport::Parity::None)
         .stop_bits(serialport::StopBits::One)
@@ -29,7 +43,7 @@ async fn main() {
         .open_native()
         .expect("Failed to open port");
     let state_handler = StateHandler::new(port);
-    let queue_handler = QueueHandler::new(state_handler.clone(), PathBuf::from(home + "/.cyberorto/queue"));
+    let queue_handler = QueueHandler::new(state_handler.clone(), save_dir);
 
     let queue_handler_clone = queue_handler.clone();
     let queue_handler_thread = thread::spawn(move || queue_handler_clone.run());
