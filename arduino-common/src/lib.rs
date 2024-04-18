@@ -26,7 +26,7 @@ pub mod prelude;
 
 #[repr(u8)]
 #[non_exhaustive]
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 /// In our comunication protocol we send this structure from master-> slave
 pub enum Message {
     /// asking for information about the slave

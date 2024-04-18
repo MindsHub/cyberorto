@@ -5,11 +5,12 @@ use std::{thread::{self, JoinHandle}, time::Duration};
 use serialport::TTYPort;
 
 use super::*;
-use crate::state::tests::TestState;
+use crate::state::{fake_slave_bot::FakeSlaveBotData, tests::TestState};
 
 pub struct TestQueue {
     pub state_handler: StateHandler,
-    pub slave: TTYPort,
+    pub slave_bot_join_handle: JoinHandle<()>,
+    pub slave_bot_data: Arc<Mutex<FakeSlaveBotData>>,
     pub queue_handler: QueueHandler,
     pub save_dir: PathBuf,
     pub queue_join_handle: JoinHandle<()>,
@@ -17,7 +18,12 @@ pub struct TestQueue {
 
 impl Default for TestQueue {
     fn default() -> Self {
-        let TestState { state_handler, slave } = TestState::default();
+        let TestState {
+            state_handler,
+            slave_bot_join_handle,
+            slave_bot_data,
+        } = TestState::default();
+
         let save_dir = tempdir::TempDir::new("cyberorto_test").unwrap().into_path();
         let queue_handler = QueueHandler::new(state_handler.clone(), save_dir.clone());
         let queue_handler_clone = queue_handler.clone();
@@ -25,7 +31,8 @@ impl Default for TestQueue {
 
         TestQueue {
             state_handler,
-            slave,
+            slave_bot_join_handle,
+            slave_bot_data,
             queue_handler,
             save_dir,
             queue_join_handle: join_handle,
