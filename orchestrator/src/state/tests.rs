@@ -61,18 +61,20 @@ pub async fn test_with_state(f: impl Fn(&'_ mut TestState) -> BoxFuture<'_, ()>)
 
 #[tokio::test]
 async fn test_toggle_led() {
-    for i in 0..1000 {
-        test_with_state(|s| {
-            async {
+    test_with_state(|s| {
+        async {
+            let mut messages = Vec::new();
+            for i in 0..10 {
+                messages.push(Message::SetLed { led: i % 2 == 0 });
                 s.state_handler.toggle_led().await;
-
-                assert_eq!(
-                    vec![Message::SetLed { led: true }],
-                    s.slave_bot_data.lock().unwrap().received_messages,
-                );
             }
-            .boxed()
-        })
-        .await;
-    }
+
+            assert_eq!(
+                messages,
+                s.slave_bot_data.lock().unwrap().received_messages,
+            );
+        }
+        .boxed()
+    })
+    .await;
 }
