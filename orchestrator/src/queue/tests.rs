@@ -3,12 +3,11 @@
 use futures::future::{BoxFuture, FutureExt};
 
 use std::{
-    thread::{self, JoinHandle},
-    time::Duration,
+    fs::{self, File}, thread::{self, JoinHandle}, time::Duration, io::Write
 };
 
 use super::*;
-use crate::state::tests::{get_test_state, TestState};
+use crate::{action::action_wrapper::Context, state::tests::{get_test_state, TestState}};
 
 pub struct TestQueue {
     pub queue_handler: QueueHandler,
@@ -63,8 +62,87 @@ macro_rules! test_with_queue {
     };
 }
 
-test_with_queue!(async fn test_queue_stops(_s: &mut TestState, q: &mut TestQueue) {
+fn stop_queue_and_wait(q: &mut TestQueue, timeout_millis: usize) {
     q.queue_handler.stop();
-    thread::sleep(Duration::from_millis(50));
-    assert!(q.queue_join_handle.is_finished());
+    for _ in 0..timeout_millis {
+        thread::sleep(Duration::from_millis(1));
+        if q.queue_join_handle.is_finished() {
+            return;
+        }
+    }
+    panic!("Queue did not stop in time");
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct InfiniteTestAction {
+    pub i: u64,
+}
+
+#[async_trait]
+impl Action for InfiniteTestAction {
+    async fn step(&mut self, _: &Context, _: &StateHandler) -> bool {
+        self.i += 1;
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        self.i += 1;
+        true
+    }
+
+    fn get_type_name() -> &'static str where Self:Sized {
+        "infinite"
+    }
+
+    fn save_to_disk(&self, ctx: &Context) -> Result<(), String> {
+        serialize_to_json_file(&self, &ctx.get_save_dir().join("data.json"))
+    }
+
+    fn load_from_disk(ctx: &Context) -> Result<Self, String>
+    where
+        Self: Sized,
+    {
+        deserialize_from_json_file(&ctx.get_save_dir().join("data.json"))
+    }
+}
+
+test_with_queue!(async fn test_stop(_s: &mut TestState, q: &mut TestQueue) {
+    stop_queue_and_wait(q, 50);
+
+    let saved = fs::read_to_string(q.save_dir.join("queue.json")).expect("Queue did not save itself to disk");
+    assert_eq!(r#"{"action_save_dirs":[],"id_counter":0}"#, saved);
+});
+
+test_with_queue!(async fn test_stop_with_action(_s: &mut TestState, q: &mut TestQueue) {
+    q.queue_handler.add_action(InfiniteTestAction { i: 0 });
+    tokio::time::sleep(Duration::from_millis(5)).await;
+    stop_queue_and_wait(q, 50);
+
+    let action_dir = q.save_dir.join("0_infinite");
+    let saved = fs::read_to_string(q.save_dir.join("queue.json")).expect("Queue did not save itself to disk");
+    assert_eq!(format!(r#"{{"action_save_dirs":[{:?}],"id_counter":1}}"#, action_dir), saved);
+    let saved = fs::read_to_string(action_dir.join("data.json")).expect("Action did not save itself to disk");
+    assert_eq!("{\"i\":2}", saved);
+});
+
+test_with_queue!(async fn test_kill_action_keep_in_queue(_s: &mut TestState, q: &mut TestQueue) {
+    let id = q.queue_handler.add_action(InfiniteTestAction { i: 0 });
+    tokio::time::sleep(Duration::from_millis(5)).await;
+    q.queue_handler.kill_running_action(id, /* keep_in_queue = */ true);
+    stop_queue_and_wait(q, 50);
+
+    let action_dir = q.save_dir.join("0_infinite");
+    let saved = fs::read_to_string(q.save_dir.join("queue.json")).expect("Queue did not save itself to disk");
+    assert_eq!(format!(r#"{{"action_save_dirs":[{:?}],"id_counter":1}}"#, action_dir), saved);
+    let saved = fs::read_to_string(action_dir.join("data.json")).expect("Action did not save itself to disk");
+    assert_eq!("{\"i\":1}", saved);
+});
+
+test_with_queue!(async fn test_kill_action_remove_from_queue(_s: &mut TestState, q: &mut TestQueue) {
+    let id = q.queue_handler.add_action(InfiniteTestAction { i: 0 });
+    tokio::time::sleep(Duration::from_millis(5)).await;
+    q.queue_handler.kill_running_action(id, /* keep_in_queue = */ false);
+    stop_queue_and_wait(q, 50);
+
+    let action_dir = q.save_dir.join("0_infinite");
+    let saved = fs::read_to_string(q.save_dir.join("queue.json")).expect("Queue did not save itself to disk");
+    assert_eq!(r#"{"action_save_dirs":[],"id_counter":1}"#, saved);
+    fs::read_to_string(action_dir.join("data.json")).expect_err("Action should not have been saved to disk");
 });
