@@ -1,11 +1,11 @@
 use std::sync::{Arc, Mutex};
 
 use arduino_common::{comunication::Comunication, Message, Response};
-use serialport::TTYPort;
+use tokio_serial::SerialStream;
 
 
 pub struct FakeSlaveBot {
-    com: Comunication<TTYPort, tokio::time::Sleep>,
+    com: Comunication<SerialStream, tokio::time::Sleep>,
     name: [u8; 10],
     data: Arc<Mutex<FakeSlaveBotData>>,
 }
@@ -16,7 +16,7 @@ pub struct FakeSlaveBotData {
 }
 
 impl FakeSlaveBot {
-    pub fn new(serial: TTYPort, name: [u8; 10]) -> FakeSlaveBot {
+    pub fn new(serial: SerialStream, name: [u8; 10]) -> FakeSlaveBot {
         FakeSlaveBot {
             com: Comunication::new(serial, 3),
             name,

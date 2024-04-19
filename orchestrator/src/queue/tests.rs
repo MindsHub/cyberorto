@@ -30,8 +30,8 @@ pub fn get_test_state_queue() -> (TestState, TestQueue) {
 }
 
 
-#[test]
-fn test_queue_stops() {
+#[tokio::test]
+async fn test_queue_stops() {
     let (_, q) = get_test_state_queue();
 
     q.queue_handler.stop();

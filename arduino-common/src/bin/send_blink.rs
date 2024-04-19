@@ -1,21 +1,21 @@
 use std::time::Duration;
 
 use arduino_common::prelude::*;
-use serialport::TTYPort;
 use tokio::{
     sync::Mutex,
     time::{sleep, Instant},
 };
+use tokio_serial::{SerialPortBuilderExt, SerialStream};
 #[tokio::main]
 async fn main() {
-    let port = serialport::new("/dev/ttyACM0", 115200)
+    let port = tokio_serial::new("/dev/ttyACM0", 115200)
         .timeout(Duration::from_millis(3))
-        .parity(serialport::Parity::None)
-        .stop_bits(serialport::StopBits::One)
-        .flow_control(serialport::FlowControl::None)
-        .open_native()
+        .parity(tokio_serial::Parity::None)
+        .stop_bits(tokio_serial::StopBits::One)
+        .flow_control(tokio_serial::FlowControl::None)
+        .open_native_async()
         .expect("Failed to open port");
-    let master: Master<TTYPort, tokio::time::Sleep, Mutex<InnerMaster<TTYPort, tokio::time::Sleep>>> =
+    let master: Master<SerialStream, tokio::time::Sleep, Mutex<InnerMaster<SerialStream, tokio::time::Sleep>>> =
         Master::new(port, 4000, 1);
     let mut state = true;
     sleep(Duration::from_millis(3000)).await;

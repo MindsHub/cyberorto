@@ -1,44 +1,20 @@
 extern crate std;
-use core::{future::Future, ops::DerefMut, task::Poll, time::Duration};
-use serialport::{SerialPort, TTYPort};
-use std::io::{Read, Write};
+use core::{future::Future, ops::DerefMut, time::Duration};
 use tokio::sync::Mutex;
+use tokio_serial::SerialStream;
 
 use crate::prelude::*;
-struct Reader<'a> {
-    com: &'a mut dyn SerialPort,
-}
-impl<'a> Reader<'a> {
-    fn new(com: &'a mut dyn SerialPort) -> Self {
-        Self { com }
-    }
-}
 
-impl<'a> Future for Reader<'a> {
-    type Output = u8;
-
-    fn poll(
-        mut self: core::pin::Pin<&mut Self>,
-        cx: &mut core::task::Context<'_>,
-    ) -> core::task::Poll<Self::Output> {
-        let mut buf = [0u8];
-        if Read::read(self.com, &mut buf).is_ok() {
-            Poll::Ready(buf[0])
-        } else {
-            cx.waker().wake_by_ref();
-            Poll::Pending
-        }
-    }
-}
-
-impl AsyncSerial for TTYPort {
+impl AsyncSerial for SerialStream {
     async fn read(&mut self) -> u8 {
-        Reader::new(self).await
+        let mut buf = [0u8];
+        while tokio::io::AsyncReadExt::read(self, &mut buf).await.is_err() {}
+        buf[0]
     }
 
     async fn write(&mut self, buf: u8) {
-        while self.write_all(&[buf]).is_err() {}
-        self.flush().unwrap();
+        while tokio::io::AsyncWriteExt::write(self, &[buf]).await.is_err() {}
+        let _ = tokio::io::AsyncWriteExt::flush(self).await; // ignore the result
     }
 }
 

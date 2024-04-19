@@ -19,7 +19,7 @@ futures = { version = "0.3", default-features = false }
 
 #LIBRARY USED IN STD VERSION:
 #serial port
-serialport = {version="4.3", optional=true}
+tokio-serial = {version="5.4.4", optional=true}
 
 #rand for testing
 rand={version="0.8", optional = true, features = ["small_rng"]}
@@ -33,4 +33,4 @@ indicatif = {version = "0.17", optional = true}
 [features]
 # activate std to have access to all std additional features/implementations
 default=["std"]
-std=["dep:rand", "dep:indicatif", "dep:serialport", "dep:tokio"]
+std=["dep:rand", "dep:indicatif", "dep:tokio-serial", "dep:tokio"]

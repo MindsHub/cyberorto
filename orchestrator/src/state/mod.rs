@@ -8,7 +8,7 @@ use std::{
 };
 
 use arduino_common::prelude::*;
-use serialport::TTYPort;
+use tokio_serial::SerialStream;
 
 use crate::constants::ARM_LENGTH;
 use crate::constants::WATER_TIME;
@@ -103,7 +103,7 @@ pub struct Plant {
 #[derive(Debug, Clone)]
 pub struct StateHandler {
     state: Arc<Mutex<State>>,
-    master: Arc<Master<TTYPort, tokio::time::Sleep, tokio::sync::Mutex<InnerMaster<TTYPort, tokio::time::Sleep>>>>,
+    master: Arc<Master<SerialStream, tokio::time::Sleep, tokio::sync::Mutex<InnerMaster<SerialStream, tokio::time::Sleep>>>>,
 }
 
 fn acquire(state: &Arc<Mutex<State>>) -> MutexGuard<'_, State> {
@@ -123,7 +123,7 @@ macro_rules! mutate_state {
 }
 
 impl StateHandler {
-    pub fn new(port: TTYPort) -> StateHandler {
+    pub fn new(port: SerialStream) -> StateHandler {
         StateHandler {
             state: Arc::new(Mutex::new(State::default())),
             master: Arc::new(Master::new(port, 100, 20)),

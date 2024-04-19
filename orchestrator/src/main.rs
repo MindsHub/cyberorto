@@ -3,6 +3,7 @@ use std::{env, path::PathBuf, thread, time::Duration};
 use clap::{command, Parser};
 use queue::QueueHandler;
 use state::StateHandler;
+use tokio_serial::SerialPortBuilderExt;
 
 mod action;
 mod api;
@@ -33,12 +34,12 @@ async fn main() {
         PathBuf::from(home + "/.cyberorto/queue")
     });
 
-    let port = serialport::new(&port, 115200)
+    let port = tokio_serial::new(&port, 115200)
         .timeout(Duration::from_millis(3))
-        .parity(serialport::Parity::None)
-        .stop_bits(serialport::StopBits::One)
-        .flow_control(serialport::FlowControl::None)
-        .open_native()
+        .parity(tokio_serial::Parity::None)
+        .stop_bits(tokio_serial::StopBits::One)
+        .flow_control(tokio_serial::FlowControl::None)
+        .open_native_async()
         .expect("Failed to open port");
     let state_handler = StateHandler::new(port);
     let queue_handler = QueueHandler::new(state_handler.clone(), save_dir);

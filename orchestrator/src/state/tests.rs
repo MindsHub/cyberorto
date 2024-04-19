@@ -19,7 +19,7 @@ pub struct TestState {
 }
 
 pub fn get_test_state() -> TestState {
-    let (master, slave) = TTYPort::pair().expect("Unable to create tty pair");
+    let (master, slave) = SerialStream::pair().expect("Unable to create tty pair");
 
     let mut slave_bot = FakeSlaveBot::new(slave, *FAKE_BOT_NAME);
     let slave_bot_data = slave_bot.get_data_ref();

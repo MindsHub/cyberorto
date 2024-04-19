@@ -5,20 +5,20 @@ use std::{
 };
 
 use arduino_common::prelude::*;
-use serialport::TTYPort;
+use tokio_serial::{SerialPortBuilderExt, SerialStream};
 
 #[tokio::main]
 async fn main() {
-    let mut port = serialport::new("/dev/ttyACM0", 115200)
+    let mut port = tokio_serial::new("/dev/ttyACM0", 115200)
         .timeout(Duration::from_millis(100))
-        .parity(serialport::Parity::None)
-        .stop_bits(serialport::StopBits::One)
-        .flow_control(serialport::FlowControl::None)
-        .open_native()
+        .parity(tokio_serial::Parity::None)
+        .stop_bits(tokio_serial::StopBits::One)
+        .flow_control(tokio_serial::FlowControl::None)
+        .open_native_async()
         .expect("Failed to open port");
     let _ = port.flush();
     sleep(Duration::from_secs_f32(1.58));
-    let mut comunication: Comunication<TTYPort, tokio::time::Sleep> = Comunication::new(port, 100);
+    let mut comunication: Comunication<SerialStream, tokio::time::Sleep> = Comunication::new(port, 100);
     let first_time = Instant::now();
     let mut first: Option<Response> = None;
     while first.is_none() {

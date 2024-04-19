@@ -2,7 +2,7 @@ use std::{thread::sleep, time::Duration};
 
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::{thread_rng, Rng};
-use serialport::{ClearBuffer, SerialPort};
+use tokio_serial::{ClearBuffer, SerialPort};
 fn flush(port: &mut Box<dyn SerialPort>) {
     port.flush().unwrap();
     let to_read = port.bytes_to_read().unwrap();
@@ -15,11 +15,11 @@ fn flush(port: &mut Box<dyn SerialPort>) {
     port.clear(ClearBuffer::Output).unwrap();
 }
 fn main() {
-    let mut port = serialport::new("/dev/ttyACM0", 115200)
+    let mut port = tokio_serial::new("/dev/ttyACM0", 115200)
         .timeout(Duration::from_millis(100))
-        .parity(serialport::Parity::None)
-        .stop_bits(serialport::StopBits::One)
-        .flow_control(serialport::FlowControl::None)
+        .parity(tokio_serial::Parity::None)
+        .stop_bits(tokio_serial::StopBits::One)
+        .flow_control(tokio_serial::FlowControl::None)
         .open()
         .expect("Failed to open port");
 
