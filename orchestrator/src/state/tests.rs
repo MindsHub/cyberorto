@@ -49,6 +49,7 @@ pub fn get_test_state() -> TestState {
 pub async fn test_with_state(f: impl Fn(&'_ mut TestState) -> BoxFuture<'_, ()>) {
     let mut test_state = get_test_state();
     f(&mut test_state).await;
+
     test_state
         .slave_bot_killer
         .send(())
