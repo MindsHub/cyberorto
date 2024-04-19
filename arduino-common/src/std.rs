@@ -1,10 +1,7 @@
 extern crate std;
-use core::{future::Future, ops::DerefMut, task::Poll};
+use core::{future::Future, ops::DerefMut, task::Poll, time::Duration};
 use serialport::{SerialPort, TTYPort};
-use std::{
-    io::{Read, Write},
-    time::Instant,
-};
+use std::io::{Read, Write};
 use tokio::sync::Mutex;
 
 use crate::prelude::*;
@@ -46,34 +43,10 @@ impl AsyncSerial for TTYPort {
 }
 
 ///function used to sleep in std enviroments
-pub struct StdSleeper {
-    instant: Instant,
-    us_to_wait: u128,
-}
-
-impl Future for StdSleeper {
-    type Output = ();
-
-    fn poll(
-        self: core::pin::Pin<&mut Self>,
-        cx: &mut core::task::Context<'_>,
-    ) -> Poll<Self::Output> {
-        //println!("wait_pool");
-        if self.instant.elapsed().as_micros() > self.us_to_wait {
-            Poll::Ready(())
-        } else {
-            cx.waker().wake_by_ref();
-            Poll::Pending
-        }
-    }
-}
-impl Sleep for StdSleeper {
+impl Sleep for tokio::time::Sleep {
     fn await_us(us: u64) -> Self {
         //println!("wait");
-        Self {
-            instant: Instant::now(),
-            us_to_wait: us as u128,
-        }
+        tokio::time::sleep(Duration::from_micros(us))
     }
 }
 
@@ -87,4 +60,4 @@ impl<T> MutexTrait<T> for tokio::sync::Mutex<T> {
     }
 }
 
-pub type TokioMaster<Serial> = Master<Serial, StdSleeper, Mutex<InnerMaster<Serial, StdSleeper>>>;
+pub type TokioMaster<Serial> = Master<Serial, tokio::time::Sleep, Mutex<InnerMaster<Serial, tokio::time::Sleep>>>;

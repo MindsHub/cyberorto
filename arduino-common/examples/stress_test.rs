@@ -5,7 +5,7 @@ use tokio::sync::Mutex;
 async fn main() {
     let (master, slave) = Testable::new(0.2, 0.00);
     let m = Box::leak(Box::new(Mutex::new(BotState::default())));
-    let mut slave: SlaveBot<Testable, StdSleeper, _> =
+    let mut slave: SlaveBot<Testable, tokio::time::Sleep, _> =
         SlaveBot::new(slave, 0, b"ciao      ".clone(), m);
     let q = tokio::spawn(async move { slave.run().await });
     let master: TestMaster<Testable> = Master::new(master, 5, 20);

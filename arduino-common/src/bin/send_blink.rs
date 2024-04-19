@@ -15,7 +15,7 @@ async fn main() {
         .flow_control(serialport::FlowControl::None)
         .open_native()
         .expect("Failed to open port");
-    let master: Master<TTYPort, StdSleeper, Mutex<InnerMaster<TTYPort, StdSleeper>>> =
+    let master: Master<TTYPort, tokio::time::Sleep, Mutex<InnerMaster<TTYPort, tokio::time::Sleep>>> =
         Master::new(port, 4000, 1);
     let mut state = true;
     sleep(Duration::from_millis(3000)).await;

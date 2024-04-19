@@ -8,7 +8,7 @@ use tokio::sync::{
 };
 
 use crate::prelude::*;
-pub type TestMaster<Serial> = Master<Serial, StdSleeper, Mutex<InnerMaster<Serial, StdSleeper>>>;
+pub type TestMaster<Serial> = Master<Serial, tokio::time::Sleep, Mutex<InnerMaster<Serial, tokio::time::Sleep>>>;
 
 pub struct Testable {
     tx: Sender<u8>,
@@ -70,14 +70,14 @@ mod test {
         timeout_us: u64,
     ) -> (
         TestMaster<Testable>,
-        SlaveBot<'static, Testable, StdSleeper, Mutex<BotState>>,
+        SlaveBot<'static, Testable, tokio::time::Sleep, Mutex<BotState>>,
         &'static Mutex<BotState>,
     ) {
         let (master, slave) = Testable::new(0.0, 0.0);
         let master: TestMaster<Testable> = Master::new(master, timeout_us, 10);
         let state = Box::new(Mutex::new(BotState::default()));
         let state = &*Box::leak(state);
-        let slave: SlaveBot<Testable, StdSleeper, _> =
+        let slave: SlaveBot<Testable, tokio::time::Sleep, _> =
             SlaveBot::new(slave, 10, b"ciao      ".clone(), state);
 
         (master, slave, state)
@@ -134,7 +134,7 @@ mod test {
         let master: TestMaster<Testable> = Master::new(master, 10, 10);
         let state = Box::new(Mutex::new(BotState::default()));
         let state = &*Box::leak(state);
-        let mut slave: SlaveBot<Testable, StdSleeper, _> =
+        let mut slave: SlaveBot<Testable, tokio::time::Sleep, _> =
             SlaveBot::new(slave, 10, b"ciao      ".clone(), state);
         tokio::time::sleep(Duration::from_millis(10)).await;
         let _ = tokio::spawn(async move { slave.run().await });

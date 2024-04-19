@@ -1,12 +1,11 @@
 use std::sync::{Arc, Mutex};
 
-use arduino_common::{comunication::Comunication, std::StdSleeper, Message, Response};
+use arduino_common::{comunication::Comunication, Message, Response};
 use serialport::TTYPort;
-use tokio::task::yield_now;
 
 
 pub struct FakeSlaveBot {
-    com: Comunication<TTYPort, StdSleeper>,
+    com: Comunication<TTYPort, tokio::time::Sleep>,
     name: [u8; 10],
     data: Arc<Mutex<FakeSlaveBotData>>,
 }
@@ -33,7 +32,6 @@ impl FakeSlaveBot {
 
     pub async fn run(&mut self) -> ! {
         loop {
-            yield_now().await;
             if let Some((id, message)) = self.com.try_read::<Message>().await {
                 self.data.lock().unwrap().received_messages.push(message.clone());
 

@@ -12,7 +12,7 @@ async fn main() {
         .flow_control(serialport::FlowControl::None)
         .open_native()
         .expect("Failed to open port");
-    let master: Master<TTYPort, StdSleeper, Mutex<InnerMaster<TTYPort, StdSleeper>>> =
+    let master: Master<TTYPort, tokio::time::Sleep, Mutex<InnerMaster<TTYPort, tokio::time::Sleep>>> =
         Master::new(port, 1000, 20);
     let mut ok = 0;
     for _ in 0..10000 {

@@ -103,7 +103,7 @@ pub struct Plant {
 #[derive(Debug, Clone)]
 pub struct StateHandler {
     state: Arc<Mutex<State>>,
-    master: Arc<Master<TTYPort, StdSleeper, tokio::sync::Mutex<InnerMaster<TTYPort, StdSleeper>>>>,
+    master: Arc<Master<TTYPort, tokio::time::Sleep, tokio::sync::Mutex<InnerMaster<TTYPort, tokio::time::Sleep>>>>,
 }
 
 fn acquire(state: &Arc<Mutex<State>>) -> MutexGuard<'_, State> {
