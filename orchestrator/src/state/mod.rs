@@ -1,3 +1,5 @@
+#![allow(unused_variables)] // TODO remove
+
 pub(crate) mod tests;
 pub(crate) mod fake_slave_bot;
 
@@ -145,7 +147,7 @@ impl StateHandler {
 
     pub fn water_all(&self) {
         let plants = {
-            let mut state = acquire(&self.state);
+            let state = acquire(&self.state);
             state.plants.clone()
         };
         for plant in plants {

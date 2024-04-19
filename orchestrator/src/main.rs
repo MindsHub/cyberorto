@@ -1,5 +1,3 @@
-#![allow(unused)] // TODO remove
-
 use std::{env, path::PathBuf, thread, time::Duration};
 
 use clap::{command, Parser};
