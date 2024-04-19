@@ -1,7 +1,9 @@
-use std::{fs::create_dir_all, path::{Path, PathBuf}};
+use std::{
+    fs::create_dir_all,
+    path::{Path, PathBuf},
+};
 
 use super::{command_list::CommandListAction, emergency::EmergencyAction, Action};
-
 
 /// Holds an `Action` along with some fixed stats needed to keep track of
 /// its execution and/or save it to disk. Can act as a placeholder in the
@@ -36,7 +38,6 @@ pub struct Context {
 }
 
 pub type ActionId = u32;
-
 
 impl ActionWrapper {
     /// Creates a non-placeholder `ActionWrapper`, initializing the context with
@@ -79,24 +80,43 @@ impl ActionWrapper {
     ///         will be extracted from there.
     pub fn load_from_disk(dir: &Path) -> Result<ActionWrapper, String> {
         if !dir.is_dir() {
-            return Err(format!("Not a directory: {dir:?}"))
+            return Err(format!("Not a directory: {dir:?}"));
         }
-        let filename = dir.file_name()
+        let filename = dir
+            .file_name()
             .ok_or_else(|| format!("Directory does not exist: {dir:?}"))?
             .to_string_lossy();
 
         let mut filename_pieces = filename.splitn(2, '_');
-        let id = filename_pieces.next().ok_or_else(|| format!("Invalid filename: {filename}"))?;
-        let id = id.parse::<ActionId>().map_err(|e| format!("Invalid filename: {filename}: {e}"))?;
-        let type_name = filename_pieces.next().ok_or_else(|| format!("Invalid filename: {filename}"))?;
-        let ctx = Context { id, type_name: type_name.to_string(), save_dir: dir.into() };
+        let id = filename_pieces
+            .next()
+            .ok_or_else(|| format!("Invalid filename: {filename}"))?;
+        let id = id
+            .parse::<ActionId>()
+            .map_err(|e| format!("Invalid filename: {filename}: {e}"))?;
+        let type_name = filename_pieces
+            .next()
+            .ok_or_else(|| format!("Invalid filename: {filename}"))?;
+        let ctx = Context {
+            id,
+            type_name: type_name.to_string(),
+            save_dir: dir.into(),
+        };
 
         if type_name == EmergencyAction::get_type_name() {
-            Ok(ActionWrapper { action: Some(Box::new(EmergencyAction::load_from_disk(&ctx)?)), ctx })
+            Ok(ActionWrapper {
+                action: Some(Box::new(EmergencyAction::load_from_disk(&ctx)?)),
+                ctx,
+            })
         } else if type_name == CommandListAction::get_type_name() {
-            Ok(ActionWrapper { action: Some(Box::new(CommandListAction::load_from_disk(&ctx)?)), ctx })
+            Ok(ActionWrapper {
+                action: Some(Box::new(CommandListAction::load_from_disk(&ctx)?)),
+                ctx,
+            })
         } else {
-            Err(format!("Invalid filename: {filename}: invalid type name {type_name}"))
+            Err(format!(
+                "Invalid filename: {filename}: invalid type name {type_name}"
+            ))
         }
     }
 

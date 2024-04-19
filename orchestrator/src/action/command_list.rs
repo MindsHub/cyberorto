@@ -2,7 +2,10 @@ use std::{collections::VecDeque, time::Duration};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{state::StateHandler, util::serde::{deserialize_from_json_file, serialize_to_json_file}};
+use crate::{
+    state::StateHandler,
+    util::serde::{deserialize_from_json_file, serialize_to_json_file},
+};
 
 use super::{Action, Context};
 
@@ -14,11 +17,7 @@ pub struct CommandListAction {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Command {
-    Move {
-        x: f32,
-        y: f32,
-        z: f32,
-    },
+    Move { x: f32, y: f32, z: f32 },
     Reset,
     Home,
     Retract,
@@ -51,7 +50,10 @@ impl Action for CommandListAction {
         !self.commands.is_empty()
     }
 
-    fn get_type_name() -> &'static str where Self: Sized {
+    fn get_type_name() -> &'static str
+    where
+        Self: Sized,
+    {
         "command_list"
     }
 
@@ -59,7 +61,10 @@ impl Action for CommandListAction {
         serialize_to_json_file(&self, &ctx.get_save_dir().join("data.json"))
     }
 
-    fn load_from_disk(ctx: &Context) -> Result<Self, String> where Self: Sized {
+    fn load_from_disk(ctx: &Context) -> Result<Self, String>
+    where
+        Self: Sized,
+    {
         deserialize_from_json_file(&ctx.get_save_dir().join("data.json"))
     }
 }

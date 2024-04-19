@@ -36,4 +36,5 @@ impl<T> MutexTrait<T> for tokio::sync::Mutex<T> {
     }
 }
 
-pub type TokioMaster<Serial> = Master<Serial, tokio::time::Sleep, Mutex<InnerMaster<Serial, tokio::time::Sleep>>>;
+pub type TokioMaster<Serial> =
+    Master<Serial, tokio::time::Sleep, Mutex<InnerMaster<Serial, tokio::time::Sleep>>>;

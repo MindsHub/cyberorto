@@ -1,8 +1,7 @@
 use std::sync::{Arc, Mutex};
 
-use arduino_common::{comunication::Comunication, Message, Response};
+use arduino_common::prelude::*;
 use tokio_serial::SerialStream;
-
 
 pub struct FakeSlaveBot {
     com: Comunication<SerialStream, tokio::time::Sleep>,
@@ -20,7 +19,7 @@ impl FakeSlaveBot {
         FakeSlaveBot {
             com: Comunication::new(serial, 3),
             name,
-            data: Arc::new(Mutex::new(FakeSlaveBotData{
+            data: Arc::new(Mutex::new(FakeSlaveBotData {
                 received_messages: Vec::new(),
             })),
         }
@@ -33,7 +32,11 @@ impl FakeSlaveBot {
     pub async fn run(&mut self) -> ! {
         loop {
             if let Some((id, message)) = self.com.try_read::<Message>().await {
-                self.data.lock().unwrap().received_messages.push(message.clone());
+                self.data
+                    .lock()
+                    .unwrap()
+                    .received_messages
+                    .push(message.clone());
 
                 match message {
                     Message::WhoAreYou => {

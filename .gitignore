@@ -2,3 +2,4 @@ target
 .vscode
 *.lock
 TODO.txt
+lcov.info

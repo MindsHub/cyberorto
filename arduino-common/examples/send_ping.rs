@@ -13,8 +13,11 @@ async fn main() {
         .flow_control(tokio_serial::FlowControl::None)
         .open_native_async()
         .expect("Failed to open port");
-    let master: Master<SerialStream, tokio::time::Sleep, Mutex<InnerMaster<SerialStream, tokio::time::Sleep>>> =
-        Master::new(port, 1000, 20);
+    let master: Master<
+        SerialStream,
+        tokio::time::Sleep,
+        Mutex<InnerMaster<SerialStream, tokio::time::Sleep>>,
+    > = Master::new(port, 1000, 20);
     let mut ok = 0;
     for _ in 0..10000 {
         if master.who_are_you().await.is_ok() {

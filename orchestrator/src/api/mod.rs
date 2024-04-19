@@ -18,8 +18,8 @@ pub struct Position {
 
 #[derive(Serialize, Deserialize)]
 pub struct RobotState {
-    position:      Position,
-    water_level:   WaterLevel,
+    position: Position,
+    water_level: WaterLevel,
     battery_level: BatteryLevel,
 }
 
@@ -68,7 +68,7 @@ pub fn get_state(robot_state: State) -> Json<RobotState> {
 }*/
 
 #[get("/toggle_led")]
-pub async fn toggle_led(robot_state: &State<StateHandler>){
+pub async fn toggle_led(robot_state: &State<StateHandler>) {
     robot_state.toggle_led().await
     //robot_state.
 }

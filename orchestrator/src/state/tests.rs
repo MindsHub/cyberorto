@@ -5,7 +5,7 @@ use tokio::sync::oneshot;
 
 use std::thread::JoinHandle;
 
-use self::fake_slave_bot::{FakeSlaveBotData, FakeSlaveBot};
+use self::fake_slave_bot::{FakeSlaveBot, FakeSlaveBotData};
 
 use super::*;
 
@@ -49,19 +49,30 @@ pub fn get_test_state() -> TestState {
 pub async fn test_with_state(f: impl Fn(&'_ mut TestState) -> BoxFuture<'_, ()>) {
     let mut test_state = get_test_state();
     f(&mut test_state).await;
-    test_state.slave_bot_killer.send(()).expect("Could not send kill signal to slave bot");
-    test_state.slave_bot_join_handle.join().expect("Could not join slave bot");
+    test_state
+        .slave_bot_killer
+        .send(())
+        .expect("Could not send kill signal to slave bot");
+    test_state
+        .slave_bot_join_handle
+        .join()
+        .expect("Could not join slave bot");
 }
-
 
 #[tokio::test]
 async fn test_toggle_led() {
-    test_with_state(|s| async {
-        s.state_handler.toggle_led().await;
+    for i in 0..1000 {
+        test_with_state(|s| {
+            async {
+                s.state_handler.toggle_led().await;
 
-        assert_eq!(
-            vec![Message::SetLed { led: true }],
-            s.slave_bot_data.lock().unwrap().received_messages,
-        );
-    }.boxed()).await
+                assert_eq!(
+                    vec![Message::SetLed { led: true }],
+                    s.slave_bot_data.lock().unwrap().received_messages,
+                );
+            }
+            .boxed()
+        })
+        .await;
+    }
 }

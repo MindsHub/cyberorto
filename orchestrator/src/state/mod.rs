@@ -1,10 +1,11 @@
 #![allow(unused_variables)] // TODO remove
 
-pub(crate) mod tests;
 pub(crate) mod fake_slave_bot;
+pub(crate) mod tests;
 
 use std::{
-    sync::{Arc, Mutex, MutexGuard}, time::Duration
+    sync::{Arc, Mutex, MutexGuard},
+    time::Duration,
 };
 
 use arduino_common::prelude::*;
@@ -14,19 +15,17 @@ use crate::constants::ARM_LENGTH;
 use crate::constants::WATER_TIME;
 use serde::{Deserialize, Serialize};
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WaterLevel {
     percentage: f32,
-    liters:     f32,
+    liters: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatteryLevel {
     percentage: f32,
-    volts:      f32,
+    volts: f32,
 }
-
 
 #[derive(Debug, Clone)]
 pub struct State {
@@ -37,8 +36,8 @@ pub struct State {
     target_z: f32,
 
     // component flags
-    water:    bool,
-    lights:   bool,
+    water: bool,
+    lights: bool,
     air_pump: bool,
 
     plow: bool,
@@ -52,7 +51,7 @@ pub struct State {
     pub z: f32,
 
     pub battery_level: BatteryLevel,
-    pub water_level:   WaterLevel,
+    pub water_level: WaterLevel,
 }
 
 impl Default for State {
@@ -76,21 +75,20 @@ impl Default for State {
 
             battery_level: BatteryLevel {
                 percentage: 0.0,
-                volts:      0.0,
+                volts: 0.0,
             },
             water_level: WaterLevel {
                 percentage: 0.0,
-                liters:     0.0,
-            }
+                liters: 0.0,
+            },
         }
     }
 }
 #[derive(Debug, Clone)]
-pub struct PlantTime{
+pub struct PlantTime {
     plant_timer: f32,
     water_timer: f32,
 }
-
 
 #[derive(Debug, Clone)]
 pub struct Plant {
@@ -99,11 +97,16 @@ pub struct Plant {
     z: f32,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct StateHandler {
     state: Arc<Mutex<State>>,
-    master: Arc<Master<SerialStream, tokio::time::Sleep, tokio::sync::Mutex<InnerMaster<SerialStream, tokio::time::Sleep>>>>,
+    master: Arc<
+        Master<
+            SerialStream,
+            tokio::time::Sleep,
+            tokio::sync::Mutex<InnerMaster<SerialStream, tokio::time::Sleep>>,
+        >,
+    >,
 }
 
 fn acquire(state: &Arc<Mutex<State>>) -> MutexGuard<'_, State> {
@@ -160,10 +163,10 @@ impl StateHandler {
         //self.master.water(duration);
         mutate_state!(&self.state, water = false);
     }
-    pub async fn toggle_led(&self){
+    pub async fn toggle_led(&self) {
         let s = !self.get_state().led_state;
         self.master.set_led(s).await;
-        mutate_state!(&self.state, led_state=s)
+        mutate_state!(&self.state, led_state = s)
     }
 
     pub fn lights(&self, duration: Duration) {
@@ -191,7 +194,12 @@ impl StateHandler {
 
     pub fn reset(&self) {
         //self.master.reset();
-        mutate_state!(&self.state, target_x = 0.0, target_y = -ARM_LENGTH, target_z = 0.0);
+        mutate_state!(
+            &self.state,
+            target_x = 0.0,
+            target_y = -ARM_LENGTH,
+            target_z = 0.0
+        );
     }
 
     pub fn retract(&self) {
@@ -200,7 +208,7 @@ impl StateHandler {
     }
 
     pub fn move_to(&self, x: f32, y: f32, z: f32) {
-        self.master.move_to(x, y, z);
+        //self.master.move_to(x).a;
         mutate_state!(&self.state, target_x = x, target_y = y, target_z = z);
     }
 }

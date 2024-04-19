@@ -14,7 +14,10 @@ impl Action for EmergencyAction {
         false
     }
 
-    fn get_type_name() -> &'static str where Self: Sized {
+    fn get_type_name() -> &'static str
+    where
+        Self: Sized,
+    {
         "emergency"
     }
 
@@ -22,7 +25,10 @@ impl Action for EmergencyAction {
         Ok(())
     }
 
-    fn load_from_disk(_ctx: &Context) -> Result<Self, String> where Self: Sized {
+    fn load_from_disk(_ctx: &Context) -> Result<Self, String>
+    where
+        Self: Sized,
+    {
         Ok(EmergencyAction {})
     }
 }

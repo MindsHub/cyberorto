@@ -18,7 +18,8 @@ async fn main() {
         .expect("Failed to open port");
     let _ = port.flush();
     sleep(Duration::from_secs_f32(1.58));
-    let mut comunication: Comunication<SerialStream, tokio::time::Sleep> = Comunication::new(port, 100);
+    let mut comunication: Comunication<SerialStream, tokio::time::Sleep> =
+        Comunication::new(port, 100);
     let first_time = Instant::now();
     let mut first: Option<Response> = None;
     while first.is_none() {
@@ -26,7 +27,7 @@ async fn main() {
     }
     let first = first.unwrap();
     let first = match first {
-        arduino_common::Response::Wait { ms } => ms,
+        Response::Wait { ms } => ms,
         _ => 0,
     };
 
@@ -34,7 +35,7 @@ async fn main() {
         if let Some((_, m)) = comunication.try_read().await {
             let time_elapsed = first_time.elapsed().as_millis();
             let ex_elapsed = match m {
-                arduino_common::Response::Wait { ms } => ms - first,
+                Response::Wait { ms } => ms - first,
                 _ => 0,
             };
             println!(

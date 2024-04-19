@@ -9,7 +9,7 @@ use core::{
     task::{Context, Waker},
 };
 
-use arduino_common::{no_std::SingleCoreMutex, traits:: MutexTrait, BotState, SlaveBot};
+use arduino_common::prelude::*;
 
 
 use arduino_hal::port::{mode::Output, Pin, PinOps};
@@ -23,27 +23,29 @@ pub mod millis;
 /// module containing all serial stugg (init, async traits, buffer dimensions...)
 pub mod serial_hal;
 
-async fn set_state<PIN: PinOps>(state: &SingleCoreMutex<BotState>, p: &mut Pin<Output, PIN>){
-    let mut inner;
-    loop {
-        
-        
-        let lock = state.mut_lock().await;
-        //inner = !inner;
-        inner = lock.led;
-        //p.set lock.led;
-        if inner{
-            p.set_high();
-        }else{
-            p.set_low();
-        }
-        core::mem::drop(lock);
-        
-    
-        
-        Wait::from_millis(1).await;
+
+struct MHandler<LED: PinOps>{
+    status_pin: Pin<Output, LED>,
+}
+impl<LED: PinOps> MHandler<LED>{
+    fn new(p: Pin<Output, LED>)->Self{
+        Self { status_pin: p }
     }
 }
+
+impl<LED: PinOps> MessagesHandler for MHandler<LED>{
+    async fn set_led(&mut self, state: bool)->Option<Response> {
+        if state{
+            self.status_pin.set_high();
+        }else{
+            self.status_pin.set_low();
+        }
+        Some(Response::Done)
+    }
+}
+
+
+
 
 ///Main entry point
 #[arduino_hal::entry]
@@ -67,20 +69,20 @@ fn main() -> ! {
     let w = Waker::noop();
     let mut cx = Context::from_waker(&w);
     
-    let state = SingleCoreMutex::new(BotState::default());
-    
-    let mut s: SlaveBot<SerialHAL, Wait, _> = SlaveBot::new(serial, 100, b"ciao      ".clone(), &state);
+    //let state = SingleCoreMutex::new(BotState::default());
+    let message_handler = MHandler::new(led);
+    let mut s: Slave<SerialHAL, Wait, _ > = Slave::new(serial, 100, b"ciao      ".clone(), message_handler);
 
     let mut serial_async = pin!(async move {
         s.run().await;
     });
     //let mut led = led.downgrade();
-    let mut state = pin!(set_state(&state, &mut led));
+    //let mut state = pin!(set_state(&state, &mut led));
     
     
     //main loop
     loop {
         let _ = serial_async.as_mut().poll(&mut cx);
-        let _ = state.as_mut().poll(&mut cx);
+        //let _ = state.as_mut().poll(&mut cx);
     }
 }

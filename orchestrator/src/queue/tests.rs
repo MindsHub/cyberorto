@@ -1,6 +1,9 @@
 #![cfg(test)]
 
-use std::{thread::{self, JoinHandle}, time::Duration};
+use std::{
+    thread::{self, JoinHandle},
+    time::Duration,
+};
 
 use super::*;
 use crate::state::tests::{get_test_state, TestState};
@@ -17,7 +20,7 @@ pub fn get_test_state_queue() -> (TestState, TestQueue) {
     let save_dir = tempdir::TempDir::new("cyberorto_test").unwrap().into_path();
     let queue_handler = QueueHandler::new(test_state.state_handler.clone(), save_dir.clone());
     let queue_handler_clone = queue_handler.clone();
-    let queue_join_handle = std::thread::spawn(move || { queue_handler_clone.run() });
+    let queue_join_handle = std::thread::spawn(move || queue_handler_clone.run());
 
     (
         test_state,
@@ -25,10 +28,9 @@ pub fn get_test_state_queue() -> (TestState, TestQueue) {
             queue_handler,
             save_dir,
             queue_join_handle,
-        }
+        },
     )
 }
-
 
 #[tokio::test]
 async fn test_queue_stops() {

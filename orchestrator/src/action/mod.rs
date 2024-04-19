@@ -1,6 +1,6 @@
-pub mod emergency;
-pub mod command_list;
 pub mod action_wrapper;
+pub mod command_list;
+pub mod emergency;
 
 use std::fmt::Debug;
 
@@ -50,7 +50,6 @@ pub trait Action: Debug + Send {
     /// * `ctx` contains information on this action, e.g. its id, the save folder, ...
     fn release(&mut self, _ctx: &Context) {}
 
-
     //----
     // SAVING/LOADING TO/FROM DISK
     //----
@@ -62,7 +61,9 @@ pub trait Action: Debug + Send {
     /// Will be used to keep track of the action type before calling
     /// [`save_to_disk()`](Action::save_to_disk()), and will be used call
     /// [`load_from_disk()`](Action::load_from_disk()) on the correct action type.
-    fn get_type_name() -> &'static str where Self: Sized;
+    fn get_type_name() -> &'static str
+    where
+        Self: Sized;
 
     /// Saves an action to disk, in order to persist actions among executions
     /// of the program.
@@ -77,5 +78,7 @@ pub trait Action: Debug + Send {
     /// Reads data from the [`ctx.save_dir`](Context::save_dir) directory.
     ///
     /// * `ctx` contains information on this action, e.g. its id, the save folder, ...
-    fn load_from_disk(ctx: &Context) -> Result<Self, String> where Self: Sized;
+    fn load_from_disk(ctx: &Context) -> Result<Self, String>
+    where
+        Self: Sized;
 }

@@ -1,15 +1,24 @@
 mod tests;
 
 use std::{
-    collections::{HashMap, VecDeque}, fs::create_dir_all, future::Future, path::PathBuf, sync::{Arc, Condvar, Mutex, MutexGuard}
+    collections::{HashMap, VecDeque},
+    fs::create_dir_all,
+    future::Future,
+    path::PathBuf,
+    sync::{Arc, Condvar, Mutex, MutexGuard},
 };
 
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 
 use crate::{
-    action::{action_wrapper::{ActionId, ActionWrapper}, emergency::EmergencyAction, Action},
-    state::StateHandler, util::serde::{deserialize_from_json_file, serialize_to_json_file},
+    action::{
+        action_wrapper::{ActionId, ActionWrapper},
+        emergency::EmergencyAction,
+        Action,
+    },
+    state::StateHandler,
+    util::serde::{deserialize_from_json_file, serialize_to_json_file},
 };
 
 #[derive(Debug, PartialEq)]
@@ -96,7 +105,11 @@ impl QueueHandler {
     /// Returns the original lock (aka the parameter `queue`), or a new lock
     /// if the original lock was temporarily released while
     /// [`release()`](Action::release) was being executed.
-    fn release_prev_action<'a>(&'a self, mut queue: MutexGuard<'a, Queue>, mut action: ActionWrapper) -> MutexGuard<'a, Queue> {
+    fn release_prev_action<'a>(
+        &'a self,
+        mut queue: MutexGuard<'a, Queue>,
+        mut action: ActionWrapper,
+    ) -> MutexGuard<'a, Queue> {
         if action.action.is_some() {
             // call release() on the action to save resources while it
             // is not being executed anymore (or if it has been deleted)
@@ -104,7 +117,11 @@ impl QueueHandler {
             action.action.as_mut().unwrap().release(&action.ctx);
             queue = self.queue.0.lock().unwrap();
 
-            if let Some(item) = queue.actions.iter_mut().find(|item| item.get_id() == action.get_id()) {
+            if let Some(item) = queue
+                .actions
+                .iter_mut()
+                .find(|item| item.get_id() == action.get_id())
+            {
                 // If the placeholder corresponding to the current action is in the queue,
                 // replace it with the non-placeholder current action. This not only moves
                 // the Action object back in the queue, but also updates other fields in
@@ -115,7 +132,11 @@ impl QueueHandler {
             // `else`, it means that the placeholder has been deleted from the queue
             // in the meantime, so just let the current action be dropped. The loop below
             // will decide which action will come next.
-        } else if let Some(index) = queue.actions.iter().position(|item| item.get_id() == action.get_id()) {
+        } else if let Some(index) = queue
+            .actions
+            .iter()
+            .position(|item| item.get_id() == action.get_id())
+        {
             // If the current action has finished executing,
             // remove its corresponding placeholder from the queue.
             // No need to call release() since it has already been called
@@ -140,7 +161,6 @@ impl QueueHandler {
                     continue;
                 }
                 return None;
-
             } else if queue.paused || queue.emergency != EmergencyStatus::None {
                 if queue.emergency == EmergencyStatus::WaitingForReset {
                     if let Some(prev_action) = std::mem::take(&mut prev_action) {
@@ -152,7 +172,6 @@ impl QueueHandler {
                     queue.emergency = EmergencyStatus::Resetting;
                     return Some(queue.create_action_wrapper(EmergencyAction {}));
                 }
-
             } else if let Some(id) = queue.actions.front().map(|a| a.get_id()) {
                 if let Some(prev_action) = std::mem::take(&mut prev_action) {
                     if id == prev_action.get_id() && prev_action.action.is_some() {
@@ -179,7 +198,9 @@ impl QueueHandler {
                 drop(queue);
 
                 // We call acquire() to abide by the action lifecycle.
-                next_action.action.as_mut()
+                next_action
+                    .action
+                    .as_mut()
                     .expect("Unxpected placeholder in the queue")
                     .acquire(&next_action.ctx);
                 return Some(next_action);
@@ -199,7 +220,10 @@ impl QueueHandler {
     /// before `stepper` terminates.
     /// Returns `true` if there are some more steps available,
     /// or `false` if the action has finished executing.
-    async fn step_or_kill<F: Future<Output = bool>>(stepper: F, killer_rx: oneshot::Receiver<bool>) -> bool {
+    async fn step_or_kill<F: Future<Output = bool>>(
+        stepper: F,
+        killer_rx: oneshot::Receiver<bool>,
+    ) -> bool {
         tokio::select! {
             // Just forward the value from `stepper()`
             output = stepper => output,
@@ -238,12 +262,10 @@ impl QueueHandler {
                 // or `false` if the action has finished executing. The `killer_rx` channel
                 // will also do the same, i.e. return `true` if the action should be kept
                 // in the queue, or `false` otherwise.
-                if !runtime.block_on(
-                    Self::step_or_kill(
-                        action.step(&action_wrapper.ctx, &self.state_handler),
-                        killer_rx,
-                    )
-                ) {
+                if !runtime.block_on(Self::step_or_kill(
+                    action.step(&action_wrapper.ctx, &self.state_handler),
+                    killer_rx,
+                )) {
                     // The action has finished executing, release its resources and remove
                     // it from the queue.
                     action.release(&action_wrapper.ctx);
@@ -256,7 +278,6 @@ impl QueueHandler {
                     queue.running_killer = None;
                 }
                 prev_action = Some(action_wrapper);
-
             } else {
                 return; // the queue was asked to stop
             }
@@ -272,7 +293,7 @@ impl QueueHandler {
                 // TODO log error
                 println!("Error deserializing queue.json: {e}");
                 return;
-            },
+            }
         };
 
         queue.id_counter = data.id_counter;
@@ -283,7 +304,7 @@ impl QueueHandler {
                 Err(e) => {
                     // TODO log error
                     println!("Error deserializing action {:?}: {}", save_dir, e)
-                },
+                }
             }
         }
     }
@@ -291,7 +312,11 @@ impl QueueHandler {
     fn save_to_disk(&self) {
         let queue = self.queue.0.lock().unwrap();
         let data = QueueData {
-            action_save_dirs: queue.actions.iter().map(|a| a.get_save_dir().clone()).collect(),
+            action_save_dirs: queue
+                .actions
+                .iter()
+                .map(|a| a.get_save_dir().clone())
+                .collect(),
             id_counter: queue.id_counter,
         };
 
@@ -317,7 +342,6 @@ impl QueueHandler {
         self.main_loop();
         self.save_to_disk();
     }
-
 
     fn mutate_queue_and_notify<T>(&self, f: impl FnOnce(&mut Queue) -> T) -> T {
         let (queue, condvar) = &*self.queue;
@@ -375,27 +399,19 @@ impl QueueHandler {
     }
 
     pub fn clear(&self) {
-        self.mutate_queue_and_notify(|queue| {
-            queue.actions.clear()
-        })
+        self.mutate_queue_and_notify(|queue| queue.actions.clear())
     }
 
     pub fn pause(&self) {
-        self.mutate_queue_and_notify(|queue| {
-            queue.paused = true
-        })
+        self.mutate_queue_and_notify(|queue| queue.paused = true)
     }
 
     pub fn unpause(&self) {
-        self.mutate_queue_and_notify(|queue| {
-            queue.paused = false
-        })
+        self.mutate_queue_and_notify(|queue| queue.paused = false)
     }
 
     pub fn stop(&self) {
-        self.mutate_queue_and_notify(|queue| {
-            queue.stopped = true
-        })
+        self.mutate_queue_and_notify(|queue| queue.stopped = true)
     }
 
     /// Always pauses the queue. Then tries to kill the currently running action.

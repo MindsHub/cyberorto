@@ -24,145 +24,7 @@ pub mod comunication;
 /// comodity import. Just type use arduino-common::prelude::*; and you are ready to go
 pub mod prelude;
 
-#[repr(u8)]
-#[non_exhaustive]
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-/// In our comunication protocol we send this structure from master-> slave
-pub enum Message {
-    /// asking for information about the slave
-    WhoAreYou,
-    /// variant to move motor
-    Move {
-        x: f32,
-        y: f32,
-        z: f32,
-    },
-    Reset {
-        x: f32,
-        y: f32,
-        z: f32,
-    },
-    Retract {
-        z: f32,
-    },
-    Poll,
-    Water {
-        wait_ms: u64,
-    },
-    Lights {
-        lights_state: Duration,
-    },
-    Pump {
-        pump_state: Duration,
-    },
-    Plow {
-        wait_ms: u64,
-    },
-    SetLed {
-        led: bool,
-    },
-}
-
-#[repr(u8)]
-#[non_exhaustive]
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-/// In our comunication protocol we send this structure from slave-> master. Master should check if it is reasonable for the command that it has sent.
-pub enum Response {
-    /// response to WhoAreYou
-    Iam { name: [u8; 10], version: u8 },
-
-    /// you should wait for around ms
-    Wait { ms: u64 },
-
-    ///send debug message
-    Debug([u8; 10]),
-
-    /// All ok
-    Done,
-}
-
-pub enum Command {
-    Moving,
-}
-
-/// Robot state, it contains all relevant informations
-pub struct BotState {
-    pub obj_pos: Option<(f32, f32, f32)>,
-    pub cur_pos: (f32, f32, f32),
-    pub command: Option<Command>,
-    pub led: bool,
-}
-impl Default for BotState{
-    fn default() -> Self {
-        BotState {
-            obj_pos: None,
-            cur_pos: (0.0, 0.0, 0.0),
-            command: None,
-            led: false,
-        }
-    }
-}
-
-/// This is a slave builder. when we call run we get a never returning Futures to be polled.
-pub struct SlaveBot<'a, Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<BotState>> {
-    /// comunication interface, that permit to read/send messages
-    com: Comunication<Serial, Sleeper>,
-    /// what is my name?
-    name: [u8; 10],
-    /// inner state
-    state: &'a Mutex,
-}
-
-impl<'a, Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<BotState>>
-    SlaveBot<'a, Serial, Sleeper, Mutex>
-{
-    /// init this struct, you should provide what serial you will use, and some other configs
-    pub fn new(serial: Serial, timeout_us: u64, name: [u8; 10], state: &'a Mutex) -> Self {
-        Self {
-            com: Comunication::new(serial, timeout_us),
-            name,
-            state,
-        }
-    }
-    /// let's run as Slave. It should never returns
-    pub async fn run(&mut self) -> ! {
-        loop {
-            if let Some((id, message)) = self.com.try_read::<Message>().await {
-                let mut lock = self.state.mut_lock().await;
-                match message {
-                    Message::WhoAreYou => {
-                        self.com
-                            .send(
-                                Response::Iam {
-                                    name: self.name,
-                                    version: 0,
-                                },
-                                id,
-                            )
-                            .await;
-                    }
-                    Message::Move { x, y, z } => {
-                        lock.obj_pos = Some((x, y, z));
-                        self.com.send(Response::Wait { ms: 100 }, id).await;
-                    }
-                    Message::Poll => {
-                        //println!("pool")
-                        if lock.command.is_some() {
-                            self.com.send(Response::Wait { ms: 100 }, id).await;
-                        } else {
-                            self.com.send(Response::Done, id).await;
-                        }
-                    }
-                    Message::SetLed { led } => {
-                        lock.led = led;
-                        self.com.send(Response::Done, id).await;
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }
-}
+pub mod cyber_protocol;
 
 ///struct used inside Master. It wraps some Comunication methods. Watch Master Documentation to understand why it's important.
 pub struct InnerMaster<Serial: AsyncSerial, Sleeper: Sleep> {
@@ -252,25 +114,6 @@ impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, 
         }
     }
 
-    /// Let's tell the bot to move to a particular x, y, z point
-    pub async fn move_to(&self, x: f32, y: f32, z: f32) -> Result<(), ()> {
-        let m = Message::Move { x, y, z };
-
-        let mut lock = Some(self.inner.mut_lock().await);
-
-        blocking_send!(self, lock, m:
-            Response::Wait { ms } => {
-                wait!(self, lock, ms);
-            },
-            Response::Done => {
-                return Ok(());
-            },
-            _ => {
-            }
-        );
-        Err(())
-    }
-
     pub async fn reset(&mut self) -> Result<(), ()> {
         todo!();
     }
@@ -285,7 +128,7 @@ impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, 
 
     pub async fn water(&mut self, water_state: Duration) -> Result<(), ()> {
         let m = Message::Water {
-            wait_ms: water_state.as_millis() as u64,
+            duration_ms: water_state.as_millis() as u64,
         };
         let mut lock = Some(self.inner.mut_lock().await);
         blocking_send!(self, lock, m:
@@ -294,6 +137,20 @@ impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, 
             },
             Response::Done => {
                 return Ok(())
+            },
+            _ => {}
+        );
+        Err(())
+    }
+    pub async fn move_to(&self, pos: f32) -> Result<(), ()> {
+        let m = Message::MoveMotor { x: pos };
+        let mut lock = Some(self.inner.mut_lock().await);
+        blocking_send!(self, lock, m:
+            Response::Wait { ms } => {
+                wait!(self, lock, ms);
+            },
+            Response::Done => {
+                return Ok(());
             },
             _ => {}
         );
