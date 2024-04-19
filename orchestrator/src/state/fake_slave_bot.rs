@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use arduino_common::{comunication::Comunication, std::StdSleeper, Message, Response};
 use serialport::TTYPort;
+use tokio::task::yield_now;
 
 
 pub struct FakeSlaveBot {
