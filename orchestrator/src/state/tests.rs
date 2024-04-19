@@ -2,8 +2,6 @@
 
 use std::thread::JoinHandle;
 
-use tokio::task::spawn_blocking;
-
 use self::fake_slave_bot::{FakeSlaveBotData, FakeSlaveBot};
 
 use super::*;
@@ -17,7 +15,7 @@ pub struct TestState {
 }
 
 pub fn get_test_state() -> TestState {
-    let (mut master, slave) = TTYPort::pair().expect("Unable to create tty pair");
+    let (master, slave) = TTYPort::pair().expect("Unable to create tty pair");
 
     let mut slave_bot = FakeSlaveBot::new(slave, *FAKE_BOT_NAME);
     let slave_bot_data = slave_bot.get_data_ref();

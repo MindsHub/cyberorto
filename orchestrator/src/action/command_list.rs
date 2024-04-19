@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, fs::File, time::Duration};
+use std::{collections::VecDeque, time::Duration};
 
 use serde::{Deserialize, Serialize};
 
@@ -30,7 +30,7 @@ pub enum Command {
 
 #[async_trait]
 impl Action for CommandListAction {
-    async fn step(&mut self, ctx: &Context, state_handler: &StateHandler) -> bool {
+    async fn step(&mut self, _ctx: &Context, state_handler: &StateHandler) -> bool {
         let command = if let Some(command) = self.commands.pop_front() {
             command
         } else {

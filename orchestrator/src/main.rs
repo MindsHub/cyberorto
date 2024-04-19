@@ -59,5 +59,5 @@ async fn main() {
     // launch().await will block until it receives a shutdown request (e.g. Ctrl+C)
     println!("Shutting down Cyberorto orchestrator...");
     queue_handler.stop();
-    queue_handler_thread.join();
+    queue_handler_thread.join().unwrap();
 }

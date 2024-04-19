@@ -8,7 +8,7 @@ pub struct EmergencyAction {}
 
 #[async_trait]
 impl Action for EmergencyAction {
-    async fn step(&mut self, ctx: &Context, state_handler: &StateHandler) -> bool {
+    async fn step(&mut self, _ctx: &Context, state_handler: &StateHandler) -> bool {
         // TODO implement better emergency logic
         state_handler.reset();
         false

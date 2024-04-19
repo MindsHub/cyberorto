@@ -2,10 +2,8 @@
 
 use std::{thread::{self, JoinHandle}, time::Duration};
 
-use serialport::TTYPort;
-
 use super::*;
-use crate::state::{fake_slave_bot::FakeSlaveBotData, tests::{get_test_state, TestState}};
+use crate::state::tests::{get_test_state, TestState};
 
 pub struct TestQueue {
     pub queue_handler: QueueHandler,

@@ -2,11 +2,11 @@ pub mod emergency;
 pub mod command_list;
 pub mod action_wrapper;
 
-use std::{any::{Any, TypeId}, fmt::Debug};
+use std::fmt::Debug;
 
 use crate::state::StateHandler;
 
-use self::{action_wrapper::Context, emergency::EmergencyAction};
+use self::action_wrapper::Context;
 
 /// An "action" that the robot can perform, possibly made up of multiple
 /// steps to allow pausing in-between. While being paused, the state of
@@ -36,7 +36,7 @@ pub trait Action: Debug + Send {
     /// [`release()`](Action::release()).
     ///
     /// * `ctx` contains information on this action, e.g. its id, the save folder, ...
-    fn acquire(&mut self, ctx: &Context) {}
+    fn acquire(&mut self, _ctx: &Context) {}
 
     /// Releases any resource that this Action needs in order to run,
     /// to save RAM and allow other actions/programs to use the same
@@ -48,7 +48,7 @@ pub trait Action: Debug + Send {
     /// multiple times in a row.
     ///
     /// * `ctx` contains information on this action, e.g. its id, the save folder, ...
-    fn release(&mut self, ctx: &Context) {}
+    fn release(&mut self, _ctx: &Context) {}
 
 
     //----

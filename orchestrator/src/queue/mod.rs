@@ -1,15 +1,14 @@
 mod tests;
 
 use std::{
-    collections::{HashMap, VecDeque}, f32::consts::E, fs::{self, create_dir_all}, future::Future, path::PathBuf, sync::{Arc, Condvar, Mutex, MutexGuard}
+    collections::{HashMap, VecDeque}, fs::create_dir_all, future::Future, path::PathBuf, sync::{Arc, Condvar, Mutex, MutexGuard}
 };
 
 use serde::{Deserialize, Serialize};
-use tokio::runtime::Runtime;
 use tokio::sync::oneshot;
 
 use crate::{
-    action::{action_wrapper::{self, ActionId, ActionWrapper}, emergency::EmergencyAction, Action},
+    action::{action_wrapper::{ActionId, ActionWrapper}, emergency::EmergencyAction, Action},
     state::StateHandler, util::serde::{deserialize_from_json_file, serialize_to_json_file},
 };
 
@@ -180,7 +179,7 @@ impl QueueHandler {
                 // The id of the first action in the queue changed, so we are going to execute a new
                 // action. The action is therefore extracted from the queue, and replaced with a
                 // placeholder (i.e. an ActionWrapper with action=None)
-                let mut action_in_queue = queue.actions.front_mut().unwrap();
+                let action_in_queue = queue.actions.front_mut().unwrap();
                 let mut next_action = ActionWrapper {
                     action: std::mem::take(&mut action_in_queue.action),
                     ctx: action_in_queue.ctx.clone(),
@@ -231,12 +230,12 @@ impl QueueHandler {
 
         let mut prev_action = None; // will be None only the first iteration
         loop {
-            let mut action_wrapper = self.get_next_action(prev_action);
+            let action_wrapper = self.get_next_action(prev_action);
 
             if let Some(mut action_wrapper) = action_wrapper {
                 // unwrapping since the returned action can't be a placeholder
                 let id = action_wrapper.get_id();
-                let mut action = action_wrapper.action.as_mut().unwrap();
+                let action = action_wrapper.action.as_mut().unwrap();
                 let (killer_tx, killer_rx) = oneshot::channel();
 
                 {
@@ -306,7 +305,10 @@ impl QueueHandler {
             id_counter: queue.id_counter,
         };
 
-        create_dir_all(&queue.save_dir);
+        if let Err(e) = create_dir_all(&queue.save_dir) {
+            // TODO log error
+            println!("Error creating save directory: {e}")
+        }
         if let Err(e) = serialize_to_json_file(&data, &queue.save_dir.join("queue.json")) {
             // TODO log error
             println!("Error serializing queue.json: {e}")

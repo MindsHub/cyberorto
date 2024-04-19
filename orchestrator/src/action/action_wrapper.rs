@@ -1,4 +1,4 @@
-use std::{any::TypeId, fmt::format, fs::create_dir_all, path::{Path, PathBuf}};
+use std::{fs::create_dir_all, path::{Path, PathBuf}};
 
 use super::{command_list::CommandListAction, emergency::EmergencyAction, Action};
 
@@ -26,7 +26,7 @@ pub struct Context {
 
     /// The name of the type of the action. Obtained from a call to
     /// [`Action::get_type_name()`](Action::get_type_name()) on an
-    /// `Action`` implementor.
+    /// `Action` implementor.
     type_name: String,
 
     /// The directory in which to store files about this action, both during
@@ -109,8 +109,8 @@ impl ActionWrapper {
             return Err("".to_string());
         };
 
-        create_dir_all(&self.ctx.save_dir);
-        action.save_to_disk(&self.ctx);
+        create_dir_all(&self.ctx.save_dir).map_err(|e| e.to_string())?;
+        action.save_to_disk(&self.ctx)?;
 
         Ok(())
     }

@@ -2,7 +2,7 @@ pub(crate) mod tests;
 pub(crate) mod fake_slave_bot;
 
 use std::{
-    cell::RefCell, future::Future, sync::{Arc, Mutex, MutexGuard}, thread, time::Duration, vec
+    sync::{Arc, Mutex, MutexGuard}, time::Duration
 };
 
 use arduino_common::prelude::*;

@@ -1,6 +1,6 @@
 use std::{fs::File, path::Path};
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 
 pub fn serialize_to_json_file<T: Serialize>(v: &T, file: &Path) -> Result<(), String> {
     let file = File::create(file).map_err(|e| e.to_string())?;

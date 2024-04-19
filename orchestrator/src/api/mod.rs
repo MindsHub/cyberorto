@@ -1,7 +1,5 @@
-use crate::queue::QueueHandler;
 use crate::state::{BatteryLevel, StateHandler, WaterLevel};
 use rocket::State;
-use rocket::serde::json::Json;
 use serde::{Deserialize, Serialize};
 
 mod from_request;
@@ -71,6 +69,6 @@ pub fn get_state(robot_state: State) -> Json<RobotState> {
 
 #[get("/toggle_led")]
 pub async fn toggle_led(robot_state: &State<StateHandler>){
-    let t = robot_state.toggle_led().await;
+    robot_state.toggle_led().await
     //robot_state.
 }
