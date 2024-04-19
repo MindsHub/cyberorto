@@ -69,15 +69,14 @@ macro_rules! test_with_state {
     };
 }
 
-test_with_state!(async fn test_toggle_led(s: &mut TestState) {
-    let mut messages = Vec::new();
-    for i in 0..10 {
-        messages.push(Message::SetLed { led: i % 2 == 0 });
-        s.state_handler.toggle_led().await;
-    }
+test_with_state!(
+    async fn test_toggle_led(s: &mut TestState) {
+        let mut messages = Vec::new();
+        for i in 0..10 {
+            messages.push(Message::SetLed { led: i % 2 == 0 });
+            s.state_handler.toggle_led().await;
+        }
 
-    assert_eq!(
-        messages,
-        s.slave_bot_data.lock().unwrap().received_messages,
-    );
-});
+        assert_eq!(messages, s.slave_bot_data.lock().unwrap().received_messages,);
+    }
+);

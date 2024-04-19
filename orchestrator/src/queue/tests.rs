@@ -2,12 +2,13 @@
 
 use futures::future::{BoxFuture, FutureExt};
 
-use std::{
-    fs::{self}, thread::{self, JoinHandle}, time::Duration
-};
+use std::{fs, thread::JoinHandle, time::Duration};
 
 use super::*;
-use crate::{action::action_wrapper::Context, state::tests::{get_test_state, TestState}};
+use crate::{
+    action::action_wrapper::Context,
+    state::tests::{get_test_state, TestState},
+};
 
 pub struct TestQueue {
     pub queue_handler: QueueHandler,
@@ -33,15 +34,22 @@ pub fn get_test_state_queue() -> (TestState, TestQueue) {
     )
 }
 
-pub async fn test_with_queue(f: impl for<'a> Fn(&'a mut TestState, &'a mut TestQueue) -> BoxFuture<'a, ()>) {
+pub async fn test_with_queue(
+    f: impl for<'a> Fn(&'a mut TestState, &'a mut TestQueue) -> BoxFuture<'a, ()>,
+) {
     let (mut test_state, mut test_queue) = get_test_state_queue();
     f(&mut test_state, &mut test_queue).await;
 
     test_queue.queue_handler.stop();
     if let Some(running_id) = test_queue.queue_handler.queue.0.lock().unwrap().running_id {
-        test_queue.queue_handler.kill_running_action(running_id, false);
+        test_queue
+            .queue_handler
+            .kill_running_action(running_id, false);
     }
-    test_queue.queue_join_handle.join().expect("Could not join queue");
+    test_queue
+        .queue_join_handle
+        .join()
+        .expect("Could not join queue");
 
     test_state
         .slave_bot_killer
@@ -97,7 +105,10 @@ impl Action for InfiniteTestAction {
         true
     }
 
-    fn get_type_name() -> &'static str where Self:Sized {
+    fn get_type_name() -> &'static str
+    where
+        Self: Sized,
+    {
         "infinite"
     }
 
@@ -113,46 +124,75 @@ impl Action for InfiniteTestAction {
     }
 }
 
-test_with_queue!(async fn test_stop(_s: &mut TestState, q: &mut TestQueue) {
-    stop_queue_and_wait(q, 50).await;
+test_with_queue!(
+    async fn test_stop(_s: &mut TestState, q: &mut TestQueue) {
+        stop_queue_and_wait(q, 50).await;
 
-    let saved = fs::read_to_string(q.save_dir.join("queue.json")).expect("Queue did not save itself to disk");
-    assert_eq!(r#"{"action_save_dirs":[],"id_counter":0}"#, saved);
-});
+        let saved = fs::read_to_string(q.save_dir.join("queue.json"))
+            .expect("Queue did not save itself to disk");
+        assert_eq!(r#"{"action_save_dirs":[],"id_counter":0}"#, saved);
+    }
+);
 
-test_with_queue!(async fn test_stop_with_action(_s: &mut TestState, q: &mut TestQueue) {
-    q.queue_handler.add_action(InfiniteTestAction { i: 0 });
-    wait_for_nth_tick(q, 1, 50).await;
-    stop_queue_and_wait(q, 50).await;
+test_with_queue!(
+    async fn test_stop_with_action(_s: &mut TestState, q: &mut TestQueue) {
+        q.queue_handler.add_action(InfiniteTestAction { i: 0 });
+        wait_for_nth_tick(q, 1, 50).await;
+        stop_queue_and_wait(q, 50).await;
 
-    let action_dir = q.save_dir.join("0_infinite");
-    let saved = fs::read_to_string(q.save_dir.join("queue.json")).expect("Queue did not save itself to disk");
-    assert_eq!(format!(r#"{{"action_save_dirs":[{:?}],"id_counter":1}}"#, action_dir), saved);
-    let saved = fs::read_to_string(action_dir.join("data.json")).expect("Action did not save itself to disk");
-    assert_eq!("{\"i\":2}", saved);
-});
+        let action_dir = q.save_dir.join("0_infinite");
+        let saved = fs::read_to_string(q.save_dir.join("queue.json"))
+            .expect("Queue did not save itself to disk");
+        assert_eq!(
+            format!(
+                r#"{{"action_save_dirs":[{:?}],"id_counter":1}}"#,
+                action_dir
+            ),
+            saved
+        );
+        let saved = fs::read_to_string(action_dir.join("data.json"))
+            .expect("Action did not save itself to disk");
+        assert_eq!("{\"i\":2}", saved);
+    }
+);
 
-test_with_queue!(async fn test_kill_action_keep_in_queue(_s: &mut TestState, q: &mut TestQueue) {
-    let id = q.queue_handler.add_action(InfiniteTestAction { i: 0 });
-    wait_for_nth_tick(q, 1, 50).await;
-    q.queue_handler.kill_running_action(id, /* keep_in_queue = */ true);
-    stop_queue_and_wait(q, 50).await;
+test_with_queue!(
+    async fn test_kill_action_keep_in_queue(_s: &mut TestState, q: &mut TestQueue) {
+        let id = q.queue_handler.add_action(InfiniteTestAction { i: 0 });
+        wait_for_nth_tick(q, 1, 50).await;
+        q.queue_handler
+            .kill_running_action(id, /* keep_in_queue = */ true);
+        stop_queue_and_wait(q, 50).await;
 
-    let action_dir = q.save_dir.join("0_infinite");
-    let saved = fs::read_to_string(q.save_dir.join("queue.json")).expect("Queue did not save itself to disk");
-    assert_eq!(format!(r#"{{"action_save_dirs":[{:?}],"id_counter":1}}"#, action_dir), saved);
-    let saved = fs::read_to_string(action_dir.join("data.json")).expect("Action did not save itself to disk");
-    assert_eq!("{\"i\":1}", saved);
-});
+        let action_dir = q.save_dir.join("0_infinite");
+        let saved = fs::read_to_string(q.save_dir.join("queue.json"))
+            .expect("Queue did not save itself to disk");
+        assert_eq!(
+            format!(
+                r#"{{"action_save_dirs":[{:?}],"id_counter":1}}"#,
+                action_dir
+            ),
+            saved
+        );
+        let saved = fs::read_to_string(action_dir.join("data.json"))
+            .expect("Action did not save itself to disk");
+        assert_eq!("{\"i\":1}", saved);
+    }
+);
 
-test_with_queue!(async fn test_kill_action_remove_from_queue(_s: &mut TestState, q: &mut TestQueue) {
-    let id = q.queue_handler.add_action(InfiniteTestAction { i: 0 });
-    wait_for_nth_tick(q, 1, 50).await;
-    q.queue_handler.kill_running_action(id, /* keep_in_queue = */ false);
-    stop_queue_and_wait(q, 50).await;
+test_with_queue!(
+    async fn test_kill_action_remove_from_queue(_s: &mut TestState, q: &mut TestQueue) {
+        let id = q.queue_handler.add_action(InfiniteTestAction { i: 0 });
+        wait_for_nth_tick(q, 1, 50).await;
+        q.queue_handler
+            .kill_running_action(id, /* keep_in_queue = */ false);
+        stop_queue_and_wait(q, 50).await;
 
-    let action_dir = q.save_dir.join("0_infinite");
-    let saved = fs::read_to_string(q.save_dir.join("queue.json")).expect("Queue did not save itself to disk");
-    assert_eq!(r#"{"action_save_dirs":[],"id_counter":1}"#, saved);
-    fs::read_to_string(action_dir.join("data.json")).expect_err("Action should not have been saved to disk");
-});
+        let action_dir = q.save_dir.join("0_infinite");
+        let saved = fs::read_to_string(q.save_dir.join("queue.json"))
+            .expect("Queue did not save itself to disk");
+        assert_eq!(r#"{"action_save_dirs":[],"id_counter":1}"#, saved);
+        fs::read_to_string(action_dir.join("data.json"))
+            .expect_err("Action should not have been saved to disk");
+    }
+);

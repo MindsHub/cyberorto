@@ -3,7 +3,7 @@ use core::fmt::Debug;
 use core::{marker::PhantomData, time::Duration};
 
 use prelude::*;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 pub mod motor;
 /// Implementation used while testing. It is behind "std" flag
 #[cfg(feature = "std")]
