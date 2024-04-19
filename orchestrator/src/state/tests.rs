@@ -59,22 +59,24 @@ pub async fn test_with_state(f: impl Fn(&'_ mut TestState) -> BoxFuture<'_, ()>)
         .expect("Could not join slave bot");
 }
 
-#[tokio::test]
-async fn test_toggle_led() {
-    test_with_state(|s| {
-        async {
-            let mut messages = Vec::new();
-            for i in 0..10 {
-                messages.push(Message::SetLed { led: i % 2 == 0 });
-                s.state_handler.toggle_led().await;
-            }
-
-            assert_eq!(
-                messages,
-                s.slave_bot_data.lock().unwrap().received_messages,
-            );
+macro_rules! test_with_state {
+    (async fn $test_name:ident ($state:ident: &mut TestState) $content:block ) => {
+        #[tokio::test]
+        async fn $test_name() {
+            test_with_state(|$state| async { $content }.boxed()).await;
         }
-        .boxed()
-    })
-    .await;
+    };
 }
+
+test_with_state!(async fn test_toggle_led(s: &mut TestState) {
+    let mut messages = Vec::new();
+    for i in 0..10 {
+        messages.push(Message::SetLed { led: i % 2 == 0 });
+        s.state_handler.toggle_led().await;
+    }
+
+    assert_eq!(
+        messages,
+        s.slave_bot_data.lock().unwrap().received_messages,
+    );
+});
