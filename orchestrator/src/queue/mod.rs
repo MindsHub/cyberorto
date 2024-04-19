@@ -53,16 +53,6 @@ pub struct QueueHandler {
     // TODO add serial object
 }
 
-macro_rules! mutate_queue_and_notify {
-    ($queue:expr, $queuevar:ident, $block:block) => {{
-        let (queue, condvar) = &*$queue;
-        let mut $queuevar = queue.lock().unwrap();
-        let res = $block;
-        condvar.notify_all();
-        res
-    }};
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 struct QueueData {
     action_save_dirs: Vec<PathBuf>,
@@ -328,8 +318,17 @@ impl QueueHandler {
         self.save_to_disk();
     }
 
+
+    fn mutate_queue_and_notify<T>(&self, f: impl FnOnce(&mut Queue) -> T) -> T {
+        let (queue, condvar) = &*self.queue;
+        let mut queue = queue.lock().unwrap();
+        let res = f(&mut queue);
+        condvar.notify_all();
+        res
+    }
+
     pub fn add_action<A: Action + 'static>(&self, action: A) -> ActionId {
-        mutate_queue_and_notify!(self.queue, queue, {
+        self.mutate_queue_and_notify(|queue| {
             let action = queue.create_action_wrapper(action);
             let id = action.get_id();
             queue.actions.push_back(action);
@@ -348,7 +347,7 @@ impl QueueHandler {
             }
         }
 
-        mutate_queue_and_notify!(self.queue, queue, {
+        self.mutate_queue_and_notify(|queue| {
             let current = queue
                 .actions
                 .iter()
@@ -369,32 +368,32 @@ impl QueueHandler {
             q.rotate_right(q.as_slices().1.len());
             q.as_mut_slices()
                 .0
-                .sort_by_key(|action| new.get(&action.get_id()).unwrap_or(&count))
-        });
+                .sort_by_key(|action| new.get(&action.get_id()).unwrap_or(&count));
 
-        Ok(())
+            Ok(())
+        })
     }
 
     pub fn clear(&self) {
-        mutate_queue_and_notify!(self.queue, queue, {
+        self.mutate_queue_and_notify(|queue| {
             queue.actions.clear()
         })
     }
 
     pub fn pause(&self) {
-        mutate_queue_and_notify!(self.queue, queue, {
+        self.mutate_queue_and_notify(|queue| {
             queue.paused = true
         })
     }
 
     pub fn unpause(&self) {
-        mutate_queue_and_notify!(self.queue, queue, {
+        self.mutate_queue_and_notify(|queue| {
             queue.paused = false
         })
     }
 
     pub fn stop(&self) {
-        mutate_queue_and_notify!(self.queue, queue, {
+        self.mutate_queue_and_notify(|queue| {
             queue.stopped = true
         })
     }
@@ -408,14 +407,14 @@ impl QueueHandler {
     /// * `keep_in_queue` whether the killed action should be kept in queue after
     ///                   being killed (which is possibly risky), or not
     pub fn kill_running_action(&self, running_id: ActionId, keep_in_queue: bool) -> bool {
-        mutate_queue_and_notify!(self.queue, queue, {
+        self.mutate_queue_and_notify(|queue| {
             queue.paused = true;
             if queue.running_id == Some(running_id) {
                 if let Some(running_killer) = queue.running_killer.take() {
                     return running_killer.send(keep_in_queue).is_ok();
                 }
             }
-            return false;
+            false
         })
     }
 }
