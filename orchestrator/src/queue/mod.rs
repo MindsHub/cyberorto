@@ -59,6 +59,8 @@ impl Queue {
 pub struct QueueHandler {
     queue: Arc<(Mutex<Queue>, Condvar)>,
     state_handler: StateHandler,
+    #[cfg(test)]
+    tick_counter: Arc<Mutex<usize>>,
     // TODO add serial object
 }
 
@@ -85,7 +87,14 @@ impl QueueHandler {
                 Condvar::new(),
             )),
             state_handler,
+            #[cfg(test)]
+            tick_counter: Arc::new(Mutex::new(0)),
         }
+    }
+
+    #[cfg(test)]
+    fn increase_tick_counter(&self) {
+        *self.tick_counter.lock().unwrap() += 1;
     }
 
     /// Readds the last current action to the queue at the position where its
@@ -211,6 +220,9 @@ impl QueueHandler {
                 queue = self.release_prev_action(queue, prev_action);
                 continue;
             }
+
+            #[cfg(test)]
+            self.increase_tick_counter();
             queue = condvar.wait(queue).unwrap();
         }
     }
@@ -244,6 +256,8 @@ impl QueueHandler {
 
         let mut prev_action = None; // will be None only the first iteration
         loop {
+            #[cfg(test)]
+            self.increase_tick_counter();
             let action_wrapper = self.get_next_action(prev_action);
 
             if let Some(mut action_wrapper) = action_wrapper {
