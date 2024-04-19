@@ -33,6 +33,7 @@ impl FakeSlaveBot {
 
     pub async fn run(&mut self) -> ! {
         loop {
+            yield_now().await;
             if let Some((id, message)) = self.com.try_read::<Message>().await {
                 self.data.lock().unwrap().received_messages.push(message.clone());
 
