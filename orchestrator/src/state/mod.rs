@@ -129,7 +129,7 @@ impl StateHandler {
     pub fn new(port: SerialStream) -> StateHandler {
         StateHandler {
             state: Arc::new(Mutex::new(State::default())),
-            master: Arc::new(Master::new(port, 100, 20)),
+            master: Arc::new(Master::new(port, 100000, 20)),
             //master: todo!(),
         }
     }
