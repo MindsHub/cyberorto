@@ -40,15 +40,15 @@ impl Default for TestState {
     }
 }
 
-#[test]
-fn test_toggle_led() {
+#[tokio::test]
+async fn test_toggle_led() {
     let TestState {
         state_handler,
         slave_bot_join_handle,
         slave_bot_data,
     } = TestState::default();
 
-    state_handler.toggle_led();
+    state_handler.toggle_led().await;
 
     assert_eq!(
         vec![Message::SetLed { led: true }],
