@@ -1,6 +1,6 @@
 [workspace]
 resolver= "2"
 
-members = ["orchestrator", "arduino-common"]#
+members = ["orchestrator", "arduino-common"]
 
-exclude = ["arduino"]
+exclude = ["arduino", "motore", "anemometro"]

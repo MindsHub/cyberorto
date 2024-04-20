@@ -1,0 +1,1 @@
+cargo watch -s "cargo build --release && avr-size -C --mcu=atmega328p target/avr-atmega328p/release/arduino.elf"
