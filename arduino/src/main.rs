@@ -79,7 +79,6 @@ fn main() -> ! {
     //let mut led = led.downgrade();
     //let mut state = pin!(set_state(&state, &mut led));
     
-    
     //main loop
     loop {
         let _ = serial_async.as_mut().poll(&mut cx);

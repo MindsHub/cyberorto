@@ -117,7 +117,7 @@ impl SerialHAL {
 
 impl SerialHAL {
     /// tries to read one byte from serial buffer
-    fn read(&mut self) -> Option<u8> {
+    pub fn read(&mut self) -> Option<u8> {
         interrupt::free(|cs| {
             if let Some(serial) = SERIAL_INNER.borrow(cs).borrow_mut().as_mut() {
                 serial.input_buffer.pop_front()
@@ -127,7 +127,7 @@ impl SerialHAL {
         })
     }
     /// tries to write on byte into serial buffer. If it is full it return false, on success it returns true
-    fn write(&mut self, buf: u8) -> bool {
+    pub fn write(&mut self, buf: u8) -> bool {
         interrupt::free(|cs| {
             if let Some(serial) = SERIAL_INNER.borrow(cs).borrow_mut().as_mut() {
                 if serial.out_buffer.push_back(buf).is_err() {
@@ -138,6 +138,18 @@ impl SerialHAL {
             }
             true
         })
+    }
+
+    /// print a string to the serial, without checking for errors
+    pub fn print(&mut self, s: &str)  {
+        for c in s.bytes() {
+            self.write(c);
+        }
+    }
+    /// print a string to the serial followed by '\n', without checking for errors
+    pub fn println(&mut self, s: &str) {
+        self.print(s);
+        self.write(b'\n');
     }
 }
 
