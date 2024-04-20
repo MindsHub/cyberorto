@@ -368,16 +368,15 @@ impl QueueHandler {
         self.save_to_disk();
     }
 
-    fn mutate_queue_and_notify<T>(&self, f: impl FnOnce(&mut Queue) -> T) -> T {
+    fn mutate_queue_and_notify<T>(&self, f: impl FnOnce(MutexGuard<'_, Queue>) -> T) -> T {
         let (queue, condvar) = &*self.queue;
-        let mut queue = queue.lock().unwrap();
-        let res = f(&mut queue);
+        let res = f(queue.lock().unwrap());
         condvar.notify_all();
         res
     }
 
     pub fn add_action<A: Action + 'static>(&self, action: A) -> ActionId {
-        self.mutate_queue_and_notify(|queue| {
+        self.mutate_queue_and_notify(|mut queue| {
             let action = queue.create_action_wrapper(action);
             let id = action.get_id();
             queue.actions.push_back(action);
@@ -396,7 +395,7 @@ impl QueueHandler {
             }
         }
 
-        self.mutate_queue_and_notify(|queue| {
+        self.mutate_queue_and_notify(|mut queue| {
             let current = queue
                 .actions
                 .iter()
@@ -424,19 +423,19 @@ impl QueueHandler {
     }
 
     pub fn clear(&self) {
-        self.mutate_queue_and_notify(|queue| queue.actions.clear())
+        self.mutate_queue_and_notify(|mut queue| queue.actions.clear())
     }
 
     pub fn pause(&self) {
-        self.mutate_queue_and_notify(|queue| queue.paused = true)
+        self.mutate_queue_and_notify(|mut queue| queue.paused = true)
     }
 
     pub fn unpause(&self) {
-        self.mutate_queue_and_notify(|queue| queue.paused = false)
+        self.mutate_queue_and_notify(|mut queue| queue.paused = false)
     }
 
     pub fn stop(&self) {
-        self.mutate_queue_and_notify(|queue| queue.stopped = true)
+        self.mutate_queue_and_notify(|mut queue| queue.stopped = true)
     }
 
     /// Always pauses the queue. Then tries to kill the currently running action.
@@ -448,7 +447,7 @@ impl QueueHandler {
     /// * `keep_in_queue` whether the killed action should be kept in queue after
     ///                   being killed (which is possibly risky), or not
     pub fn kill_running_action(&self, running_id: ActionId, keep_in_queue: bool) -> bool {
-        self.mutate_queue_and_notify(|queue| {
+        self.mutate_queue_and_notify(|mut queue| {
             queue.paused = true;
             if queue.running_id == Some(running_id) {
                 if let Some(running_killer) = queue.running_killer.take() {
