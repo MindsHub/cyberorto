@@ -35,12 +35,10 @@ pub fn get_test_state_queue() -> (TestState, TestQueue) {
 }
 
 macro_rules! with_locked_queue {
-    ($test_queue:ident, $locked_queue:ident, $content:block) => {
-        {
-            let $locked_queue = $test_queue.queue_handler.queue.0.lock().unwrap();
-            $content
-        }
-    }
+    ($test_queue:ident, $locked_queue:ident, $content:block) => {{
+        let $locked_queue = $test_queue.queue_handler.queue.0.lock().unwrap();
+        $content
+    }};
 }
 
 pub async fn test_with_queue(
@@ -95,7 +93,12 @@ async fn stop_queue_and_wait(q: &mut TestQueue, timeout_millis: usize) {
     panic!("Queue did not stop in time");
 }
 
-async fn wait_for_nth_tick(q: &mut TestQueue, min_wait_counter: usize, min_tick_counter: usize, timeout_millis: usize) {
+async fn wait_for_nth_tick(
+    q: &mut TestQueue,
+    min_wait_counter: usize,
+    min_tick_counter: usize,
+    timeout_millis: usize,
+) {
     for _ in 0..timeout_millis {
         {
             let stats = q.queue_handler.test_stats.lock().unwrap();

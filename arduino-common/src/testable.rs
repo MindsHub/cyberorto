@@ -1,6 +1,8 @@
 extern crate std;
 
 use std::boxed::Box;
+use std::sync::Arc;
+use std::vec::Vec;
 //use std::sync::mpsc::{self, Receiver, Sender};
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use tokio::sync::{
@@ -74,12 +76,78 @@ impl MessagesHandler for Dummy {
         Some(Response::Done)
     }
 }
-impl Dummy {
-    pub fn new() -> Self {
+impl Default for Dummy {
+    fn default() -> Self {
         Self {
             led_state: Box::leak(Box::new(Mutex::new(false))),
         }
     }
+}
+#[derive(Default)]
+pub struct MessageRecorderSlave {
+    pub incoming: Vec<Message>,
+    //outgoing: Vec<Response>,
+}
+
+impl MessagesHandler for Arc<std::sync::Mutex<MessageRecorderSlave>> {
+    async fn move_motor(&mut self, x: f32) -> Option<Response> {
+        self.lock().unwrap().incoming.push(Message::MoveMotor { x });
+        Some(Response::Wait { ms: 10 })
+    }
+    async fn reset_motor(&mut self) -> Option<Response> {
+        self.lock().unwrap().incoming.push(Message::ResetMotor);
+        Some(Response::Wait { ms: 10 })
+    }
+    async fn poll(&mut self) -> Option<Response> {
+        self.lock().unwrap().incoming.push(Message::Poll);
+        Some(Response::Done)
+    }
+    async fn water(&mut self, ms: u64) -> Option<Response> {
+        self.lock()
+            .unwrap()
+            .incoming
+            .push(Message::Water { duration_ms: ms });
+        Some(Response::Done)
+    }
+    async fn lights(&mut self, ms: u64) -> Option<Response> {
+        self.lock()
+            .unwrap()
+            .incoming
+            .push(Message::Lights { duration_ms: ms });
+        Some(Response::Done)
+    }
+    async fn pump(&mut self, ms: u64) -> Option<Response> {
+        self.lock()
+            .unwrap()
+            .incoming
+            .push(Message::Pump { duration_ms: ms });
+        Some(Response::Done)
+    }
+    async fn plow(&mut self, ms: u64) -> Option<Response> {
+        self.lock()
+            .unwrap()
+            .incoming
+            .push(Message::Plow { wait_ms: ms });
+        Some(Response::Done)
+    }
+    async fn set_led(&mut self, state: bool) -> Option<Response> {
+        self.lock()
+            .unwrap()
+            .incoming
+            .push(Message::SetLed { led: state });
+        Some(Response::Done)
+    }
+}
+pub fn new_testable_slave<Serial: AsyncSerial, Sleeper: Sleep>(
+    serial: Serial,
+    name: [u8; 10],
+) -> Slave<Serial, Sleeper, Arc<std::sync::Mutex<MessageRecorderSlave>>> {
+    Slave::new(
+        serial,
+        3,
+        name,
+        Arc::new(std::sync::Mutex::new(MessageRecorderSlave::default())),
+    )
 }
 
 #[cfg(test)]
@@ -102,7 +170,7 @@ mod test {
         //let state = Box::new(Mutex::new(BotState::default()));
         //let state = &*Box::leak(state);
         let slave: Slave<Testable, tokio::time::Sleep, _> =
-            Slave::new(slave, 10, b"ciao      ".clone(), Dummy::new());
+            Slave::new(slave, 10, b"ciao      ".clone(), Dummy::default());
 
         (master, slave)
     }
@@ -155,7 +223,7 @@ mod test {
         let (master, slave) = Testable::new(0.0, 1.0);
         let master: TestMaster<Testable> = Master::new(master, 10, 10);
         let mut slave: Slave<Testable, tokio::time::Sleep, _> =
-            Slave::new(slave, 10, b"ciao      ".clone(), Dummy::new());
+            Slave::new(slave, 10, b"ciao      ".clone(), Dummy::default());
         tokio::time::sleep(Duration::from_millis(10)).await;
         let _ = tokio::spawn(async move { slave.run().await });
         let ret = master.who_are_you().await;

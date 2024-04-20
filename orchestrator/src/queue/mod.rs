@@ -94,7 +94,10 @@ impl QueueHandler {
             )),
             state_handler,
             #[cfg(test)]
-            test_stats: Arc::new(Mutex::new(QueueTestStats { wait_counter: 0, tick_counter: 0 })),
+            test_stats: Arc::new(Mutex::new(QueueTestStats {
+                wait_counter: 0,
+                tick_counter: 0,
+            })),
         }
     }
 

@@ -5,8 +5,6 @@ use tokio::sync::oneshot;
 
 use std::thread::JoinHandle;
 
-use self::fake_slave_bot::{FakeSlaveBot, FakeSlaveBotData};
-
 use super::*;
 
 const FAKE_BOT_NAME: &[u8; 10] = b"test fake ";
@@ -15,14 +13,15 @@ pub struct TestState {
     pub state_handler: StateHandler,
     pub slave_bot_join_handle: JoinHandle<()>,
     pub slave_bot_killer: oneshot::Sender<()>,
-    pub slave_bot_data: Arc<Mutex<FakeSlaveBotData>>,
+    pub slave_bot_data: Arc<Mutex<MessageRecorderSlave>>,
 }
 
 pub fn get_test_state() -> TestState {
     let (master, slave) = SerialStream::pair().expect("Unable to create tty pair");
 
-    let mut slave_bot = FakeSlaveBot::new(slave, *FAKE_BOT_NAME);
-    let slave_bot_data = slave_bot.get_data_ref();
+    let mut slave_bot: Slave<SerialStream, tokio::time::Sleep, Arc<Mutex<MessageRecorderSlave>>> =
+        new_testable_slave(slave, *FAKE_BOT_NAME);
+    let slave_bot_data = slave_bot.message_handler.clone();
 
     let (slave_bot_killer_tx, slave_bot_killer_rx) = oneshot::channel();
     let slave_bot_join_handle = std::thread::spawn(move || {
@@ -77,6 +76,6 @@ test_with_state!(
             s.state_handler.toggle_led().await;
         }
 
-        assert_eq!(messages, s.slave_bot_data.lock().unwrap().received_messages,);
+        assert_eq!(messages, s.slave_bot_data.lock().unwrap().incoming,);
     }
 );

@@ -1,6 +1,5 @@
 #![allow(unused_variables)] // TODO remove
 
-pub(crate) mod fake_slave_bot;
 pub(crate) mod tests;
 
 use std::{
@@ -165,7 +164,7 @@ impl StateHandler {
     }
     pub async fn toggle_led(&self) {
         let s = !self.get_state().led_state;
-        self.master.set_led(s).await;
+        let _ = self.master.set_led(s).await;
         mutate_state!(&self.state, led_state = s)
     }
 
