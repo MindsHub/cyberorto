@@ -34,6 +34,15 @@ pub fn get_test_state_queue() -> (TestState, TestQueue) {
     )
 }
 
+macro_rules! with_locked_queue {
+    ($test_queue:ident, $locked_queue:ident, $content:block) => {
+        {
+            let $locked_queue = $test_queue.queue_handler.queue.0.lock().unwrap();
+            $content
+        }
+    }
+}
+
 pub async fn test_with_queue(
     f: impl for<'a> Fn(&'a mut TestState, &'a mut TestQueue) -> BoxFuture<'a, ()>,
 ) {
@@ -45,7 +54,8 @@ pub async fn test_with_queue(
     f(&mut test_state, &mut test_queue).await;
 
     test_queue.queue_handler.stop();
-    if let Some(running_id) = test_queue.queue_handler.queue.0.lock().unwrap().running_id {
+    let running_id = with_locked_queue!(test_queue, locked_queue, { locked_queue.running_id });
+    if let Some(running_id) = running_id {
         test_queue
             .queue_handler
             .kill_running_action(running_id, false);
