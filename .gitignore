@@ -1,5 +1,6 @@
 target
-.vscode
+.vscode/*
+!.vscode/settings.json
 *.lock
 TODO.txt
 lcov.info

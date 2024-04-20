@@ -1,0 +1,7 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "./arduino/Cargo.toml",
+        "./Cargo.toml"
+    ],
+    "rust-analyzer.showUnlinkedFileNotification": true
+}
