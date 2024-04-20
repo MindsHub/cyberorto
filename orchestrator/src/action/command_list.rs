@@ -25,6 +25,13 @@ pub enum Command {
     Lights(Duration),
     AirPump(Duration),
     Plow(Duration),
+    ToggleLed,
+}
+
+impl CommandListAction {
+    pub fn new(commands: Vec<Command>) -> Self {
+        CommandListAction { commands: VecDeque::from(commands) }
+    }
 }
 
 #[async_trait]
@@ -45,6 +52,7 @@ impl Action for CommandListAction {
             Command::Lights(duration) => state_handler.lights(duration),
             Command::AirPump(duration) => state_handler.air_pump(duration),
             Command::Plow(duration) => state_handler.plow(duration),
+            Command::ToggleLed => state_handler.toggle_led().await,
         }
 
         !self.commands.is_empty()

@@ -1,5 +1,6 @@
-use crate::state::{BatteryLevel, StateHandler, WaterLevel};
+use crate::{action::command_list::{Command, CommandListAction}, queue::QueueHandler, state::{BatteryLevel, StateHandler, WaterLevel}};
 use rocket::State;
+use rocket::serde::json::Json;
 use serde::{Deserialize, Serialize};
 
 mod from_request;
@@ -71,4 +72,9 @@ pub fn get_state(robot_state: State) -> Json<RobotState> {
 pub async fn toggle_led(robot_state: &State<StateHandler>) {
     robot_state.toggle_led().await
     //robot_state.
+}
+
+#[post("/add_action/command_list", data = "<commands>")]
+pub fn add_action_command_list(queue: &QueueHandler, commands: Json<Vec<Command>>) {
+    queue.add_action(CommandListAction::new(commands.0));
 }
