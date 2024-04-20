@@ -38,6 +38,10 @@ pub async fn test_with_queue(
     f: impl for<'a> Fn(&'a mut TestState, &'a mut TestQueue) -> BoxFuture<'a, ()>,
 ) {
     let (mut test_state, mut test_queue) = get_test_state_queue();
+
+    // wait for queue to start up
+    wait_for_nth_tick(&mut test_queue, 1, 0, 50).await;
+
     f(&mut test_state, &mut test_queue).await;
 
     test_queue.queue_handler.stop();
@@ -81,14 +85,15 @@ async fn stop_queue_and_wait(q: &mut TestQueue, timeout_millis: usize) {
     panic!("Queue did not stop in time");
 }
 
-async fn wait_for_nth_tick(q: &mut TestQueue, n: usize, timeout_millis: usize) {
+async fn wait_for_nth_tick(q: &mut TestQueue, min_wait_counter: usize, min_tick_counter: usize, timeout_millis: usize) {
     for _ in 0..timeout_millis {
         tokio::time::sleep(Duration::from_millis(1)).await;
-        if *q.queue_handler.tick_counter.lock().unwrap() >= n {
+        let stats = q.queue_handler.test_stats.lock().unwrap();
+        if stats.wait_counter >= min_wait_counter && stats.tick_counter >= min_tick_counter {
             return;
         }
     }
-    panic!("Queue did not get to {n}th tick in time");
+    panic!("Queue did not get to {min_wait_counter}th wait and {min_tick_counter}th tick in time");
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -137,7 +142,7 @@ test_with_queue!(
 test_with_queue!(
     async fn test_stop_with_action(_s: &mut TestState, q: &mut TestQueue) {
         q.queue_handler.add_action(InfiniteTestAction { i: 0 });
-        wait_for_nth_tick(q, 1, 50).await;
+        wait_for_nth_tick(q, 1, 1, 50).await;
         stop_queue_and_wait(q, 50).await;
 
         let action_dir = q.save_dir.join("0_infinite");
@@ -159,7 +164,7 @@ test_with_queue!(
 test_with_queue!(
     async fn test_kill_action_keep_in_queue(_s: &mut TestState, q: &mut TestQueue) {
         let id = q.queue_handler.add_action(InfiniteTestAction { i: 0 });
-        wait_for_nth_tick(q, 1, 50).await;
+        wait_for_nth_tick(q, 1, 1, 50).await;
         q.queue_handler
             .kill_running_action(id, /* keep_in_queue = */ true);
         stop_queue_and_wait(q, 50).await;
@@ -183,7 +188,7 @@ test_with_queue!(
 test_with_queue!(
     async fn test_kill_action_remove_from_queue(_s: &mut TestState, q: &mut TestQueue) {
         let id = q.queue_handler.add_action(InfiniteTestAction { i: 0 });
-        wait_for_nth_tick(q, 1, 50).await;
+        wait_for_nth_tick(q, 1, 1, 50).await;
         q.queue_handler
             .kill_running_action(id, /* keep_in_queue = */ false);
         stop_queue_and_wait(q, 50).await;

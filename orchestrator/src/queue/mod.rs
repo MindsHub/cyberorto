@@ -55,13 +55,19 @@ impl Queue {
     }
 }
 
+#[cfg(test)]
+#[derive(Debug)]
+pub struct QueueTestStats {
+    wait_counter: usize,
+    tick_counter: usize,
+}
+
 #[derive(Debug, Clone)]
 pub struct QueueHandler {
     queue: Arc<(Mutex<Queue>, Condvar)>,
     state_handler: StateHandler,
     #[cfg(test)]
-    tick_counter: Arc<Mutex<usize>>,
-    // TODO add serial object
+    test_stats: Arc<Mutex<QueueTestStats>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -88,13 +94,18 @@ impl QueueHandler {
             )),
             state_handler,
             #[cfg(test)]
-            tick_counter: Arc::new(Mutex::new(0)),
+            test_stats: Arc::new(Mutex::new(QueueTestStats { wait_counter: 0, tick_counter: 0 })),
         }
     }
 
     #[cfg(test)]
+    fn increase_wait_counter(&self) {
+        self.test_stats.lock().unwrap().wait_counter += 1;
+    }
+
+    #[cfg(test)]
     fn increase_tick_counter(&self) {
-        *self.tick_counter.lock().unwrap() += 1;
+        self.test_stats.lock().unwrap().tick_counter += 1;
     }
 
     /// Readds the last current action to the queue at the position where its
@@ -222,7 +233,7 @@ impl QueueHandler {
             }
 
             #[cfg(test)]
-            self.increase_tick_counter();
+            self.increase_wait_counter();
             queue = condvar.wait(queue).unwrap();
         }
     }
@@ -256,9 +267,9 @@ impl QueueHandler {
 
         let mut prev_action = None; // will be None only the first iteration
         loop {
+            let action_wrapper = self.get_next_action(prev_action);
             #[cfg(test)]
             self.increase_tick_counter();
-            let action_wrapper = self.get_next_action(prev_action);
 
             if let Some(mut action_wrapper) = action_wrapper {
                 // unwrapping since the returned action can't be a placeholder
