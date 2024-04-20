@@ -97,16 +97,18 @@ async fn stop_queue_and_wait(q: &mut TestQueue, timeout_millis: usize) {
 
 async fn wait_for_nth_tick(q: &mut TestQueue, min_wait_counter: usize, min_tick_counter: usize, timeout_millis: usize) {
     for _ in 0..timeout_millis {
-        tokio::time::sleep(Duration::from_millis(1)).await;
-        let stats = q.queue_handler.test_stats.lock().unwrap();
-        if stats.wait_counter >= min_wait_counter && stats.tick_counter >= min_tick_counter {
-            return;
+        {
+            let stats = q.queue_handler.test_stats.lock().unwrap();
+            if stats.wait_counter >= min_wait_counter && stats.tick_counter >= min_tick_counter {
+                return;
+            }
         }
+        tokio::time::sleep(Duration::from_millis(1)).await;
     }
     panic!("Queue did not get to {min_wait_counter}th wait and {min_tick_counter}th tick in time");
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 struct InfiniteTestAction {
     pub i: u64,
 }
@@ -151,7 +153,7 @@ test_with_queue!(
 
 test_with_queue!(
     async fn test_stop_with_action(_s: &mut TestState, q: &mut TestQueue) {
-        q.queue_handler.add_action(InfiniteTestAction { i: 0 });
+        q.queue_handler.add_action(InfiniteTestAction::default());
         wait_for_nth_tick(q, 1, 1, 50).await;
         stop_queue_and_wait(q, 50).await;
 
@@ -173,7 +175,7 @@ test_with_queue!(
 
 test_with_queue!(
     async fn test_kill_action_keep_in_queue(_s: &mut TestState, q: &mut TestQueue) {
-        let id = q.queue_handler.add_action(InfiniteTestAction { i: 0 });
+        let id = q.queue_handler.add_action(InfiniteTestAction::default());
         wait_for_nth_tick(q, 1, 1, 50).await;
         q.queue_handler
             .kill_running_action(id, /* keep_in_queue = */ true);
@@ -197,7 +199,7 @@ test_with_queue!(
 
 test_with_queue!(
     async fn test_kill_action_remove_from_queue(_s: &mut TestState, q: &mut TestQueue) {
-        let id = q.queue_handler.add_action(InfiniteTestAction { i: 0 });
+        let id = q.queue_handler.add_action(InfiniteTestAction::default());
         wait_for_nth_tick(q, 1, 1, 50).await;
         q.queue_handler
             .kill_running_action(id, /* keep_in_queue = */ false);
@@ -209,5 +211,55 @@ test_with_queue!(
         assert_eq!(r#"{"action_save_dirs":[],"id_counter":1}"#, saved);
         fs::read_to_string(action_dir.join("data.json"))
             .expect_err("Action should not have been saved to disk");
+    }
+);
+
+test_with_queue!(
+    async fn test_pause(_s: &mut TestState, q: &mut TestQueue) {
+        q.queue_handler.pause();
+        wait_for_nth_tick(q, 2, 0, 50).await;
+        with_locked_queue!(q, locked_queue, {
+            assert!(locked_queue.paused);
+        });
+
+        q.queue_handler.add_action(InfiniteTestAction::default());
+        wait_for_nth_tick(q, 3, 0, 50).await;
+        with_locked_queue!(q, locked_queue, {
+            assert!(locked_queue.paused);
+            assert_eq!(1, locked_queue.actions.len());
+            // make sure the action has not started executing
+            assert!(locked_queue.actions[0].action.is_some());
+        });
+
+        q.queue_handler.unpause();
+        wait_for_nth_tick(q, 3, 1, 50).await;
+        with_locked_queue!(q, locked_queue, {
+            assert!(!locked_queue.paused);
+            assert_eq!(1, locked_queue.actions.len());
+            // now the action has started executing
+            assert!(locked_queue.actions[0].action.is_none());
+        });
+    }
+);
+
+test_with_queue!(
+    async fn test_pause_during_action(_s: &mut TestState, q: &mut TestQueue) {
+        q.queue_handler.add_action(InfiniteTestAction::default());
+        wait_for_nth_tick(q, 1, 1, 50).await;
+        with_locked_queue!(q, locked_queue, {
+            assert!(!locked_queue.paused);
+            assert_eq!(1, locked_queue.actions.len());
+            // the action has started executing
+            assert!(locked_queue.actions[0].action.is_none());
+        });
+
+        q.queue_handler.pause();
+        wait_for_nth_tick(q, 2, 1, 50).await;
+        with_locked_queue!(q, locked_queue, {
+            assert!(locked_queue.paused);
+            assert_eq!(1, locked_queue.actions.len());
+            // make sure the action has been put back in the queue before pausing
+            assert!(locked_queue.actions[0].action.is_some());
+        });
     }
 );
