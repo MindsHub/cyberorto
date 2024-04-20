@@ -1,5 +1,4 @@
 use arduino_common::prelude::*;
-use tokio::sync::Mutex;
 
 struct Dummy;
 impl MessagesHandler for Dummy {}
