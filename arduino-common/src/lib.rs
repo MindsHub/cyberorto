@@ -98,6 +98,8 @@ macro_rules! wait {
         }
     };
 }
+
+
 impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, Sleeper>>>
     Master<Serial, Sleeper, Mutex>
 {
