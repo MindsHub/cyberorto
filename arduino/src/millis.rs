@@ -116,20 +116,20 @@ impl Wait {
 }
 impl Sleep for Wait{
     /// how much time should I wait? is async so it isn't blocking
-    fn await_us(us: u64)->Self {
+    fn await_us(us: u64)->impl Future<Output = ()> {
         Self::from_micros(us)
     }
 }
 impl Future for Wait {
-    type Output = u64;
+    type Output = ();
     
     fn poll(
         self: core::pin::Pin<&mut Self>,
         _cx: &mut core::task::Context<'_>,
     ) -> Poll<Self::Output> {
         let diff = micros();
-        if let Some(x) = diff.checked_sub(self.end) {
-            Poll::Ready(x)
+        if let Some(_) = diff.checked_sub(self.end) {
+            Poll::Ready(())
         } else {
             Poll::Pending
         }
