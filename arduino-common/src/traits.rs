@@ -8,7 +8,7 @@ pub trait AsyncSerial {
     fn write(&mut self, buf: u8) -> impl Future<Output = ()>;
 }
 /// trait used to abstract a sleeper (Await some us and go on)
-pub trait Sleep: Future {
+pub trait Sleep {
     /// returns a struct to await
     fn await_us(us: u64) -> impl Future<Output=()>;
 }
