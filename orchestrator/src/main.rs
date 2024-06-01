@@ -50,7 +50,15 @@ async fn main() {
     rocket::build()
         .manage(state_handler) // used by `impl FromRequest for State`
         .manage(queue_handler.clone()) // used by `impl FromRequest for &QueueHandler`
-        .mount("/", routes![api::toggle_led, api::add_action_command_list])
+        .mount("/", routes![
+            api::pause,
+            api::unpause,
+            api::clear,
+            api::kill_running_action,
+            api::get_state,
+            api::toggle_led,
+            api::add_action_command_list
+        ])
         .launch()
         .await
         .unwrap();
