@@ -76,16 +76,16 @@ pub enum Response {
     Done,
 }
 
-pub struct Slave<Serial: AsyncSerial, Sleeper: Sleep, MA: MessagesHandler> {
+pub struct Slave<Serial: AsyncSerial, MA: MessagesHandler> {
     /// comunication interface, that permit to read/send messages
-    com: Comunication<Serial, Sleeper>,
+    com: Comunication<Serial>,
     /// what is my name?
     name: [u8; 10],
     /// struct used to handle all messages
     pub message_handler: MA,
 }
 
-impl<Serial: AsyncSerial, Sleeper: Sleep, MA: MessagesHandler> Slave<Serial, Sleeper, MA> {
+impl<Serial: AsyncSerial, MA: MessagesHandler> Slave<Serial, MA> {
     /// init this struct, you should provide what serial you will use, and some other configs
     pub fn new(serial: Serial, timeout_us: u64, name: [u8; 10], message_handler: MA) -> Self {
         Self {

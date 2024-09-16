@@ -7,11 +7,6 @@ pub trait AsyncSerial {
     ///writes a single byte over Serial
     fn write(&mut self, buf: u8) -> impl Future<Output = ()>;
 }
-/// trait used to abstract a sleeper (Await some us and go on)
-pub trait Sleep {
-    /// returns a struct to await
-    fn await_us(us: u64) -> impl Future<Output=()>;
-}
 
 /// we need dynamic mutable access in order to use serial even if we are waiting for a big message.
 ///

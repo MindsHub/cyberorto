@@ -1,6 +1,6 @@
 use pid::Pid;
 
-use crate::{AsyncSerial, Comunication, Sleep};
+use crate::{AsyncSerial, Comunication};
 
 pub trait MotorAbstraction {
     // sign of current indicates if it is positive or negative
@@ -29,12 +29,12 @@ impl<M: MotorAbstraction> PidMotor<M>{
 /// rasp -> motore
 /// gradi/mm
 
-pub struct Motor<Serial: AsyncSerial, Sleeper: Sleep, Motor: MotorAbstraction> {
-    pub com: Comunication<Serial, Sleeper>,
+pub struct Motor<Serial: AsyncSerial, Motor: MotorAbstraction> {
+    pub com: Comunication<Serial>,
     pub motor: Motor,
 }
 
-impl<Serial: AsyncSerial, Sleeper: Sleep, Motore: MotorAbstraction> Motor<Serial, Sleeper, Motore>{
+impl<Serial: AsyncSerial, Motore: MotorAbstraction> Motor<Serial, Motore>{
     fn update(&self){
         
     }

@@ -102,8 +102,7 @@ pub struct StateHandler {
     master: Arc<
         Master<
             SerialStream,
-            tokio::time::Sleep,
-            tokio::sync::Mutex<InnerMaster<SerialStream, tokio::time::Sleep>>,
+            tokio::sync::Mutex<InnerMaster<SerialStream>>,
         >,
     >,
 }

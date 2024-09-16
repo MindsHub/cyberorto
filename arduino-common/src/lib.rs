@@ -27,14 +27,14 @@ pub mod prelude;
 pub mod cyber_protocol;
 
 ///struct used inside Master. It wraps some Comunication methods. Watch Master Documentation to understand why it's important.
-pub struct InnerMaster<Serial: AsyncSerial, Sleeper: Sleep> {
+pub struct InnerMaster<Serial: AsyncSerial> {
     ///Comunication wrapper
-    com: Comunication<Serial, Sleeper>,
+    com: Comunication<Serial>,
     ///Last sent message id, before sending it get's increased by one until overflow appens, and then restarts from 0.
     id: u8,
 }
 
-impl<Serial: AsyncSerial, Sleeper: Sleep> InnerMaster<Serial, Sleeper> {
+impl<Serial: AsyncSerial> InnerMaster<Serial> {
     /// increments id by one, and then sends a message
     async fn send(&mut self, m: Message) -> bool {
         self.id = self.id.wrapping_add(1);
@@ -49,13 +49,10 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> InnerMaster<Serial, Sleeper> {
 
 pub struct Master<
     Serial: AsyncSerial,
-    Sleeper: Sleep,
-    Mutex: MutexTrait<InnerMaster<Serial, Sleeper>>,
+    Mutex: MutexTrait<InnerMaster<Serial>>,
 > {
     /// first phantom data, nothing important
     ph: PhantomData<Serial>,
-    /// second phantom data, nothing important
-    ph2: PhantomData<Sleeper>,
     /// Mutex for InnerMaster. It should get Locked when sending a message, when reading a response, and unlocked for everything else.
     inner: Mutex,
     /// how many times should a message be resent? Bigger numbers means better comunication but possibly slower.
@@ -90,7 +87,7 @@ macro_rules! blocking_send {
 macro_rules! wait {
     ($self:ident, $lock:ident, $ms:ident) => {
         $lock.take();
-        Sleeper::await_us($ms * 1000).await;
+        embassy_time::Timer::after_millis($ms).await;
 
         $lock = Some($self.inner.mut_lock().await);
         if !$lock.as_mut().unwrap().send(Message::Poll).await {
@@ -100,14 +97,13 @@ macro_rules! wait {
 }
 
 
-impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, Sleeper>>>
-    Master<Serial, Sleeper, Mutex>
+impl<Serial: AsyncSerial, Mutex: MutexTrait<InnerMaster<Serial>>>
+    Master<Serial, Mutex>
 {
     /// init a new Mutex
     pub fn new(serial: Serial, timeout_us: u64, resend_times: u8) -> Self {
         Self {
             ph: PhantomData,
-            ph2: PhantomData,
             inner: Mutex::new(InnerMaster {
                 com: Comunication::new(serial, timeout_us),
                 id: 0,
@@ -219,8 +215,8 @@ impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, 
 }
 
 ///debug implementation for Master
-impl<Serial: AsyncSerial, Sleeper: Sleep, Mutex: MutexTrait<InnerMaster<Serial, Sleeper>>> Debug
-    for Master<Serial, Sleeper, Mutex>
+impl<Serial: AsyncSerial, Mutex: MutexTrait<InnerMaster<Serial>>> Debug
+    for Master<Serial, Mutex>
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Master").finish()

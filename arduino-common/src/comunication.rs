@@ -1,14 +1,13 @@
-use core::{marker::PhantomData, pin::pin};
+use core::pin::pin;
 
-use futures::future::{select, Either};
+use embassy_futures::select::{select, Either};
+use embassy_time::Timer;
 use serde::{Deserialize, Serialize};
 use serialmessage::{ParseState, SerMsg};
 
 use crate::prelude::*;
 /// comunication wrapper, it shouldn't be used directly
-pub struct Comunication<Serial: AsyncSerial, Sleeper: Sleep> {
-    /// phantom data
-    ph: PhantomData<Sleeper>,
+pub struct Comunication<Serial: AsyncSerial> {
     /// how much time should I wait for a Byte to become available?
     ///
     /// Or How much time should I wait for a Byte to become Writable?
@@ -21,11 +20,10 @@ pub struct Comunication<Serial: AsyncSerial, Sleeper: Sleep> {
     buf: [u8; 50],
 }
 
-impl<Serial: AsyncSerial, Sleeper: Sleep> Comunication<Serial, Sleeper> {
+impl<Serial: AsyncSerial> Comunication<Serial> {
     /// create a new Comunication Instance
     pub fn new(serial: Serial, timeout_us: u64) -> Self {
         Self {
-            ph: PhantomData,
             timeout_us,
             serial,
             input_buf: SerMsg::new(),
@@ -36,12 +34,12 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Comunication<Serial, Sleeper> {
     async fn try_read_byte(&mut self) -> Option<u8> {
         match select(
             pin!(self.serial.read()),
-            pin!(Sleeper::await_us(self.timeout_us)),
+            pin!(Timer::after_micros(self.timeout_us)),
         )
         .await
         {
-            Either::Left((b, _)) => Some(b),
-            Either::Right(_) => None,
+            Either::First(b) => Some(b),
+            Either::Second(_) => None,
         }
     }
     /// try read a single byte.
@@ -53,12 +51,12 @@ impl<Serial: AsyncSerial, Sleeper: Sleep> Comunication<Serial, Sleeper> {
         //let t = Select{ l: pin!(self.serial.write(to_send)), r: pin!(Sleeper::await_us(self.timeout_us)) };
         match select(
             pin!(self.serial.write(to_send)),
-            pin!(Sleeper::await_us(self.timeout_us)),
+            pin!(Timer::after_micros(self.timeout_us)),
         )
         .await
         {
-            Either::Left(_) => true,
-            Either::Right(_) => false,
+            Either::First(_) => true,
+            Either::Second(_) => false,
         }
     }
     /// tries to read a complex message.

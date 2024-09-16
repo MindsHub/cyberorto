@@ -1,5 +1,5 @@
 extern crate std;
-use core::{future::Future, ops::DerefMut, time::Duration};
+use core::{future::Future, ops::DerefMut};
 use tokio::sync::Mutex;
 use tokio_serial::SerialStream;
 
@@ -18,13 +18,6 @@ impl AsyncSerial for SerialStream {
     }
 }
 
-///function used to sleep in std enviroments
-impl Sleep for tokio::time::Sleep {
-    fn await_us(us: u64) -> Self {
-        //println!("wait");
-        tokio::time::sleep(Duration::from_micros(us))
-    }
-}
 
 impl<T> MutexTrait<T> for tokio::sync::Mutex<T> {
     fn new(t: T) -> Self {
@@ -37,4 +30,13 @@ impl<T> MutexTrait<T> for tokio::sync::Mutex<T> {
 }
 
 pub type TokioMaster<Serial> =
-    Master<Serial, tokio::time::Sleep, Mutex<InnerMaster<Serial, tokio::time::Sleep>>>;
+    Master<Serial, Mutex<InnerMaster<Serial>>>;
+
+
+#[tokio::test]
+async fn rapid_test(){
+    let t =embassy_time::Instant::now();
+    embassy_time::Timer::after_millis(1000).await;
+    let t =embassy_time::Instant::now();
+    std::println!("{}", t);
+}

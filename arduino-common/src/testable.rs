@@ -12,7 +12,7 @@ use tokio::sync::{
 
 use crate::prelude::*;
 pub type TestMaster<Serial> =
-    Master<Serial, tokio::time::Sleep, Mutex<InnerMaster<Serial, tokio::time::Sleep>>>;
+    Master<Serial, Mutex<InnerMaster<Serial>>>;
 
 pub struct Testable {
     tx: Sender<u8>,
@@ -138,10 +138,10 @@ impl MessagesHandler for Arc<std::sync::Mutex<MessageRecorderSlave>> {
         Some(Response::Done)
     }
 }
-pub fn new_testable_slave<Serial: AsyncSerial, Sleeper: Sleep>(
+pub fn new_testable_slave<Serial: AsyncSerial>(
     serial: Serial,
     name: [u8; 10],
-) -> Slave<Serial, Sleeper, Arc<std::sync::Mutex<MessageRecorderSlave>>> {
+) -> Slave<Serial, Arc<std::sync::Mutex<MessageRecorderSlave>>> {
     Slave::new(
         serial,
         3,
@@ -163,13 +163,13 @@ mod test {
         timeout_us: u64,
     ) -> (
         TestMaster<Testable>,
-        Slave<Testable, tokio::time::Sleep, Dummy>,
+        Slave<Testable, Dummy>,
     ) {
         let (master, slave) = Testable::new(0.0, 0.0);
         let master: TestMaster<Testable> = Master::new(master, timeout_us, 10);
         //let state = Box::new(Mutex::new(BotState::default()));
         //let state = &*Box::leak(state);
-        let slave: Slave<Testable, tokio::time::Sleep, _> =
+        let slave: Slave<Testable, _> =
             Slave::new(slave, 10, b"ciao      ".clone(), Dummy::default());
 
         (master, slave)
@@ -222,7 +222,7 @@ mod test {
     async fn test_timeout() {
         let (master, slave) = Testable::new(0.0, 1.0);
         let master: TestMaster<Testable> = Master::new(master, 10, 10);
-        let mut slave: Slave<Testable, tokio::time::Sleep, _> =
+        let mut slave: Slave<Testable, _> =
             Slave::new(slave, 10, b"ciao      ".clone(), Dummy::default());
         tokio::time::sleep(Duration::from_millis(10)).await;
         let _ = tokio::spawn(async move { slave.run().await });
