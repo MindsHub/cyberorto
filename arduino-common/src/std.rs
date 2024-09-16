@@ -18,7 +18,6 @@ impl AsyncSerial for SerialStream {
     }
 }
 
-
 impl<T> MutexTrait<T> for tokio::sync::Mutex<T> {
     fn new(t: T) -> Self {
         Self::new(t)
@@ -29,14 +28,12 @@ impl<T> MutexTrait<T> for tokio::sync::Mutex<T> {
     }
 }
 
-pub type TokioMaster<Serial> =
-    Master<Serial, Mutex<InnerMaster<Serial>>>;
-
+pub type TokioMaster<Serial> = Master<Serial, Mutex<InnerMaster<Serial>>>;
 
 #[tokio::test]
-async fn rapid_test(){
-    let t =embassy_time::Instant::now();
+async fn rapid_test() {
+    let t = embassy_time::Instant::now();
     embassy_time::Timer::after_millis(1000).await;
-    let t =embassy_time::Instant::now();
+    let t = embassy_time::Instant::now();
     std::println!("{}", t);
 }

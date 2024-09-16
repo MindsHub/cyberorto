@@ -30,7 +30,9 @@ pub enum Command {
 
 impl CommandListAction {
     pub fn new(commands: Vec<Command>) -> Self {
-        CommandListAction { commands: VecDeque::from(commands) }
+        CommandListAction {
+            commands: VecDeque::from(commands),
+        }
     }
 }
 

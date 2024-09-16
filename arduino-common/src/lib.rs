@@ -47,10 +47,7 @@ impl<Serial: AsyncSerial> InnerMaster<Serial> {
     }
 }
 
-pub struct Master<
-    Serial: AsyncSerial,
-    Mutex: MutexTrait<InnerMaster<Serial>>,
-> {
+pub struct Master<Serial: AsyncSerial, Mutex: MutexTrait<InnerMaster<Serial>>> {
     /// first phantom data, nothing important
     ph: PhantomData<Serial>,
     /// Mutex for InnerMaster. It should get Locked when sending a message, when reading a response, and unlocked for everything else.
@@ -96,10 +93,7 @@ macro_rules! wait {
     };
 }
 
-
-impl<Serial: AsyncSerial, Mutex: MutexTrait<InnerMaster<Serial>>>
-    Master<Serial, Mutex>
-{
+impl<Serial: AsyncSerial, Mutex: MutexTrait<InnerMaster<Serial>>> Master<Serial, Mutex> {
     /// init a new Mutex
     pub fn new(serial: Serial, timeout_us: u64, resend_times: u8) -> Self {
         Self {
@@ -215,9 +209,7 @@ impl<Serial: AsyncSerial, Mutex: MutexTrait<InnerMaster<Serial>>>
 }
 
 ///debug implementation for Master
-impl<Serial: AsyncSerial, Mutex: MutexTrait<InnerMaster<Serial>>> Debug
-    for Master<Serial, Mutex>
-{
+impl<Serial: AsyncSerial, Mutex: MutexTrait<InnerMaster<Serial>>> Debug for Master<Serial, Mutex> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Master").finish()
     }

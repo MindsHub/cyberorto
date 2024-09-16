@@ -1,6 +1,10 @@
-use crate::{action::command_list::{Command, CommandListAction}, queue::QueueHandler, state::{BatteryLevel, StateHandler, WaterLevel}};
-use rocket::State;
+use crate::{
+    action::command_list::{Command, CommandListAction},
+    queue::QueueHandler,
+    state::{BatteryLevel, StateHandler, WaterLevel},
+};
 use rocket::serde::json::Json;
+use rocket::State;
 use serde::{Deserialize, Serialize};
 
 mod from_request;

@@ -15,11 +15,7 @@ async fn main() {
         .flow_control(tokio_serial::FlowControl::None)
         .open_native_async()
         .expect("Failed to open port");
-    let master: Master<
-        SerialStream,
-        tokio::time::Sleep,
-        Mutex<InnerMaster<SerialStream, tokio::time::Sleep>>,
-    > = Master::new(port, 4000, 1);
+    let master: Master<SerialStream, Mutex<InnerMaster<SerialStream>>> = Master::new(port, 4000, 1);
     let mut state = true;
     sleep(Duration::from_millis(3000)).await;
     let mut count = 0;

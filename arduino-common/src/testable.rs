@@ -11,8 +11,7 @@ use tokio::sync::{
 };
 
 use crate::prelude::*;
-pub type TestMaster<Serial> =
-    Master<Serial, Mutex<InnerMaster<Serial>>>;
+pub type TestMaster<Serial> = Master<Serial, Mutex<InnerMaster<Serial>>>;
 
 pub struct Testable {
     tx: Sender<u8>,
@@ -159,12 +158,7 @@ mod test {
 
     use super::Dummy;
 
-    async fn init_test(
-        timeout_us: u64,
-    ) -> (
-        TestMaster<Testable>,
-        Slave<Testable, Dummy>,
-    ) {
+    async fn init_test(timeout_us: u64) -> (TestMaster<Testable>, Slave<Testable, Dummy>) {
         let (master, slave) = Testable::new(0.0, 0.0);
         let master: TestMaster<Testable> = Master::new(master, timeout_us, 10);
         //let state = Box::new(Mutex::new(BotState::default()));

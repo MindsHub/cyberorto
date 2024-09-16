@@ -18,8 +18,7 @@ async fn main() {
         .expect("Failed to open port");
     let _ = port.flush();
     sleep(Duration::from_secs_f32(1.58));
-    let mut comunication: Comunication<SerialStream, tokio::time::Sleep> =
-        Comunication::new(port, 100);
+    let mut comunication: Comunication<SerialStream> = Comunication::new(port, 100);
     let first_time = Instant::now();
     let mut first: Option<Response> = None;
     while first.is_none() {

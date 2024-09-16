@@ -99,12 +99,7 @@ pub struct Plant {
 #[derive(Debug, Clone)]
 pub struct StateHandler {
     state: Arc<Mutex<State>>,
-    master: Arc<
-        Master<
-            SerialStream,
-            tokio::sync::Mutex<InnerMaster<SerialStream>>,
-        >,
-    >,
+    master: Arc<Master<SerialStream, tokio::sync::Mutex<InnerMaster<SerialStream>>>>,
 }
 
 fn acquire(state: &Arc<Mutex<State>>) -> MutexGuard<'_, State> {
