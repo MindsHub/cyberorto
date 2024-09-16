@@ -71,7 +71,7 @@ fn main() -> ! {
     
     //let state = SingleCoreMutex::new(BotState::default());
     let message_handler = MHandler::new(led);
-    let mut s: Slave<SerialHAL, Wait, _ > = Slave::new(serial, 100, b"ciao      ".clone(), message_handler);
+    let mut s: Slave<SerialHAL, _ > = Slave::new(serial, 100, b"ciao      ".clone(), message_handler);
 
     let mut serial_async = pin!(async move {
         s.run().await;

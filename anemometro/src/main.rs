@@ -16,7 +16,7 @@ fn main() -> ! {
     //getting peripherals
     let dp = arduino_hal::Peripherals::take().unwrap();
     let pins = arduino_hal::pins!(dp);
-    let pin_ane = pins.d1.into_floating_input();
+    let pin_ane = pins.d2.into_floating_input();
     let mut serial = arduino_hal::default_serial!(dp, pins, 115200);
     //enable interrupts
     unsafe { avr_device::interrupt::enable() };
@@ -24,15 +24,13 @@ fn main() -> ! {
 
     ufmt::uwriteln!(&mut serial, "{} bytes available", 53);
 
-    fn calc_time() {
+    /*fn calc_time() {
         let mut time: u64 = 0;
         while pin_ane.islow() {
             time = pin_ane.is_high() - pin_ane.islow();
         }
     }
 
-    let time: u64 = calc_time();
-    serial
-
-    pin_ane.is_high();
+    let time: u64 = calc_time();*/
+    todo!()
 }

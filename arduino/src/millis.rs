@@ -114,12 +114,12 @@ impl Wait {
         Self { end: micros() + m }
     }
 }
-impl Sleep for Wait{
+/*impl Sleep for Wait{
     /// how much time should I wait? is async so it isn't blocking
     fn await_us(us: u64)->impl Future<Output = ()> {
         Self::from_micros(us)
     }
-}
+}*/
 impl Future for Wait {
     type Output = ();
     
