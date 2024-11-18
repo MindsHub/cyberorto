@@ -7,3 +7,4 @@ runner = "ravedude uno -cb 115200"
 #runner = "qemu-system-avr -M uno -nographic -bios"
 [unstable]
 build-std = ["core"]
+build-std-features=[]
