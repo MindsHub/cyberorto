@@ -19,14 +19,14 @@ test = false
 bench = false
 
 [dependencies] 
-panic-halt = "0.2.0"
+panic-halt = "1.0.0"
 embedded-hal = "1.0.0"
 embassy-time-driver={version="0.1.0", features = ["tick-hz-16_000_000"]}
 embassy-time="0.3.2"
 arduino-common ={path="../arduino-common", default-features = false}
 fixed-queue = {version="0.5", default-features = false}
-avr-device= {version= "0.5", features = ["rt", "critical-section-impl"]}
-embassy-executor = { version = "0.6.0", features = [
+avr-device= {version= "0.6", features = ["rt", "critical-section-impl"]}
+embassy-executor = { version = "0.6.3", features = [
     "nightly",
     #"integrated-timers",
     "arch-avr",
