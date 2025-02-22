@@ -77,7 +77,7 @@ pub struct QueueState {
     stopped: bool,
     emergency: EmergencyStatus,
     save_dir: PathBuf,
-    runnind_id: Option<ActionId>,
+    running_id: Option<ActionId>,
     actions: Vec<ActionInfo>,
 }
 
@@ -489,7 +489,7 @@ impl QueueHandler {
             stopped: queue.stopped,
             emergency: queue.emergency,
             save_dir: queue.save_dir.clone(),
-            runnind_id: queue.running_id,
+            running_id: queue.running_id,
             actions: queue.actions.iter().map(|action| ActionInfo {
                 id: action.get_id(),
                 type_name: action.get_type_name().clone(),
