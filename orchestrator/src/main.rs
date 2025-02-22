@@ -1,8 +1,9 @@
 use std::{env, path::PathBuf, thread, time::Duration};
 
-use clap::{builder::OsStr, command, Parser};
+use clap::Parser;
 use queue::QueueHandler;
 use state::StateHandler;
+use tokio::{signal::unix::{signal, SignalKind}, sync::oneshot};
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
 use util::cors::Cors;
 
@@ -74,7 +75,39 @@ async fn main() {
         .unwrap();
 
     // launch().await will block until it receives a shutdown request (e.g. Ctrl+C)
-    println!("Shutting down Cyberorto orchestrator...");
+    info!("Shutting down Cyberorto orchestrator...");
+    if !queue_handler.is_idle() {
+        warn!("An action is running, waiting for it to give back control gracefully...");
+        warn!("Press Ctrl+C again to force kill and delete any running action");
+    }
+
+    // this just tells the current action to stop after it has finished its current step,
+    // but the current action will still remain in the queue and will resume next time
+    // the orchestrator is started
     queue_handler.stop();
+
+    // this spawns an async task that waits for another Ctrl+C
+    let (sigint_stop_tx, sigint_stop_rx) = oneshot::channel();
+    let sigint_thread = tokio::task::spawn(
+        async move {
+            let mut signal_interrupt = signal(SignalKind::interrupt()).unwrap();
+            let received = tokio::select! {
+                it = signal_interrupt.recv() => it,
+                _ = sigint_stop_rx => None,
+            };
+            if received.is_some() {
+                warn!("Force killing and deleting the currently running action...");
+                queue_handler.force_kill_any_running_action()
+            }
+        }
+    );
+
+    // this blocks until the currently running action has finished its current step,
+    // but if that step never finishes (e.g. waiting for 1000000s), then pressing
+    // Ctrl+C again will trigger the code above which force kills any running action.
     queue_handler_thread.join().unwrap();
+
+    // join the final thread listening for a Ctrl+C
+    let _ = sigint_stop_tx.send(());
+    sigint_thread.await.unwrap();
 }

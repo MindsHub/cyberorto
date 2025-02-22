@@ -460,6 +460,11 @@ impl QueueHandler {
         self.mutate_queue_and_notify(|mut queue| queue.stopped = true)
     }
 
+    pub fn is_idle(&self) -> bool {
+        let queue = self.queue.0.lock().unwrap();
+        queue.running_id.is_none()
+    }
+
     /// Always pauses the queue, and maintains it paused even after killing is finished.
     /// Then tries to kill the currently running action. Returns `true` if the action was
     /// killed successfully, or `false` otherwise.
@@ -480,6 +485,15 @@ impl QueueHandler {
             }
             false
         })
+    }
+
+    pub fn force_kill_any_running_action(&self) {
+        self.mutate_queue_and_notify(|mut queue| {
+            queue.paused = true;
+            if let Some(running_killer) = queue.running_killer.take() {
+                let _ = running_killer.send(false);
+            }
+        });
     }
 
     pub fn get_state(&self) -> QueueState {
