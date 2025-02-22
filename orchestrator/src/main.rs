@@ -1,9 +1,9 @@
 use std::{env, path::PathBuf, thread, time::Duration};
 
-use clap::{command, Parser};
+use clap::{builder::OsStr, command, Parser};
 use queue::QueueHandler;
 use state::StateHandler;
-use tokio_serial::SerialPortBuilderExt;
+use tokio_serial::{SerialPortBuilderExt, SerialStream};
 
 mod action;
 mod api;
@@ -18,31 +18,39 @@ extern crate rocket;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    #[arg(short, long)]
-    port: Option<String>,
+    /// The port to connect to, where an Arduino should be listening
+    #[arg(short, long, default_value = "/dev/ttyACM0")]
+    port: String,
 
-    #[arg(short, long)]
-    save_dir: Option<PathBuf>,
+    /// Whether to skip connecting to the serial port, and instead just set up a dummy serial connection for testing
+    #[arg(short, long, action)]
+    no_serial: bool,
+
+    /// The directory in which to save data about the queue
+    #[arg(short, long, default_value_os_t = PathBuf::from(env::var("HOME").expect("$HOME must be set") + "/.cyberorto/queue"))]
+    queue_dir: PathBuf,
 }
 
 #[rocket::main]
 async fn main() {
     let args = Args::parse();
-    let port = args.port.unwrap_or("/dev/ttyACM0".to_string());
-    let save_dir = args.save_dir.unwrap_or_else(|| {
-        let home = env::var("HOME").expect("$HOME must be set");
-        PathBuf::from(home + "/.cyberorto/queue")
-    });
 
-    let port = tokio_serial::new(&port, 115200)
-        .timeout(Duration::from_millis(3))
-        .parity(tokio_serial::Parity::None)
-        .stop_bits(tokio_serial::StopBits::One)
-        .flow_control(tokio_serial::FlowControl::None)
-        .open_native_async()
-        .expect("Failed to open port");
+    let port = if args.no_serial {
+        SerialStream::pair()
+            .expect("Failed to create dummy serial")
+            .0 // TODO start a dummy Arduino implementation on the other stream
+    } else {
+        tokio_serial::new(&args.port, 115200)
+            .timeout(Duration::from_millis(3))
+            .parity(tokio_serial::Parity::None)
+            .stop_bits(tokio_serial::StopBits::One)
+            .flow_control(tokio_serial::FlowControl::None)
+            .open_native_async()
+            .expect("Failed to open port")
+    };
+
     let state_handler = StateHandler::new(port);
-    let queue_handler = QueueHandler::new(state_handler.clone(), save_dir);
+    let queue_handler = QueueHandler::new(state_handler.clone(), args.queue_dir);
 
     let queue_handler_clone = queue_handler.clone();
     let queue_handler_thread = thread::spawn(move || queue_handler_clone.run());
