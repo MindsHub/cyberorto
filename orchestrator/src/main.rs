@@ -4,6 +4,7 @@ use clap::{builder::OsStr, command, Parser};
 use queue::QueueHandler;
 use state::StateHandler;
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
+use util::cors::Cors;
 
 mod action;
 mod api;
@@ -56,6 +57,7 @@ async fn main() {
     let queue_handler_thread = thread::spawn(move || queue_handler_clone.run());
 
     rocket::build()
+        .attach(Cors)
         .manage(state_handler) // used by `impl FromRequest for State`
         .manage(queue_handler.clone()) // used by `impl FromRequest for &QueueHandler`
         .mount("/", routes![
