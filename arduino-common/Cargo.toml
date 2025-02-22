@@ -17,9 +17,9 @@ postcard = {version="1.0.0", default-features = false}
 pid = "4.0"
 
 # TIME RELATED LIBRARIES
-embassy-time={git = "https://github.com/embassy-rs/embassy.git" }
-embassy-futures={git = "https://github.com/embassy-rs/embassy.git" }
-
+embassy-time="0.3.2"
+embassy-futures="0.1.1"
+critical-section="*"
 
 #LIBRARY USED IN STD VERSION:
 #serial port
@@ -36,4 +36,4 @@ indicatif = {version = "0.17", optional = true}
 [features]
 # activate std to have access to all std additional features/implementations
 default=["std"]
-std=["dep:rand", "dep:indicatif", "dep:tokio-serial", "dep:tokio", "embassy-time/std", "embassy-time/generic-queue"]
+std=["dep:rand", "dep:indicatif", "dep:tokio-serial", "dep:tokio", "embassy-time/std", "embassy-time/generic-queue", "critical-section/std"]
