@@ -21,7 +21,7 @@ use crate::{
     util::serde::{deserialize_from_json_file, serialize_to_json_file},
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
 enum EmergencyStatus {
     None,
     WaitingForReset,
@@ -60,6 +60,25 @@ impl Queue {
 pub struct QueueTestStats {
     wait_counter: usize,
     tick_counter: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ActionInfo {
+    id: ActionId,
+    type_name: String,
+    save_dir: PathBuf,
+    is_running: bool,
+}
+
+/// Just a utility struct to return when the user queries for state
+#[derive(Debug, Serialize, Deserialize)]
+pub struct QueueState {
+    paused: bool,
+    stopped: bool,
+    emergency: EmergencyStatus,
+    save_dir: PathBuf,
+    runnind_id: Option<ActionId>,
+    actions: Vec<ActionInfo>,
 }
 
 #[derive(Debug, Clone)]
@@ -441,12 +460,14 @@ impl QueueHandler {
         self.mutate_queue_and_notify(|mut queue| queue.stopped = true)
     }
 
-    /// Always pauses the queue. Then tries to kill the currently running action.
-    /// Returns `true` if the action was killed successfully, or `false` otherwise.
+    /// Always pauses the queue, and maintains it paused even after killing is finished.
+    /// Then tries to kill the currently running action. Returns `true` if the action was
+    /// killed successfully, or `false` otherwise.
     ///
     /// * `running_id` the id of the action that the caller thinks is currently
     ///                being executed; if this is not equal to the id of the
-    ///                action currently being executed
+    ///                action currently being executed no action is killed, but
+    ///                the queue remains paused
     /// * `keep_in_queue` whether the killed action should be kept in queue after
     ///                   being killed (which is possibly risky), or not
     pub fn kill_running_action(&self, running_id: ActionId, keep_in_queue: bool) -> bool {
@@ -459,5 +480,22 @@ impl QueueHandler {
             }
             false
         })
+    }
+
+    pub fn get_state(&self) -> QueueState {
+        let queue = self.queue.0.lock().unwrap();
+        QueueState {
+            paused: queue.paused,
+            stopped: queue.stopped,
+            emergency: queue.emergency,
+            save_dir: queue.save_dir.clone(),
+            runnind_id: queue.running_id,
+            actions: queue.actions.iter().map(|action| ActionInfo {
+                id: action.get_id(),
+                type_name: action.get_type_name().clone(),
+                save_dir: action.get_save_dir().clone(),
+                is_running: action.is_placeholder(),
+            }).collect(),
+        }
     }
 }
