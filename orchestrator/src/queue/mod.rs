@@ -170,23 +170,31 @@ impl QueueHandler {
                 // ActionWrapper and effectively pauses the action if it's not going to be
                 // taken again right after in the loop below.
                 *item = action;
+            } else {
+                // `else`, it means that the placeholder has been deleted from the queue
+                // in the meantime, so delete any data this action might have saved to disk
+                // and just let it be dropped. The loop below will decide which action will
+                // come next.
+                action.delete_data_on_disk();
             }
-            // `else`, it means that the placeholder has been deleted from the queue
-            // in the meantime, so just let the current action be dropped. The loop below
-            // will decide which action will come next.
-        } else if let Some(index) = queue
-            .actions
-            .iter()
-            .position(|item| item.get_id() == action.get_id())
-        {
-            // If the current action has finished executing,
-            // remove its corresponding placeholder from the queue.
-            // No need to call release() since it has already been called
-            // in the main loop.
-            queue.actions.remove(index);
+        } else {
+            // The current action has finished executing, delete any of its data on disk.
+            action.delete_data_on_disk();
+
+            if let Some(index) = queue
+                .actions
+                .iter()
+                .position(|item| item.get_id() == action.get_id())
+            {
+                // If the current action has finished executing,
+                // remove its corresponding placeholder from the queue.
+                // No need to call release() since it has already been called
+                // in the main loop.
+                queue.actions.remove(index);
+            }
+            // `else`, the current action has finished executing and its corresponding
+            // placeholder has already been deleted from the queue, so nothing to do
         }
-        // `else`, the current action has finished executing and its corresponding
-        // placeholder has already been deleted from the queue, so nothing to do
         queue
     }
 

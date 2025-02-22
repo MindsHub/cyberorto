@@ -1,5 +1,5 @@
 use std::{
-    fs::create_dir_all,
+    fs::{create_dir_all, remove_dir_all},
     path::{Path, PathBuf},
 };
 
@@ -145,6 +145,12 @@ impl ActionWrapper {
         action.save_to_disk(&self.ctx)?;
 
         Ok(())
+    }
+
+    /// Deletes all data stored by this action inside `self.ctx.save_dir`,
+    /// ignoring any error.
+    pub fn delete_data_on_disk(&self) {
+        let _ = remove_dir_all(&self.ctx.save_dir);
     }
 }
 
