@@ -1,9 +1,11 @@
 use std::{env, path::PathBuf, thread, time::Duration};
 
-use clap::{command, Parser};
+use clap::Parser;
 use queue::QueueHandler;
 use state::StateHandler;
-use tokio_serial::SerialPortBuilderExt;
+use tokio::{signal::unix::{signal, SignalKind}, sync::oneshot};
+use tokio_serial::{SerialPortBuilderExt, SerialStream};
+use util::cors::Cors;
 
 mod action;
 mod api;
@@ -18,36 +20,45 @@ extern crate rocket;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    #[arg(short, long)]
-    port: Option<String>,
+    /// The port to connect to, where an Arduino should be listening
+    #[arg(short, long, default_value = "/dev/ttyACM0")]
+    port: String,
 
-    #[arg(short, long)]
-    save_dir: Option<PathBuf>,
+    /// Whether to skip connecting to the serial port, and instead just set up a dummy serial connection for testing
+    #[arg(short, long, action)]
+    no_serial: bool,
+
+    /// The directory in which to save data about the queue
+    #[arg(short, long, default_value_os_t = PathBuf::from(env::var("HOME").unwrap_or(".".to_string()) + "/.cyberorto/queue"))]
+    queue_dir: PathBuf,
 }
 
 #[rocket::main]
 async fn main() {
     let args = Args::parse();
-    let port = args.port.unwrap_or("/dev/ttyACM0".to_string());
-    let save_dir = args.save_dir.unwrap_or_else(|| {
-        let home = env::var("HOME").expect("$HOME must be set");
-        PathBuf::from(home + "/.cyberorto/queue")
-    });
 
-    let port = tokio_serial::new(&port, 115200)
-        .timeout(Duration::from_millis(3))
-        .parity(tokio_serial::Parity::None)
-        .stop_bits(tokio_serial::StopBits::One)
-        .flow_control(tokio_serial::FlowControl::None)
-        .open_native_async()
-        .expect("Failed to open port");
+    let port = if args.no_serial {
+        SerialStream::pair()
+            .expect("Failed to create dummy serial")
+            .0 // TODO start a dummy Arduino implementation on the other stream
+    } else {
+        tokio_serial::new(&args.port, 115200)
+            .timeout(Duration::from_millis(3))
+            .parity(tokio_serial::Parity::None)
+            .stop_bits(tokio_serial::StopBits::One)
+            .flow_control(tokio_serial::FlowControl::None)
+            .open_native_async()
+            .expect("Failed to open port")
+    };
+
     let state_handler = StateHandler::new(port);
-    let queue_handler = QueueHandler::new(state_handler.clone(), save_dir);
+    let queue_handler = QueueHandler::new(state_handler.clone(), args.queue_dir);
 
     let queue_handler_clone = queue_handler.clone();
     let queue_handler_thread = thread::spawn(move || queue_handler_clone.run());
 
     rocket::build()
+        .attach(Cors)
         .manage(state_handler) // used by `impl FromRequest for State`
         .manage(queue_handler.clone()) // used by `impl FromRequest for &QueueHandler`
         .mount("/", routes![
@@ -64,7 +75,39 @@ async fn main() {
         .unwrap();
 
     // launch().await will block until it receives a shutdown request (e.g. Ctrl+C)
-    println!("Shutting down Cyberorto orchestrator...");
+    info!("Shutting down Cyberorto orchestrator...");
+    if !queue_handler.is_idle() {
+        warn!("An action is running, waiting for it to give back control gracefully...");
+        warn!("Press Ctrl+C again to force kill and delete any running action");
+    }
+
+    // this just tells the current action to stop after it has finished its current step,
+    // but the current action will still remain in the queue and will resume next time
+    // the orchestrator is started
     queue_handler.stop();
+
+    // this spawns an async task that waits for another Ctrl+C
+    let (sigint_stop_tx, sigint_stop_rx) = oneshot::channel();
+    let sigint_thread = tokio::task::spawn(
+        async move {
+            let mut signal_interrupt = signal(SignalKind::interrupt()).unwrap();
+            let received = tokio::select! {
+                it = signal_interrupt.recv() => it,
+                _ = sigint_stop_rx => None,
+            };
+            if received.is_some() {
+                warn!("Force killing and deleting the currently running action...");
+                queue_handler.force_kill_any_running_action()
+            }
+        }
+    );
+
+    // this blocks until the currently running action has finished its current step,
+    // but if that step never finishes (e.g. waiting for 1000000s), then pressing
+    // Ctrl+C again will trigger the code above which force kills any running action.
     queue_handler_thread.join().unwrap();
+
+    // join the final thread listening for a Ctrl+C
+    let _ = sigint_stop_tx.send(());
+    sigint_thread.await.unwrap();
 }

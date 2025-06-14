@@ -13,7 +13,7 @@ tokio = { version = "1.0", features = ["macros", "sync"] }
 tokio-serial = "5.4.4"
 async-trait = "0.1.80"
 clap = { version = "4.5.4", features = ["derive"] }
-rocket = { version = "0.5.0", features = ["json"] }
+rocket = { version = "0.5.1", features = ["json"] }
 
 [dev-dependencies]
 tempdir = "0.3.7"

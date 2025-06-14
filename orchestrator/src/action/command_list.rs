@@ -1,6 +1,7 @@
 use std::{collections::VecDeque, time::Duration};
 
 use serde::{Deserialize, Serialize};
+use tokio::time::sleep;
 
 use crate::{
     state::StateHandler,
@@ -21,6 +22,7 @@ pub enum Command {
     Reset,
     Home,
     Retract,
+    Wait(Duration),
     Water(Duration),
     Lights(Duration),
     AirPump(Duration),
@@ -50,6 +52,7 @@ impl Action for CommandListAction {
             Command::Reset => state_handler.reset(),
             Command::Home => state_handler.reset(), // TODO home()
             Command::Retract => state_handler.retract(),
+            Command::Wait(duration) => sleep(duration).await,
             Command::Water(duration) => state_handler.water(duration),
             Command::Lights(duration) => state_handler.lights(duration),
             Command::AirPump(duration) => state_handler.air_pump(duration),

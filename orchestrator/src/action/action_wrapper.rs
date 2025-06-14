@@ -1,5 +1,5 @@
 use std::{
-    fs::create_dir_all,
+    fs::{create_dir_all, remove_dir_all},
     path::{Path, PathBuf},
 };
 
@@ -64,11 +64,23 @@ impl ActionWrapper {
         self.ctx.id
     }
 
+    /// Returns `A::get_type_name()` of the action type this was originally
+    /// initialized from.
+    pub fn get_type_name(&self) -> &String {
+        &self.ctx.type_name
+    }
+
     /// Returns the directory in which to store files about this action, both
     /// during execution (e.g. to cache images/data for later usage) or when
     /// saving the action to disk.
     pub fn get_save_dir(&self) -> &PathBuf {
         &self.ctx.save_dir
+    }
+
+    /// Returns whether this actually contains an action, or if it's just a
+    /// placeholder.
+    pub fn is_placeholder(&self) -> bool {
+        self.action.is_none()
     }
 
     /// Returns an `Action` after loading it from disk at the location `dir`,
@@ -133,6 +145,12 @@ impl ActionWrapper {
         action.save_to_disk(&self.ctx)?;
 
         Ok(())
+    }
+
+    /// Deletes all data stored by this action inside `self.ctx.save_dir`,
+    /// ignoring any error.
+    pub fn delete_data_on_disk(&self) {
+        let _ = remove_dir_all(&self.ctx.save_dir);
     }
 }
 
