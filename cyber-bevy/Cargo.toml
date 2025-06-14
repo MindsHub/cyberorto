@@ -14,7 +14,7 @@ bevy_egui = {version="0.34.1"}
 #bevy_egui = "0.31.1"
 #used for easy orbit camera
 bevy_asset = {version="0.16.1", features = ["trace"]}
-bevy_panorbit_camera = {git="https://github.com/Usioumeo/bevy_panorbit_camera", features = ["bevy_egui"]}
+bevy_panorbit_camera = {git="https://github.com/Plonq/bevy_panorbit_camera.git", features = ["bevy_egui"]}
 
 
 [profile.dev]

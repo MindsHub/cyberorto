@@ -39,9 +39,9 @@ fn main() {
         // default plugin
         .add_plugins(DefaultPlugins.set(window))
         // libraries plugins
-        .add_plugins((FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin::default()))
+        .add_plugins((FrameTimeDiagnosticsPlugin::default(), LogDiagnosticsPlugin::default()))
         .add_plugins(ObjPlugin)
-        .add_plugins(EguiPlugin)
+        .add_plugins(EguiPlugin { enable_multipass_for_primary_context: true })
         .add_plugins(PanOrbitCameraPlugin)
 
         // custom plugins

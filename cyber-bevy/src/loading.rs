@@ -52,8 +52,8 @@ fn clear_loading_screen(
     mut camera: Option<Single<&mut Camera, With<VisualizzationComponents>>>,
 ) {
     for entity in loading.iter() {
-        if let Some(x) = commands.get_entity(entity) {
-            x.try_despawn_recursive();
+        if let Ok(mut x) = commands.get_entity(entity) {
+            x.despawn();
         }
     }
     loaded.iter_mut().for_each(|mut visibility| {
@@ -112,7 +112,7 @@ fn setup(asset_server: ResMut<AssetServer>, mut loading_data: ResMut<LoadingData
 
 // Marker component for easier deletion of entities.
 #[derive(Component)]
-#[require(Visibility(|| Visibility::Visible))]
+#[require(Visibility::Visible)]
 pub struct VisualizzationComponents;
 
 // Removes all currently loaded level assets from the game World.
@@ -122,8 +122,8 @@ pub fn unload_current_visualization(
     loaded: Query<Entity, With<VisualizzationComponents>>,
 ) {
     for entity in loaded.iter() {
-        if let Some(x) = commands.get_entity(entity) {
-            x.try_despawn_recursive();
+        if let Ok(mut x) = commands.get_entity(entity) {
+            x.despawn();
         }
     }
     loading_state.set(LoadingState::Loading);
@@ -152,7 +152,7 @@ fn update_loading_data(
                         pop_list.push(index);
                     }
                     bevy_asset::RecursiveDependencyLoadState::Failed(arc) => {
-                        error!("Failed to load asset: {:?}", arc);
+                        println!("Failed to load asset: {:?}", arc);
                         loading_state.set(LoadingState::Ready);
                     }
                     _ => {}
