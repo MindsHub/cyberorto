@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use arduino_common::prelude::*;
+use embedcore::{prelude::*, protocol::cyber::Master};
 use tokio_serial::SerialStream;
 
 use crate::constants::ARM_LENGTH;
@@ -99,7 +99,7 @@ pub struct Plant {
 #[derive(Debug, Clone)]
 pub struct StateHandler {
     state: Arc<Mutex<State>>,
-    master: Arc<Master<SerialStream, tokio::sync::Mutex<InnerMaster<SerialStream>>>>,
+    master: Arc<Master<SerialStream>>,
 }
 
 fn acquire(state: &Arc<Mutex<State>>) -> MutexGuard<'_, State> {

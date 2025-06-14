@@ -1,5 +1,6 @@
 #![cfg(test)]
 
+use embedcore::protocol::{cyber::{Message, Slave}, test_harness::{new_testable_slave, MessageRecorderSlave}};
 use futures::future::{BoxFuture, FutureExt};
 use tokio::sync::oneshot;
 
