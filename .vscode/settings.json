@@ -1,7 +1,5 @@
 {
     "rust-analyzer.linkedProjects": [
-        "./arduino/Cargo.toml",
-        "./anemometro/Cargo.toml",
         "./Cargo.toml"
     ],
     "rust-analyzer.showUnlinkedFileNotification": true
