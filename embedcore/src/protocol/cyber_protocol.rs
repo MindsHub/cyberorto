@@ -12,6 +12,8 @@ pub enum Message {
     MoveMotor { x: f32 },
     /// reset this motor
     ResetMotor,
+    /// get various state info from the slave
+    State,
 
     /// how is a previous blocking operation going?
     Poll,
@@ -36,6 +38,9 @@ pub trait MessagesHandler {
     async fn reset_motor(&mut self) -> Option<Response> {
         None
     }
+    async fn state(&mut self) -> Option<Response> {
+        None
+    }
     async fn poll(&mut self) -> Option<Response> {
         None
     }
@@ -58,7 +63,7 @@ pub trait MessagesHandler {
 
 #[repr(u8)]
 #[non_exhaustive]
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug)]
 /// In our comunication protocol we send this structure from slave-> master. Master should check if it is reasonable for the command that it has sent.
 pub enum Response {
     /// response to WhoAreYou
@@ -69,6 +74,9 @@ pub enum Response {
 
     /// send debug message
     Debug([u8; 10]),
+
+    /// TODO split fields from motors from fields from other sensors
+    State { water: bool, lights: bool, pump: bool, plow: bool, led: bool, motor_pos: f32 },
 
     /// All ok
     Done,

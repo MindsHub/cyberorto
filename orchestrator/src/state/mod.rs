@@ -202,8 +202,8 @@ impl StateHandler {
         mutate_state!(&self.state, target_z = 0.0);
     }
 
-    pub fn move_to(&self, x: f32, y: f32, z: f32) {
-        //self.master.move_to(x).a;
+    pub async fn move_to(&self, x: f32, y: f32, z: f32) {
+        self.master.move_to(x).await;
         mutate_state!(&self.state, target_x = x, target_y = y, target_z = z);
     }
 }

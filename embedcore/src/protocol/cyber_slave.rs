@@ -25,6 +25,7 @@ impl<Serial: AsyncSerial, MA: MessagesHandler> Slave<Serial, MA> {
     pub async fn run(&mut self) -> ! {
         loop {
             if let Some((id, message)) = self.com.try_read::<Message>().await {
+                // TODO clarify what happens when a function returns None (at the moment no response is provided)
                 match message {
                     Message::WhoAreYou => {
                         self.com
@@ -44,6 +45,11 @@ impl<Serial: AsyncSerial, MA: MessagesHandler> Slave<Serial, MA> {
                     }
                     Message::ResetMotor => {
                         if let Some(resp) = self.message_handler.reset_motor().await {
+                            self.com.send(resp, id).await;
+                        }
+                    }
+                    Message::State => {
+                        if let Some(resp) = self.message_handler.state().await {
                             self.com.send(resp, id).await;
                         }
                     }

@@ -48,7 +48,7 @@ impl Action for CommandListAction {
         };
 
         match command {
-            Command::Move { x, y, z } => state_handler.move_to(x, y, z),
+            Command::Move { x, y, z } => state_handler.move_to(x, y, z).await,
             Command::Reset => state_handler.reset(),
             Command::Home => state_handler.reset(), // TODO home()
             Command::Retract => state_handler.retract(),
