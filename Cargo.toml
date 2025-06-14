@@ -1,6 +1,5 @@
 [workspace]
 resolver= "2"
 
-members = ["orchestrator", "arduino-common"]
+members = ["orchestrator", "embedcore"]
 
-exclude = ["arduino", "motore", "anemometro"]

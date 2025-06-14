@@ -1,1 +1,0 @@
-cargo build --release --bin embassy && simavr -m atmega328p ./target/avr-atmega328p/release/embassy.elf

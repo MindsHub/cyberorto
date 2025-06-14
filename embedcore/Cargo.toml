@@ -1,0 +1,88 @@
+[package]
+name = "embedcore"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+#serialize/deserialize libs
+serialmessage = {version="0.2.0", default-features = false}
+serde={version="1.0", features = ["derive"], default-features = false}
+postcard = {version="1.0.0", default-features = false}
+
+#hal libs
+ch32-hal = { path = "../../ch32-hal", optional=true, default-features =  false}
+qingke={version="*",  optional = true}
+
+#debug/formatting libs
+defmt={version="*", optional = true}
+defmt-or-log={version="0.2.1", default-features = false}
+
+
+#embassy various instrumental library 
+embassy-executor = { version = "0.6.3", features = [
+    "integrated-timers",
+    "nightly",
+    "executor-thread",
+], optional=true}
+embassy-usb-driver={version="*"}
+#embassy-embedded-hal= "0.2"
+embassy-time = { version = "0.3.2"}
+embassy-futures = "0.1.1"
+embassy-sync = "0.6"
+
+
+#commonly used traits in embedded
+embedded-storage = "0.3"
+micromath = "2.1"
+embedded-hal = "1.0"
+
+#used in std enviroments
+tokio ={version = "1.41", optional = true, features = ["full"]}
+rand={version="0.9", optional = true, features = ["small_rng"]}
+tokio-serial = {version="5.4.4", optional=true}
+log ={version="*", features = ["std"], optional=true}
+test-log = {version="0.2.17", optional=true, features=["log"]}
+#additionals
+pid = "4.0"
+
+critical-section = {version="*"}
+portable-atomic = {version="1", features=["require-cas"]}
+
+
+[features]
+emulated_atomics=["portable-atomic/critical-section"]
+ch32=["dep:ch32-hal", "dep:embassy-executor", "emulated_atomics", "dep:qingke"]
+
+std=[
+    "dep:tokio",
+    "embassy-time/std",
+    "embassy-time/generic-queue",
+    "dep:rand",
+    "dep:tokio-serial",
+    "critical-section/std",
+    "log"]
+defmt=[
+    "dep:defmt",
+    "ch32-hal/defmt",
+    "defmt-or-log/defmt",
+    "embassy-usb-driver/defmt"]
+# feature used only on std context
+log=["defmt-or-log/log", "dep:log", "dep:test-log"]
+default=["std"]
+
+[profile.release]
+strip = false   # symbols are not flashed to the microcontroller, so don't strip them.
+lto = true
+opt-level = "z" # Optimize for size.
+#incremental = false
+codegen-units = 1
+
+
+[[bin]]
+name = "send_blink"
+
+[[bin]]
+name = "test_motor"
+
+[lib]
+bench = false
