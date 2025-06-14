@@ -29,7 +29,7 @@ struct Args {
     no_serial: bool,
 
     /// The directory in which to save data about the queue
-    #[arg(short, long, default_value_os_t = PathBuf::from(env::var("HOME").expect("$HOME must be set") + "/.cyberorto/queue"))]
+    #[arg(short, long, default_value_os_t = PathBuf::from(env::var("HOME").unwrap_or(".".to_string()) + "/.cyberorto/queue"))]
     queue_dir: PathBuf,
 }
 
