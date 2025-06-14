@@ -1,11 +1,14 @@
 use std::{env, path::PathBuf, thread, time::Duration};
 
 use clap::Parser;
+use embedcore::protocol::{cyber::Slave, test_harness::Testable};
 use queue::QueueHandler;
 use state::StateHandler;
 use tokio::{signal::unix::{signal, SignalKind}, sync::oneshot};
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
 use util::cors::Cors;
+
+use crate::state::dummy_message_handler::DummyMessageHandler;
 
 mod action;
 mod api;
@@ -37,21 +40,25 @@ struct Args {
 async fn main() {
     let args = Args::parse();
 
-    let port = if args.no_serial {
-        SerialStream::pair()
-            .expect("Failed to create dummy serial")
-            .0 // TODO start a dummy Arduino implementation on the other stream
+    let (master, slave_handle) = if args.no_serial {
+        let (master, slave) = SerialStream::pair()
+            .expect("Failed to create dummy serial");
+
+        let mut slave = Slave::new(slave, 1000, *b"test_slave", DummyMessageHandler::new());
+        let slave_handle = tokio::task::spawn(async move { slave.run().await });
+
+        (master, Some(slave_handle))
     } else {
-        tokio_serial::new(&args.port, 115200)
+        (tokio_serial::new(&args.port, 115200)
             .timeout(Duration::from_millis(3))
             .parity(tokio_serial::Parity::None)
             .stop_bits(tokio_serial::StopBits::One)
             .flow_control(tokio_serial::FlowControl::None)
             .open_native_async()
-            .expect("Failed to open port")
+            .expect("Failed to open port"), None)
     };
 
-    let state_handler = StateHandler::new(port);
+    let state_handler = StateHandler::new(master);
     let queue_handler = QueueHandler::new(state_handler.clone(), args.queue_dir);
 
     let queue_handler_clone = queue_handler.clone();
@@ -110,4 +117,8 @@ async fn main() {
     // join the final thread listening for a Ctrl+C
     let _ = sigint_stop_tx.send(());
     sigint_thread.await.unwrap();
+
+    if let Some(slave_handle) = slave_handle {
+        slave_handle.abort();
+    }
 }

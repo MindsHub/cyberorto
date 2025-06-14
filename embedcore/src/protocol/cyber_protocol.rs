@@ -67,7 +67,7 @@ pub enum Response {
     /// you should wait for around ms
     Wait { ms: u64 },
 
-    ///send debug message
+    /// send debug message
     Debug([u8; 10]),
 
     /// All ok

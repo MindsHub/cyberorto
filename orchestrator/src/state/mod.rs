@@ -1,6 +1,7 @@
 #![allow(unused_variables)] // TODO remove
 
 pub(crate) mod tests;
+pub mod dummy_message_handler;
 
 use std::{
     sync::{Arc, Mutex, MutexGuard},
@@ -153,6 +154,7 @@ impl StateHandler {
 
     pub fn water(&self, duration: Duration) {
         mutate_state!(&self.state, water = true);
+        //self.master.water(duration);
         //self.master.water(duration);
         mutate_state!(&self.state, water = false);
     }
