@@ -5,15 +5,15 @@ edition = "2021"
 
 [dependencies]
 #the whole point "bevy_gltf",
-bevy = { version = "0.15", default-features = false, features = ["bevy_pbr", "bevy_core_pipeline", "animation", "tonemapping_luts", "bevy_sprite", "bevy_window", "jpeg", "png", "multi_threaded", "bevy_state"]}
-bevy_obj = {version="0.16", features = ["log"]}
-bevy_egui = {version="0.31"}
+bevy = { version = "0.16.1", default-features = false, features = ["bevy_pbr", "bevy_core_pipeline", "animation", "tonemapping_luts", "bevy_sprite", "bevy_window", "jpeg", "png", "multi_threaded", "bevy_state"]}
+bevy_obj = {version="0.16.1", features = ["log"]}
+bevy_egui = {version="0.34.1"}
 #useful for debugging
 #bevy-inspector-egui="0.28"
 #used for menu
 #bevy_egui = "0.31.1"
 #used for easy orbit camera
-bevy_asset = {version="*", features = ["trace"]}
+bevy_asset = {version="0.16.1", features = ["trace"]}
 bevy_panorbit_camera = {git="https://github.com/Usioumeo/bevy_panorbit_camera", features = ["bevy_egui"]}
 
 
