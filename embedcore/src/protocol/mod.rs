@@ -16,7 +16,7 @@ pub mod cyber {
 }
 
 pub mod macros;
-#[cfg(all(feature = "std", test))]
+#[cfg(all(feature = "std"))]
 pub mod test_harness;
 #[cfg(all(feature = "std", test))]
 pub mod tests;
