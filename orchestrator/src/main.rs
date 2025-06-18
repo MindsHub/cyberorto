@@ -1,7 +1,7 @@
 use std::{env, path::PathBuf, thread, time::Duration};
 
 use clap::Parser;
-use embedcore::protocol::{cyber::Slave, test_harness::Testable};
+use embedcore::protocol::cyber::Slave;
 use queue::QueueHandler;
 use state::StateHandler;
 use tokio::{signal::unix::{signal, SignalKind}, sync::oneshot};

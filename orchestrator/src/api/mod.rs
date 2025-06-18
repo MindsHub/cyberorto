@@ -1,4 +1,8 @@
-use crate::{action::command_list::{Command, CommandListAction}, queue::{QueueHandler, QueueState}, state::{BatteryLevel, State, StateHandler, WaterLevel}};
+use crate::{
+    action::command_list::{Command, CommandListAction},
+    queue::{QueueHandler, QueueState},
+    state::{BatteryLevel, State, StateHandler, WaterLevel},
+};
 use rocket::serde::json::Json;
 use serde::{Deserialize, Serialize};
 
@@ -17,11 +21,22 @@ pub struct Position {
 }
 
 #[derive(Serialize, Deserialize)]
+pub struct Devices {
+    water: bool,
+    lights: bool,
+    pump: bool,
+    plow: bool,
+    led: bool,
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct RobotState {
     position: Position,
+    target: Position,
     water_level: WaterLevel,
     battery_level: BatteryLevel,
     queue: QueueState,
+    devices: Devices,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -71,6 +86,18 @@ pub fn get_state(state: State, queue: &QueueHandler) -> Json<RobotState> {
             y: state.y,
             z: state.z,
         },
+        target: Position {
+            x: state.target_x,
+            y: state.target_y,
+            z: state.target_z,
+        },
+        devices: Devices {
+            water: state.water,
+            lights: state.lights,
+            pump: state.air_pump,
+            plow: state.plow,
+            led: state.led_state,
+        },
         water_level: state.water_level,
         battery_level: state.battery_level,
         queue: queue.get_state(),
@@ -78,9 +105,8 @@ pub fn get_state(state: State, queue: &QueueHandler) -> Json<RobotState> {
 }
 
 #[get("/toggle_led")]
-pub async fn toggle_led(robot_state: &rocket::State<StateHandler>) {
+pub async fn toggle_led(robot_state: &rocket::State<StateHandler>) -> Result<(), ()> {
     robot_state.toggle_led().await
-    //robot_state.
 }
 
 #[post("/queue/add_action_list", data = "<commands>")]
@@ -103,11 +129,14 @@ pub fn clear(queue: &QueueHandler) {
     queue.clear();
 }
 
-#[post("/queue/kill-running-action", data="<kill_running_action_args>")]
-pub fn kill_running_action(queue: &QueueHandler, kill_running_action_args: Json<KillRunningActionArgs>) -> Json<KillRunningActionResponse> {
+#[post("/queue/kill-running-action", data = "<kill_running_action_args>")]
+pub fn kill_running_action(
+    queue: &QueueHandler,
+    kill_running_action_args: Json<KillRunningActionArgs>,
+) -> Json<KillRunningActionResponse> {
     let success = queue.kill_running_action(
         kill_running_action_args.action_id,
-        kill_running_action_args.keep_in_queue
+        kill_running_action_args.keep_in_queue,
     );
     Json(KillRunningActionResponse { success })
 }

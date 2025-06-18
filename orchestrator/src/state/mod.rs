@@ -4,11 +4,11 @@ pub(crate) mod tests;
 pub mod dummy_message_handler;
 
 use std::{
-    sync::{Arc, Mutex, MutexGuard},
-    time::Duration,
+    sync::{Arc, Mutex, MutexGuard}, time::Duration
 };
 
-use embedcore::{prelude::*, protocol::cyber::Master};
+use embedcore::protocol::cyber::Master;
+use rocket::futures::future;
 use tokio_serial::SerialStream;
 
 use crate::constants::ARM_LENGTH;
@@ -31,19 +31,19 @@ pub struct BatteryLevel {
 pub struct State {
     // coordinates where the robots is going
     // TODO: convert to struct
-    target_x: f32,
-    target_y: f32,
-    target_z: f32,
+    pub target_x: f32,
+    pub target_y: f32,
+    pub target_z: f32,
 
     // component flags
-    water: bool,
-    lights: bool,
-    air_pump: bool,
-
-    plow: bool,
-
-    plants: Vec<Plant>,
+    pub water: bool,
+    pub lights: bool,
+    pub air_pump: bool,
+    pub plow: bool,
     pub led_state: bool,
+
+    // TODO take plants from a database
+    plants: Vec<Plant>,
 
     // TODO: replace single vars with structs from api
     pub x: f32,
@@ -84,11 +84,6 @@ impl Default for State {
         }
     }
 }
-#[derive(Debug, Clone)]
-pub struct PlantTime {
-    plant_timer: f32,
-    water_timer: f32,
-}
 
 #[derive(Debug, Clone)]
 pub struct Plant {
@@ -100,7 +95,12 @@ pub struct Plant {
 #[derive(Debug, Clone)]
 pub struct StateHandler {
     state: Arc<Mutex<State>>,
-    master: Arc<Master<SerialStream>>,
+    master_x: Arc<Master<SerialStream>>,
+    master_y: Arc<Master<SerialStream>>,
+    master_z: Arc<Master<SerialStream>>,
+    /// Sensors might be implemented by a motor, so this may be a clone of one of
+    /// master_x, master_y, master_z, so avoid using it while also using a motor!
+    master_sensors: Arc<Master<SerialStream>>,
 }
 
 fn acquire(state: &Arc<Mutex<State>>) -> MutexGuard<'_, State> {
@@ -111,7 +111,7 @@ fn acquire(state: &Arc<Mutex<State>>) -> MutexGuard<'_, State> {
 }
 
 macro_rules! mutate_state {
-    ($state:expr, $($field:ident = $value:expr),+) => {
+    ($state:expr, $($field:ident = $value:expr),+ $(,)?) => {
         {
             let mut state = acquire($state);
             $(state.$field = $value;)*
@@ -121,10 +121,14 @@ macro_rules! mutate_state {
 
 impl StateHandler {
     pub fn new(port: SerialStream) -> StateHandler {
+        // TODO use different masters for X, Y, Z and sensors (detect it from their name/capabilities)
+        let master= Arc::new(Master::new(port, 100000, 20));
         StateHandler {
             state: Arc::new(Mutex::new(State::default())),
-            master: Arc::new(Master::new(port, 100000, 20)),
-            //master: todo!(),
+            master_x: master.clone(),
+            master_y: master.clone(),
+            master_z: master.clone(),
+            master_sensors: master.clone(),
         }
     }
 
@@ -132,9 +136,12 @@ impl StateHandler {
         acquire(&self.state).clone()
     }
 
-    pub fn water_a_plant(&self, x: f32, y: f32, z: f32) {
-        self.move_to(x, y, z);
-        self.water(Duration::from_secs_f32(WATER_TIME));
+    pub async fn water_a_plant(&self, x: f32, y: f32, z: f32) -> Result<(), ()> {
+        self.move_to(x, y, z).await?;
+        self.water(Some(WATER_TIME)).await?;
+        tokio::time::sleep(WATER_TIME).await;
+        self.water(None).await?;
+        Ok(())
     }
 
     pub fn add_plant(&self, x: f32, y: f32, z: f32) {
@@ -142,68 +149,88 @@ impl StateHandler {
         state.plants.push(Plant { x, y, z });
     }
 
-    pub fn water_all(&self) {
+    pub async fn water_all(&self) -> Result<(), ()> {
         let plants = {
             let state = acquire(&self.state);
             state.plants.clone()
         };
         for plant in plants {
-            self.water_a_plant(plant.x, plant.y, plant.z);
+            self.water_a_plant(plant.x, plant.y, plant.z).await?;
         }
+        Ok(())
     }
 
-    pub fn water(&self, duration: Duration) {
-        mutate_state!(&self.state, water = true);
-        //self.master.water(duration);
-        //self.master.water(duration);
-        mutate_state!(&self.state, water = false);
+    pub async fn water(&self, cooldown_or_off: Option<Duration>) -> Result<(), ()> {
+        self.master_sensors.water(cooldown_or_off.map(|u| u.as_millis() as u64)).await?;
+        // TODO remove and query state elsewhere, the above does not wait for completion!
+        mutate_state!(&self.state, water = cooldown_or_off.is_some());
+        Ok(())
     }
-    pub async fn toggle_led(&self) {
+
+    pub async fn lights(&self, cooldown_or_off: Option<Duration>) -> Result<(), ()> {
+        self.master_sensors.lights(cooldown_or_off.map(|u| u.as_millis() as u64)).await?;
+        // TODO remove and query state elsewhere, the above does not wait for completion!
+        mutate_state!(&self.state, lights = cooldown_or_off.is_some());
+        Ok(())
+    }
+
+    pub async fn air_pump(&self, cooldown_or_off: Option<Duration>) -> Result<(), ()> {
+        self.master_sensors.pump(cooldown_or_off.map(|u| u.as_millis() as u64)).await?;
+        // TODO remove and query state elsewhere, the above does not wait for completion!
+        mutate_state!(&self.state, air_pump = cooldown_or_off.is_some());
+        Ok(())
+    }
+
+    pub async fn plow(&self, cooldown_or_off: Option<Duration>) -> Result<(), ()> {
+        self.master_sensors.plow(cooldown_or_off.map(|u| u.as_millis() as u64)).await?;
+        // TODO remove and query state elsewhere, the above does not wait for completion!
+        mutate_state!(&self.state, plow = cooldown_or_off.is_some());
+        Ok(())
+    }
+
+    pub async fn toggle_led(&self) -> Result<(), ()> {
         let s = !self.get_state().led_state;
-        let _ = self.master.set_led(s).await;
-        mutate_state!(&self.state, led_state = s)
+        self.master_sensors.set_led(s).await?;
+        mutate_state!(&self.state, led_state = s);
+        Ok(())
     }
 
-    pub fn lights(&self, duration: Duration) {
-        mutate_state!(&self.state, lights = true);
-        //self.master.lights(duration);
-        mutate_state!(&self.state, lights = false);
+    pub async fn home(&self) -> Result<(), ()> {
+        self.move_to(0.0, 0.0, 0.0).await
     }
 
-    pub fn air_pump(&self, duration: Duration) {
-        mutate_state!(&self.state, air_pump = true);
-        //self.master.pump(duration);
-        mutate_state!(&self.state, air_pump = false);
+    pub async fn reset(&self) -> Result<(), ()> {
+        // first wait for the Z axis to reset
+        self.retract().await?;
+
+        // then also reset X and Y in parallel (to make things faster)
+        mutate_state!(&self.state, target_x = 0.0, target_y = -ARM_LENGTH);
+        let (res_x, res_y) = future::join(
+            self.master_x.reset(),
+            self.master_y.reset(),
+        ).await;
+        res_x?;
+        res_y?;
+        mutate_state!(&self.state, x = 0.0, y = -ARM_LENGTH);
+
+        Ok(())
     }
 
-    pub fn plow(&self, duration: Duration) {
-        mutate_state!(&self.state, plow = true);
-        //self.master.plow(duration);
-        mutate_state!(&self.state, plow = false);
-    }
-
-    pub fn home(&self) {
-        //self.master.home();
-        mutate_state!(&self.state, target_x = 0.0, target_y = 0.0, target_z = 0.0);
-    }
-
-    pub fn reset(&self) {
-        //self.master.reset();
-        mutate_state!(
-            &self.state,
-            target_x = 0.0,
-            target_y = -ARM_LENGTH,
-            target_z = 0.0
-        );
-    }
-
-    pub fn retract(&self) {
-        //self.master.retract();
+    pub async fn retract(&self) -> Result<(), ()> {
+        // "retract" means resetting just the Z axis
         mutate_state!(&self.state, target_z = 0.0);
+        self.master_z.reset().await?;
+        mutate_state!(&self.state, z = 0.0);
+        Ok(())
     }
 
-    pub async fn move_to(&self, x: f32, y: f32, z: f32) {
-        self.master.move_to(x).await;
+    pub async fn move_to(&self, x: f32, y: f32, z: f32) -> Result<(), ()> {
+        // TODO compute trajectory that avoids obstacles and optimizes path
         mutate_state!(&self.state, target_x = x, target_y = y, target_z = z);
+        self.master_x.move_to(x).await?;
+        self.master_y.move_to(y).await?;
+        self.master_z.move_to(z).await?;
+        mutate_state!(&self.state, x = x, y = y, z = z);
+        Ok(())
     }
 }

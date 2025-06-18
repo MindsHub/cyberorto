@@ -1,7 +1,6 @@
 use std::{collections::VecDeque, time::Duration};
 
 use serde::{Deserialize, Serialize};
-use tokio::time::sleep;
 
 use crate::{
     state::StateHandler,
@@ -23,10 +22,10 @@ pub enum Command {
     Home,
     Retract,
     Wait(Duration),
-    Water(Duration),
-    Lights(Duration),
-    AirPump(Duration),
-    Plow(Duration),
+    Water(Option<Duration>),
+    Lights(Option<Duration>),
+    AirPump(Option<Duration>),
+    Plow(Option<Duration>),
     ToggleLed,
 }
 
@@ -47,17 +46,24 @@ impl Action for CommandListAction {
             return false;
         };
 
-        match command {
+        let error = match command {
             Command::Move { x, y, z } => state_handler.move_to(x, y, z).await,
-            Command::Reset => state_handler.reset(),
-            Command::Home => state_handler.reset(), // TODO home()
-            Command::Retract => state_handler.retract(),
-            Command::Wait(duration) => sleep(duration).await,
-            Command::Water(duration) => state_handler.water(duration),
-            Command::Lights(duration) => state_handler.lights(duration),
-            Command::AirPump(duration) => state_handler.air_pump(duration),
-            Command::Plow(duration) => state_handler.plow(duration),
+            Command::Reset => state_handler.reset().await,
+            Command::Home => state_handler.home().await,
+            Command::Retract => state_handler.retract().await,
+            Command::Wait(duration) => {
+                tokio::time::sleep(duration).await;
+                Ok(())
+            }
+            Command::Water(duration) => state_handler.water(duration).await,
+            Command::Lights(duration) => state_handler.lights(duration).await,
+            Command::AirPump(duration) => state_handler.air_pump(duration).await,
+            Command::Plow(duration) => state_handler.plow(duration).await,
             Command::ToggleLed => state_handler.toggle_led().await,
+        };
+
+        if error.is_err() {
+            println!("ERROR IN CommandListAction!");
         }
 
         !self.commands.is_empty()

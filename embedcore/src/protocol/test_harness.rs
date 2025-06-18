@@ -101,32 +101,32 @@ impl MessagesHandler for Arc<std::sync::Mutex<MessageRecorderSlave>> {
         self.lock().unwrap().incoming.push(Message::Poll);
         Some(Response::Done)
     }
-    async fn water(&mut self, ms: u64) -> Option<Response> {
+    async fn water(&mut self, cooldown_ms_or_off: Option<u64>) -> Option<Response> {
         self.lock()
             .unwrap()
             .incoming
-            .push(Message::Water { duration_ms: ms });
+            .push(Message::Water { cooldown_ms_or_off });
         Some(Response::Done)
     }
-    async fn lights(&mut self, ms: u64) -> Option<Response> {
+    async fn lights(&mut self, cooldown_ms_or_off: Option<u64>) -> Option<Response> {
         self.lock()
             .unwrap()
             .incoming
-            .push(Message::Lights { duration_ms: ms });
+            .push(Message::Lights { cooldown_ms_or_off });
         Some(Response::Done)
     }
-    async fn pump(&mut self, ms: u64) -> Option<Response> {
+    async fn pump(&mut self, cooldown_ms_or_off: Option<u64>) -> Option<Response> {
         self.lock()
             .unwrap()
             .incoming
-            .push(Message::Pump { duration_ms: ms });
+            .push(Message::Pump { cooldown_ms_or_off });
         Some(Response::Done)
     }
-    async fn plow(&mut self, ms: u64) -> Option<Response> {
+    async fn plow(&mut self, cooldown_ms_or_off: Option<u64>) -> Option<Response> {
         self.lock()
             .unwrap()
             .incoming
-            .push(Message::Plow { wait_ms: ms });
+            .push(Message::Plow { cooldown_ms_or_off });
         Some(Response::Done)
     }
     async fn set_led(&mut self, state: bool) -> Option<Response> {

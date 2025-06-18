@@ -3,7 +3,6 @@ use core::marker::PhantomData;
 use crate::{blocking_send, wait};
 use core::fmt::Debug;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
-use embassy_time::Duration;
 use serde::Deserialize;
 
 use super::{
@@ -55,34 +54,19 @@ impl<Serial: AsyncSerial> Master<Serial> {
         }
     }
 
-    pub async fn reset(&mut self) -> Result<(), ()> {
+    pub async fn reset(&self) -> Result<(), ()> {
         todo!();
     }
 
-    pub async fn home(&mut self) -> Result<(), ()> {
+    pub async fn home(&self) -> Result<(), ()> {
         todo!();
     }
 
-    pub async fn retract(&mut self) -> Result<(), ()> {
+    pub async fn retract(&self) -> Result<(), ()> {
         todo!();
     }
 
-    pub async fn water(&mut self, water_state: Duration) -> Result<(), ()> {
-        let m = Message::Water {
-            duration_ms: water_state.as_millis(),
-        };
-        let mut lock = Some(self.inner.lock().await);
-        blocking_send!(self, lock, m:
-            Response::Wait { ms } => {
-                wait!(self, lock, ms);
-            },
-            Response::Done => {
-                return Ok(())
-            },
-            _ => {}
-        );
-        Err(())
-    }
+    /// See [Message::MoveMotor]
     pub async fn move_to(&self, pos: f32) -> Result<(), ()> {
         let m = Message::MoveMotor { x: pos };
         let mut lock = Some(self.inner.lock().await);
@@ -98,18 +82,35 @@ impl<Serial: AsyncSerial> Master<Serial> {
         Err(())
     }
 
-    pub async fn lights(&mut self, _duration: Duration) -> Result<(), ()> {
+    /// See [Message::Water]
+    pub async fn water(&self, cooldown_ms_or_off: Option<u64>) -> Result<(), ()> {
+        let m = Message::Water { cooldown_ms_or_off };
+        let mut lock = Some(self.inner.lock().await);
+        blocking_send!(self, lock, m:
+            Response::Wait { ms } => {
+                wait!(self, lock, ms);
+            },
+            Response::Done => {
+                return Ok(())
+            },
+            _ => {}
+        );
+        Err(())
+    }
+
+    /// See [Message::Lights]
+    pub async fn lights(&self, _cooldown_ms_or_off: Option<u64>) -> Result<(), ()> {
         todo!();
     }
 
-    pub async fn pump(&mut self, _pump_state: Duration) -> Result<(), ()> {
+    /// See [Message::Pump]
+    pub async fn pump(&self, _cooldown_ms_or_off: Option<u64>) -> Result<(), ()> {
         todo!();
     }
 
-    pub async fn plow(&self, duration: Duration) -> Result<(), ()> {
-        let m = Message::Plow {
-            wait_ms: duration.as_millis(),
-        };
+    /// See [Message::Plow]
+    pub async fn plow(&self, cooldown_ms_or_off: Option<u64>) -> Result<(), ()> {
+        let m = Message::Plow { cooldown_ms_or_off };
         let mut lock = Some(self.inner.lock().await);
         blocking_send!(self, lock, m:
             Response::Wait { ms } => {
@@ -122,6 +123,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
         );
         todo!();
     }
+
     pub async fn set_led(&self, led: bool) -> Result<(), ()> {
         let m = Message::SetLed { led };
         let mut lock = Some(self.inner.lock().await);
