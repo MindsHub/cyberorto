@@ -1,7 +1,7 @@
 use crate::{
     action::command_list::{Command, CommandListAction},
     queue::{QueueHandler, QueueState},
-    state::{BatteryLevel, State, StateHandler, WaterLevel},
+    state::{BatteryLevel, StateHandler, WaterLevel},
 };
 use rocket::serde::json::Json;
 use serde::{Deserialize, Serialize};

@@ -40,14 +40,25 @@ struct Args {
 async fn main() {
     let args = Args::parse();
 
-    let (master, slave_handle) = if args.no_serial {
+    // TODO use 4 different serial ports: x, y, z, sensors
+
+    let (master, slave_handle, motor_handle) = if args.no_serial {
         let (master, slave) = SerialStream::pair()
             .expect("Failed to create dummy serial");
 
-        let mut slave = Slave::new(slave, 1000, *b"test_slave", DummyMessageHandler::new());
+        let (dummy_message_handler, motor) = DummyMessageHandler::new();
+        let mut slave = Slave::new(slave, 1000, *b"test_slave", dummy_message_handler);
         let slave_handle = tokio::task::spawn(async move { slave.run().await });
+        let motor_handle = tokio::task::spawn(async move {
+            let mut ticker = tokio::time::interval(Duration::from_millis(1));
+            loop {
+                //println!("Updating motor, pos = {:?}", motor.lock().await.pid);
+                motor.lock().await.update().await;
+                ticker.tick().await;
+            }
+        });
 
-        (master, Some(slave_handle))
+        (master, Some(slave_handle), Some(motor_handle))
     } else {
         (tokio_serial::new(&args.port, 115200)
             .timeout(Duration::from_millis(3))
@@ -55,7 +66,7 @@ async fn main() {
             .stop_bits(tokio_serial::StopBits::One)
             .flow_control(tokio_serial::FlowControl::None)
             .open_native_async()
-            .expect("Failed to open port"), None)
+            .expect("Failed to open port"), None, None)
     };
 
     let state_handler = StateHandler::new(master);
@@ -120,5 +131,8 @@ async fn main() {
 
     if let Some(slave_handle) = slave_handle {
         slave_handle.abort();
+    }
+    if let Some(motor_handle) = motor_handle {
+        motor_handle.abort();
     }
 }

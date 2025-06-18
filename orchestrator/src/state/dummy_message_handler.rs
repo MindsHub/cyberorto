@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use embedcore::{
     common::controllers::pid::{CalibrationMode, PidController},
@@ -6,6 +6,7 @@ use embedcore::{
     std::{get_fake_motor, FakeDriver, FakeEncoder},
     EncoderTrait,
 };
+use rocket::futures::lock::Mutex;
 use tokio::time::Instant;
 
 pub struct DummyMessageHandler {
@@ -15,22 +16,23 @@ pub struct DummyMessageHandler {
     plow_state: bool,
     led_state: bool,
     time_finished: Instant,
-    motor: PidController<FakeEncoder, FakeDriver>,
+    motor: Arc<Mutex<PidController<FakeEncoder, FakeDriver>>>,
 }
 
 impl DummyMessageHandler {
     const METERS_TO_STEPS: f32 = 100000.0;
 
-    pub fn new() -> DummyMessageHandler {
-        Self {
+    pub fn new() -> (DummyMessageHandler, Arc<Mutex<PidController<FakeEncoder, FakeDriver>>>) {
+        let motor = Arc::new(Mutex::new(PidController::new(get_fake_motor(), 2.0, 2.0)));
+        (Self {
             water_state: false,
             lights_state: false,
             pump_state: false,
             plow_state: false,
             led_state: false,
             time_finished: Instant::now(),
-            motor: PidController::new(get_fake_motor(), 2.0, 2.0),
-        }
+            motor: motor.clone(),
+        }, motor)
     }
 
     fn update_time_finished(var: &mut bool, time_finished: &mut Instant, cooldown_ms: u64) -> Option<Response> {
@@ -52,11 +54,13 @@ impl DummyMessageHandler {
 
 impl MessagesHandler for DummyMessageHandler {
     async fn move_motor(&mut self, x: f32) -> Option<Response> {
-        self.motor.set_objective((x * Self::METERS_TO_STEPS) as i32);
+        self.motor.lock().await.set_objective((x * Self::METERS_TO_STEPS) as i32);
         Some(Response::Done)
     }
     async fn reset_motor(&mut self) -> Option<Response> {
         self.motor
+            .lock()
+            .await
             .calibration(0, CalibrationMode::NoOvershoot)
             .await;
         Some(Response::Done)
@@ -74,7 +78,7 @@ impl MessagesHandler for DummyMessageHandler {
             pump: self.pump_state,
             plow: self.plow_state,
             led: self.led_state,
-            motor_pos: (self.motor.motor.read() as f32) / Self::METERS_TO_STEPS,
+            motor_pos: (self.motor.lock().await.motor.read() as f32) / Self::METERS_TO_STEPS,
         };
         // TODO add logging
         //println!("Got request for state: {resp_state:?}");
