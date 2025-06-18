@@ -30,7 +30,7 @@ async fn test_led_set() {
 async fn test_who_are_you() {
     let (master, mut slave) = init_test(10).await;
     let _ = tokio::spawn(async move { slave.run().await });
-    let (name, version) = master.who_are_you().await.unwrap();
+    let DeviceIdentifier { name, version } = master.who_are_you().await.unwrap();
     assert_eq!(name, b"ciao      ".clone());
     assert_eq!(version, 0);
 }
@@ -49,7 +49,7 @@ async fn test_blocking() {
     let m1 = master.clone();
     let q = tokio::spawn(async move { m1.move_to(1.0).await });
     tokio::time::sleep(Duration::from_millis(10)).await;
-    let (name, version) = master.who_are_you().await.unwrap();
+    let DeviceIdentifier { name, version } = master.who_are_you().await.unwrap();
     assert_eq!(name, b"ciao      ".clone());
     assert_eq!(version, 0);
     assert!(!q.is_finished());
@@ -66,5 +66,5 @@ async fn test_timeout() {
     tokio::time::sleep(Duration::from_millis(10)).await;
     let _ = tokio::spawn(async move { slave.run().await });
     let ret = master.who_are_you().await;
-    assert_eq!(ret, Err(()));
+    assert!(ret.is_err());
 }
