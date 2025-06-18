@@ -79,8 +79,11 @@ pub fn post_water(robot_state: State, queue_handler: &QueueHandler) {
 
 // get state
 #[get("/state")]
-pub fn get_state(state: State, queue: &QueueHandler) -> Json<RobotState> {
-    Json(RobotState {
+pub async fn get_state(robot_state: &rocket::State<StateHandler>, queue: &QueueHandler) -> Result<Json<RobotState>, ()> {
+    robot_state.update_state().await?;
+    let state = robot_state.get_state();
+
+    Ok(Json(RobotState {
         position: Position {
             x: state.x,
             y: state.y,
@@ -94,14 +97,14 @@ pub fn get_state(state: State, queue: &QueueHandler) -> Json<RobotState> {
         devices: Devices {
             water: state.water,
             lights: state.lights,
-            pump: state.air_pump,
+            pump: state.pump,
             plow: state.plow,
-            led: state.led_state,
+            led: state.led,
         },
         water_level: state.water_level,
         battery_level: state.battery_level,
         queue: queue.get_state(),
-    })
+    }))
 }
 
 #[get("/toggle_led")]

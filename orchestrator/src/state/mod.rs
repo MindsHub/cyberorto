@@ -37,9 +37,9 @@ pub struct State {
     // component flags
     pub water: bool,
     pub lights: bool,
-    pub air_pump: bool,
+    pub pump: bool,
     pub plow: bool,
-    pub led_state: bool,
+    pub led: bool,
 
     // TODO take plants from a database
     plants: Vec<Plant>,
@@ -62,10 +62,10 @@ impl Default for State {
 
             water: false,
             lights: false,
-            air_pump: false,
+            pump: false,
 
             plow: false,
-            led_state: false,
+            led: false,
             plants: Vec::new(),
 
             x: 0.0,
@@ -91,6 +91,8 @@ pub struct Plant {
     z: f32,
 }
 
+/// TODO decide whether to remove the `state` field completely, and rather ask for state directly
+/// to the connected devices every time
 #[derive(Debug, Clone)]
 pub struct StateHandler {
     state: Arc<Mutex<State>>,
@@ -162,35 +164,30 @@ impl StateHandler {
     pub async fn water(&self, cooldown_ms: u64) -> Result<(), ()> {
         self.master_sensors.water(cooldown_ms).await?;
         // TODO remove and query state elsewhere, the above does not wait for completion!
-        mutate_state!(&self.state, water = cooldown_ms != 0);
+        //a mutate_state!(&self.state, water = cooldown_ms != 0);
         Ok(())
     }
 
     pub async fn lights(&self, cooldown_ms: u64) -> Result<(), ()> {
         self.master_sensors.lights(cooldown_ms).await?;
         // TODO remove and query state elsewhere, the above does not wait for completion!
-        mutate_state!(&self.state, lights = cooldown_ms != 0);
+        //a mutate_state!(&self.state, lights = cooldown_ms != 0);
         Ok(())
     }
 
     pub async fn pump(&self, cooldown_ms: u64) -> Result<(), ()> {
         self.master_sensors.pump(cooldown_ms).await?;
-        // TODO remove and query state elsewhere, the above does not wait for completion!
-        mutate_state!(&self.state, air_pump = cooldown_ms != 0);
         Ok(())
     }
 
     pub async fn plow(&self, cooldown_ms: u64) -> Result<(), ()> {
         self.master_sensors.plow(cooldown_ms).await?;
-        // TODO remove and query state elsewhere, the above does not wait for completion!
-        mutate_state!(&self.state, plow = cooldown_ms != 0);
         Ok(())
     }
 
     pub async fn toggle_led(&self) -> Result<(), ()> {
-        let s = !self.get_state().led_state;
-        self.master_sensors.set_led(s).await?;
-        mutate_state!(&self.state, led_state = s);
+        let curr_led = self.master_sensors.get_state().await?.led;
+        self.master_sensors.set_led(!curr_led).await?;
         Ok(())
     }
 
@@ -230,6 +227,33 @@ impl StateHandler {
         self.master_y.move_to(y).await?;
         self.master_z.move_to(z).await?;
         mutate_state!(&self.state, x = x, y = y, z = z);
+        Ok(())
+    }
+
+    pub async fn update_state(&self) -> Result<(), ()> {
+        let (x, y, z, sensors) = rocket::futures::future::join4(
+            self.master_x.get_state(),
+            self.master_y.get_state(),
+            self.master_z.get_state(),
+            self.master_sensors.get_state()
+        ).await;
+        let x = x?;
+        let y = y?;
+        let z = z?;
+        let sensors = sensors?;
+
+        mutate_state!(
+            &self.state,
+            x = x.motor_pos,
+            y = y.motor_pos,
+            z = z.motor_pos,
+            water = sensors.water,
+            lights = sensors.lights,
+            pump = sensors.pump,
+            plow = sensors.plow,
+            led = sensors.led,
+        );
+
         Ok(())
     }
 }

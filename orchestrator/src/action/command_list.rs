@@ -22,6 +22,7 @@ pub enum Command {
     Home,
     Retract,
     Wait(Duration),
+    // TODO rename these, maybe to just Water and WaterManual?
     WaterCooldown(Option<Duration>),
     WaterWait(Duration),
     LightsCooldown(Option<Duration>),

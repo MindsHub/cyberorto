@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use embedcore::{
     common::controllers::pid::{CalibrationMode, PidController},
-    protocol::cyber::{MessagesHandler, Response},
+    protocol::cyber::{MessagesHandler, Response, ResponseState},
     std::{get_fake_motor, FakeDriver, FakeEncoder},
     EncoderTrait,
 };
@@ -62,14 +62,23 @@ impl MessagesHandler for DummyMessageHandler {
         Some(Response::Done)
     }
     async fn state(&mut self) -> Option<Response> {
-        Some(Response::State {
+        if self.time_finished <= Instant::now() {
+            self.water_state = false;
+            self.lights_state = false;
+            self.pump_state = false;
+            self.plow_state = false;
+        }
+        let resp_state = ResponseState {
             water: self.water_state,
             lights: self.lights_state,
             pump: self.pump_state,
             plow: self.plow_state,
             led: self.led_state,
             motor_pos: (self.motor.motor.read() as f32) / Self::METERS_TO_STEPS,
-        })
+        };
+        // TODO add logging
+        //println!("Got request for state: {resp_state:?}");
+        Some(Response::State(resp_state))
     }
     async fn poll(&mut self) -> Option<Response> {
         if self.time_finished <= Instant::now() {

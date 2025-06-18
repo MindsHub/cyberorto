@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::{blocking_send, wait};
+use crate::{blocking_send, protocol::cyber::{DeviceIdentifier, ResponseState}, wait};
 use core::fmt::Debug;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
 use serde::Deserialize;
@@ -55,14 +55,6 @@ impl<Serial: AsyncSerial> Master<Serial> {
     }
 
     pub async fn reset(&self) -> Result<(), ()> {
-        todo!();
-    }
-
-    pub async fn home(&self) -> Result<(), ()> {
-        todo!();
-    }
-
-    pub async fn retract(&self) -> Result<(), ()> {
         todo!();
     }
 
@@ -121,7 +113,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
             },
             _ => {}
         );
-        todo!();
+        Err(())
     }
 
     pub async fn set_led(&self, led: bool) -> Result<(), ()> {
@@ -136,7 +128,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
         Err(())
     }
 
-    pub async fn who_are_you(&self) -> Result<([u8; 10], u8), ()> {
+    pub async fn who_are_you(&self) -> Result<DeviceIdentifier, ()> {
         let mut lock = self.inner.lock().await;
 
         for _ in 0..self.resend_times {
@@ -149,11 +141,23 @@ impl<Serial: AsyncSerial> Master<Serial> {
                 if id_read != id {
                     continue;
                 }
-                if let Response::Iam { name, version } = msg {
-                    return Ok((name, version));
+                if let Response::Iam(device_identifier) = msg {
+                    return Ok(device_identifier);
                 }
             }
         }
+        Err(())
+    }
+
+    pub async fn get_state(&self) -> Result<ResponseState, ()> {
+        let m = Message::State;
+        let mut lock = Some(self.inner.lock().await);
+        blocking_send!(self, lock, m:
+            Response::State(state) => {
+                return Ok(state);
+            },
+            _ => {}
+        );
         Err(())
     }
 }

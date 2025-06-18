@@ -75,7 +75,7 @@ pub trait MessagesHandler {
 /// In our comunication protocol we send this structure from slave-> master. Master should check if it is reasonable for the command that it has sent.
 pub enum Response {
     /// response to WhoAreYou
-    Iam { name: [u8; 10], version: u8 },
+    Iam(DeviceIdentifier),
 
     /// you should wait for around ms
     Wait { ms: u64 },
@@ -84,8 +84,24 @@ pub enum Response {
     Debug([u8; 10]),
 
     /// TODO split fields from motors from fields from other sensors
-    State { water: bool, lights: bool, pump: bool, plow: bool, led: bool, motor_pos: f32 },
+    State(ResponseState),
 
     /// All ok
     Done,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DeviceIdentifier {
+    pub name: [u8; 10],
+    pub version: u8,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ResponseState {
+    pub water: bool,
+    pub lights: bool,
+    pub pump: bool,
+    pub plow: bool,
+    pub led: bool,
+    pub motor_pos: f32,
 }

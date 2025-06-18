@@ -1,3 +1,5 @@
+use crate::protocol::cyber::DeviceIdentifier;
+
 use super::{
     AsyncSerial,
     comunication::Comunication,
@@ -30,10 +32,10 @@ impl<Serial: AsyncSerial, MA: MessagesHandler> Slave<Serial, MA> {
                     Message::WhoAreYou => {
                         self.com
                             .send(
-                                Response::Iam {
+                                Response::Iam(DeviceIdentifier {
                                     name: self.name,
                                     version: 0,
-                                },
+                                }),
                                 id,
                             )
                             .await;
