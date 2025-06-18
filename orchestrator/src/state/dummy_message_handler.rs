@@ -33,17 +33,17 @@ impl DummyMessageHandler {
         }
     }
 
-    fn update_time_finished(var: &mut bool, time_finished: &mut Instant, cooldown_ms_or_off: Option<u64>) -> Option<Response> {
-        let Some(ms) = cooldown_ms_or_off else {
+    fn update_time_finished(var: &mut bool, time_finished: &mut Instant, cooldown_ms: u64) -> Option<Response> {
+        if cooldown_ms == 0 {
             *var = false;
             return Some(Response::Done);
-        };
+        }
 
         *var = true;
-        match Instant::now().checked_add(Duration::from_millis(ms)) {
+        match Instant::now().checked_add(Duration::from_millis(cooldown_ms)) {
             Some(t) => {
                 *time_finished = t;
-                Some(Response::Wait { ms })
+                Some(Response::Done)
             }
             None => Some(Response::Debug(*b"duration +")),
         }
@@ -84,17 +84,17 @@ impl MessagesHandler for DummyMessageHandler {
             })
         }
     }
-    async fn water(&mut self, cooldown_ms_or_off: Option<u64>) -> Option<Response> {
-        Self::update_time_finished(&mut self.water_state, &mut self.time_finished, cooldown_ms_or_off)
+    async fn water(&mut self, cooldown_ms: u64) -> Option<Response> {
+        Self::update_time_finished(&mut self.water_state, &mut self.time_finished, cooldown_ms)
     }
-    async fn lights(&mut self, cooldown_ms_or_off: Option<u64>) -> Option<Response> {
-        Self::update_time_finished(&mut self.lights_state, &mut self.time_finished, cooldown_ms_or_off)
+    async fn lights(&mut self, cooldown_ms: u64) -> Option<Response> {
+        Self::update_time_finished(&mut self.lights_state, &mut self.time_finished, cooldown_ms)
     }
-    async fn pump(&mut self, cooldown_ms_or_off: Option<u64>) -> Option<Response> {
-        Self::update_time_finished(&mut self.pump_state, &mut self.time_finished, cooldown_ms_or_off)
+    async fn pump(&mut self, cooldown_ms: u64) -> Option<Response> {
+        Self::update_time_finished(&mut self.pump_state, &mut self.time_finished, cooldown_ms)
     }
-    async fn plow(&mut self, cooldown_ms_or_off: Option<u64>) -> Option<Response> {
-        Self::update_time_finished(&mut self.plow_state, &mut self.time_finished, cooldown_ms_or_off)
+    async fn plow(&mut self, cooldown_ms: u64) -> Option<Response> {
+        Self::update_time_finished(&mut self.plow_state, &mut self.time_finished, cooldown_ms)
     }
     async fn set_led(&mut self, state: bool) -> Option<Response> {
         self.led_state = state;

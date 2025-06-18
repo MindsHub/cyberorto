@@ -11,8 +11,7 @@ use embedcore::protocol::cyber::Master;
 use rocket::futures::future;
 use tokio_serial::SerialStream;
 
-use crate::constants::ARM_LENGTH;
-use crate::constants::WATER_TIME;
+use crate::constants::{ARM_LENGTH, WATER_TIME_MS};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -138,9 +137,9 @@ impl StateHandler {
 
     pub async fn water_a_plant(&self, x: f32, y: f32, z: f32) -> Result<(), ()> {
         self.move_to(x, y, z).await?;
-        self.water(Some(WATER_TIME)).await?;
-        tokio::time::sleep(WATER_TIME).await;
-        self.water(None).await?;
+        self.water(WATER_TIME_MS).await?;
+        tokio::time::sleep(Duration::from_millis(WATER_TIME_MS)).await;
+        self.water(0).await?;
         Ok(())
     }
 
@@ -160,31 +159,31 @@ impl StateHandler {
         Ok(())
     }
 
-    pub async fn water(&self, cooldown_or_off: Option<Duration>) -> Result<(), ()> {
-        self.master_sensors.water(cooldown_or_off.map(|u| u.as_millis() as u64)).await?;
+    pub async fn water(&self, cooldown_ms: u64) -> Result<(), ()> {
+        self.master_sensors.water(cooldown_ms).await?;
         // TODO remove and query state elsewhere, the above does not wait for completion!
-        mutate_state!(&self.state, water = cooldown_or_off.is_some());
+        mutate_state!(&self.state, water = cooldown_ms != 0);
         Ok(())
     }
 
-    pub async fn lights(&self, cooldown_or_off: Option<Duration>) -> Result<(), ()> {
-        self.master_sensors.lights(cooldown_or_off.map(|u| u.as_millis() as u64)).await?;
+    pub async fn lights(&self, cooldown_ms: u64) -> Result<(), ()> {
+        self.master_sensors.lights(cooldown_ms).await?;
         // TODO remove and query state elsewhere, the above does not wait for completion!
-        mutate_state!(&self.state, lights = cooldown_or_off.is_some());
+        mutate_state!(&self.state, lights = cooldown_ms != 0);
         Ok(())
     }
 
-    pub async fn pump(&self, cooldown_or_off: Option<Duration>) -> Result<(), ()> {
-        self.master_sensors.pump(cooldown_or_off.map(|u| u.as_millis() as u64)).await?;
+    pub async fn pump(&self, cooldown_ms: u64) -> Result<(), ()> {
+        self.master_sensors.pump(cooldown_ms).await?;
         // TODO remove and query state elsewhere, the above does not wait for completion!
-        mutate_state!(&self.state, air_pump = cooldown_or_off.is_some());
+        mutate_state!(&self.state, air_pump = cooldown_ms != 0);
         Ok(())
     }
 
-    pub async fn plow(&self, cooldown_or_off: Option<Duration>) -> Result<(), ()> {
-        self.master_sensors.plow(cooldown_or_off.map(|u| u.as_millis() as u64)).await?;
+    pub async fn plow(&self, cooldown_ms: u64) -> Result<(), ()> {
+        self.master_sensors.plow(cooldown_ms).await?;
         // TODO remove and query state elsewhere, the above does not wait for completion!
-        mutate_state!(&self.state, plow = cooldown_or_off.is_some());
+        mutate_state!(&self.state, plow = cooldown_ms != 0);
         Ok(())
     }
 

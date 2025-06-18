@@ -40,18 +40,41 @@ impl CommandListAction {
         }
     }
 
-    async fn run_cooldown_function_for_duration<'a, F, Fut>(
+    fn duration_to_ms(duration: Duration) -> Result<u64, ()> {
+        duration.as_millis().try_into().map_err(|_| ())
+    }
+
+    fn option_duration_to_ms(duration: Option<Duration>) -> Result<u64, ()> {
+        duration
+            .map(Self::duration_to_ms)
+            // when no duration is provided, it means "turn off", i.e. 0 cooldown
+            .unwrap_or(Ok(0))
+    }
+
+    async fn run_cooldown_function<'a, F, Fut>(
+        f: F,
+        state_handler: &'a StateHandler,
+        duration: Option<Duration>,
+    ) -> Result<(), ()>
+    where
+        F: Fn(&'a StateHandler, u64) -> Fut,
+        Fut: Future<Output = Result<(), ()>>,
+    {
+        f(state_handler, Self::option_duration_to_ms(duration)?).await
+    }
+
+    async fn run_wait_function<'a, F, Fut>(
         f: F,
         state_handler: &'a StateHandler,
         duration: Duration,
     ) -> Result<(), ()>
     where
-        F: Fn(&'a StateHandler, Option<Duration>) -> Fut,
+        F: Fn(&'a StateHandler, u64) -> Fut,
         Fut: Future<Output = Result<(), ()>>,
     {
-        f(state_handler, Some(duration)).await?;
+        f(state_handler, Self::duration_to_ms(duration)?).await?;
         tokio::time::sleep(duration).await;
-        f(state_handler, None).await?;
+        f(state_handler, 0).await?;
         Ok(())
     }
 }
@@ -65,7 +88,7 @@ impl Action for CommandListAction {
             return false;
         };
 
-        let error = match command {
+        match command {
             Command::Move { x, y, z } => state_handler.move_to(x, y, z).await,
             Command::Reset => state_handler.reset().await,
             Command::Home => state_handler.home().await,
@@ -74,28 +97,32 @@ impl Action for CommandListAction {
                 tokio::time::sleep(duration).await;
                 Ok(())
             }
-            Command::WaterCooldown(duration) => state_handler.water(duration).await,
+            Command::WaterCooldown(duration) => {
+                Self::run_cooldown_function(StateHandler::water, state_handler, duration).await
+            }
             Command::WaterWait(duration) => {
-                Self::run_cooldown_function_for_duration(StateHandler::water, state_handler, duration).await
+                Self::run_wait_function(StateHandler::water, state_handler, duration).await
             }
-            Command::LightsCooldown(duration) => state_handler.lights(duration).await,
+            Command::LightsCooldown(duration) => {
+                Self::run_cooldown_function(StateHandler::lights, state_handler, duration).await
+            }
             Command::LightsWait(duration) => {
-                Self::run_cooldown_function_for_duration(StateHandler::lights, state_handler, duration).await
+                Self::run_wait_function(StateHandler::lights, state_handler, duration).await
             }
-            Command::PumpCooldown(duration) => state_handler.pump(duration).await,
+            Command::PumpCooldown(duration) => {
+                Self::run_cooldown_function(StateHandler::pump, state_handler, duration).await
+            }
             Command::PumpWait(duration) => {
-                Self::run_cooldown_function_for_duration(StateHandler::pump, state_handler, duration).await
+                Self::run_wait_function(StateHandler::pump, state_handler, duration).await
             }
-            Command::PlowCooldown(duration) => state_handler.plow(duration).await,
+            Command::PlowCooldown(duration) => {
+                Self::run_cooldown_function(StateHandler::plow, state_handler, duration).await
+            }
             Command::PlowWait(duration) => {
-                Self::run_cooldown_function_for_duration(StateHandler::plow, state_handler, duration).await
+                Self::run_wait_function(StateHandler::plow, state_handler, duration).await
             }
             Command::ToggleLed => state_handler.toggle_led().await,
-        };
-
-        if error.is_err() {
-            println!("ERROR IN CommandListAction!");
-        }
+        }.unwrap(); // TODO handle errors
 
         !self.commands.is_empty()
     }

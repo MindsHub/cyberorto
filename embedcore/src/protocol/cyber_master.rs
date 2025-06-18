@@ -83,8 +83,8 @@ impl<Serial: AsyncSerial> Master<Serial> {
     }
 
     /// See [Message::Water]
-    pub async fn water(&self, cooldown_ms_or_off: Option<u64>) -> Result<(), ()> {
-        let m = Message::Water { cooldown_ms_or_off };
+    pub async fn water(&self, cooldown_ms: u64) -> Result<(), ()> {
+        let m = Message::Water { cooldown_ms };
         let mut lock = Some(self.inner.lock().await);
         blocking_send!(self, lock, m:
             Response::Wait { ms } => {
@@ -99,18 +99,18 @@ impl<Serial: AsyncSerial> Master<Serial> {
     }
 
     /// See [Message::Lights]
-    pub async fn lights(&self, _cooldown_ms_or_off: Option<u64>) -> Result<(), ()> {
+    pub async fn lights(&self, _cooldown_ms: u64) -> Result<(), ()> {
         todo!();
     }
 
     /// See [Message::Pump]
-    pub async fn pump(&self, _cooldown_ms_or_off: Option<u64>) -> Result<(), ()> {
+    pub async fn pump(&self, _cooldown_ms: u64) -> Result<(), ()> {
         todo!();
     }
 
     /// See [Message::Plow]
-    pub async fn plow(&self, cooldown_ms_or_off: Option<u64>) -> Result<(), ()> {
-        let m = Message::Plow { cooldown_ms_or_off };
+    pub async fn plow(&self, cooldown_ms: u64) -> Result<(), ()> {
+        let m = Message::Plow { cooldown_ms };
         let mut lock = Some(self.inner.lock().await);
         blocking_send!(self, lock, m:
             Response::Wait { ms } => {

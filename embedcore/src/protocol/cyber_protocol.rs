@@ -20,20 +20,20 @@ pub enum Message {
 
     /// Open or close water.
     /// To open water, provide a duration in milliseconds that acts as an automatic cooldown
-    /// that avoids the water remaining open forever. To close water pass [None].
-    Water { cooldown_ms_or_off: Option<u64> },
+    /// that avoids the water remaining open forever. To close water pass `0`.
+    Water { cooldown_ms: u64 },
     /// Turn lights on or off.
     /// To turn lights on, provide a duration in milliseconds that acts as an automatic cooldown
-    /// that avoids the lights remaining on forever. To turn off the lights pass [None].
-    Lights { cooldown_ms_or_off: Option<u64> },
+    /// that avoids the lights remaining on forever. To turn off the lights pass `0`.
+    Lights { cooldown_ms: u64 },
     /// Turn the pump on or off.
     /// To turn the pump on, provide a duration in milliseconds that acts as an automatic cooldown
-    /// that avoids the pump remaining on forever. To turn off the pump pass [None].
-    Pump { cooldown_ms_or_off: Option<u64> },
+    /// that avoids the pump remaining on forever. To turn off the pump pass `0`.
+    Pump { cooldown_ms: u64 },
     /// Turn the plow on or off (only works if the plow tool is connected).
     /// To turn the plow on, provide a duration in milliseconds that acts as an automatic cooldown
-    /// that avoids the plow remaining on forever. To turn off the plow pass [None].
-    Plow { cooldown_ms_or_off: Option<u64> },
+    /// that avoids the plow remaining on forever. To turn off the plow pass `0`.
+    Plow { cooldown_ms: u64 },
     /// Set status led on or off.
     SetLed { led: bool },
 }
@@ -52,16 +52,16 @@ pub trait MessagesHandler {
     async fn poll(&mut self) -> Option<Response> {
         None
     }
-    async fn water(&mut self, cooldown_ms_or_off: Option<u64>) -> Option<Response> {
+    async fn water(&mut self, cooldown_ms: u64) -> Option<Response> {
         None
     }
-    async fn lights(&mut self, cooldown_ms_or_off: Option<u64>) -> Option<Response> {
+    async fn lights(&mut self, cooldown_ms: u64) -> Option<Response> {
         None
     }
-    async fn pump(&mut self, cooldown_ms_or_off: Option<u64>) -> Option<Response> {
+    async fn pump(&mut self, cooldown_ms: u64) -> Option<Response> {
         None
     }
-    async fn plow(&mut self, cooldown_ms_or_off: Option<u64>) -> Option<Response> {
+    async fn plow(&mut self, cooldown_ms: u64) -> Option<Response> {
         None
     }
     async fn set_led(&mut self, state: bool) -> Option<Response> {

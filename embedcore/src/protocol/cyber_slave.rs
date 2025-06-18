@@ -58,23 +58,23 @@ impl<Serial: AsyncSerial, MA: MessagesHandler> Slave<Serial, MA> {
                             self.com.send(resp, id).await;
                         }
                     }
-                    Message::Water { cooldown_ms_or_off } => {
-                        if let Some(resp) = self.message_handler.water(cooldown_ms_or_off).await {
+                    Message::Water { cooldown_ms } => {
+                        if let Some(resp) = self.message_handler.water(cooldown_ms).await {
                             self.com.send(resp, id).await;
                         }
                     }
-                    Message::Lights { cooldown_ms_or_off } => {
-                        if let Some(resp) = self.message_handler.lights(cooldown_ms_or_off).await {
+                    Message::Lights { cooldown_ms } => {
+                        if let Some(resp) = self.message_handler.lights(cooldown_ms).await {
                             self.com.send(resp, id).await;
                         }
                     }
-                    Message::Pump { cooldown_ms_or_off } => {
-                        if let Some(resp) = self.message_handler.pump(cooldown_ms_or_off).await {
+                    Message::Pump { cooldown_ms } => {
+                        if let Some(resp) = self.message_handler.pump(cooldown_ms).await {
                             self.com.send(resp, id).await;
                         }
                     }
-                    Message::Plow { cooldown_ms_or_off } => {
-                        if let Some(resp) = self.message_handler.plow(cooldown_ms_or_off).await {
+                    Message::Plow { cooldown_ms } => {
+                        if let Some(resp) = self.message_handler.plow(cooldown_ms).await {
                             self.com.send(resp, id).await;
                         }
                     }
