@@ -95,6 +95,7 @@ struct QueueData {
     id_counter: ActionId,
 }
 
+/// TODO: handle panics nicely with [std::panic::catch_unwind]
 impl QueueHandler {
     pub fn new(state_handler: StateHandler, save_dir: PathBuf) -> QueueHandler {
         QueueHandler {

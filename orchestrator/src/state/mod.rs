@@ -174,7 +174,7 @@ impl StateHandler {
         Ok(())
     }
 
-    pub async fn air_pump(&self, cooldown_or_off: Option<Duration>) -> Result<(), ()> {
+    pub async fn pump(&self, cooldown_or_off: Option<Duration>) -> Result<(), ()> {
         self.master_sensors.pump(cooldown_or_off.map(|u| u.as_millis() as u64)).await?;
         // TODO remove and query state elsewhere, the above does not wait for completion!
         mutate_state!(&self.state, air_pump = cooldown_or_off.is_some());

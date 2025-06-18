@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, time::Duration};
+use std::{collections::VecDeque, future::Future, time::Duration};
 
 use serde::{Deserialize, Serialize};
 
@@ -22,10 +22,14 @@ pub enum Command {
     Home,
     Retract,
     Wait(Duration),
-    Water(Option<Duration>),
-    Lights(Option<Duration>),
-    AirPump(Option<Duration>),
-    Plow(Option<Duration>),
+    WaterCooldown(Option<Duration>),
+    WaterWait(Duration),
+    LightsCooldown(Option<Duration>),
+    LightsWait(Duration),
+    PumpCooldown(Option<Duration>),
+    PumpWait(Duration),
+    PlowCooldown(Option<Duration>),
+    PlowWait(Duration),
     ToggleLed,
 }
 
@@ -34,6 +38,21 @@ impl CommandListAction {
         CommandListAction {
             commands: VecDeque::from(commands),
         }
+    }
+
+    async fn run_cooldown_function_for_duration<'a, F, Fut>(
+        f: F,
+        state_handler: &'a StateHandler,
+        duration: Duration,
+    ) -> Result<(), ()>
+    where
+        F: Fn(&'a StateHandler, Option<Duration>) -> Fut,
+        Fut: Future<Output = Result<(), ()>>,
+    {
+        f(state_handler, Some(duration)).await?;
+        tokio::time::sleep(duration).await;
+        f(state_handler, None).await?;
+        Ok(())
     }
 }
 
@@ -55,10 +74,22 @@ impl Action for CommandListAction {
                 tokio::time::sleep(duration).await;
                 Ok(())
             }
-            Command::Water(duration) => state_handler.water(duration).await,
-            Command::Lights(duration) => state_handler.lights(duration).await,
-            Command::AirPump(duration) => state_handler.air_pump(duration).await,
-            Command::Plow(duration) => state_handler.plow(duration).await,
+            Command::WaterCooldown(duration) => state_handler.water(duration).await,
+            Command::WaterWait(duration) => {
+                Self::run_cooldown_function_for_duration(StateHandler::water, state_handler, duration).await
+            }
+            Command::LightsCooldown(duration) => state_handler.lights(duration).await,
+            Command::LightsWait(duration) => {
+                Self::run_cooldown_function_for_duration(StateHandler::lights, state_handler, duration).await
+            }
+            Command::PumpCooldown(duration) => state_handler.pump(duration).await,
+            Command::PumpWait(duration) => {
+                Self::run_cooldown_function_for_duration(StateHandler::pump, state_handler, duration).await
+            }
+            Command::PlowCooldown(duration) => state_handler.plow(duration).await,
+            Command::PlowWait(duration) => {
+                Self::run_cooldown_function_for_duration(StateHandler::plow, state_handler, duration).await
+            }
             Command::ToggleLed => state_handler.toggle_led().await,
         };
 
