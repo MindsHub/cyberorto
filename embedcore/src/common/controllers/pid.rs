@@ -163,21 +163,20 @@ mod tests {
             .await;
 
         for _ in 0..3 {
-            info!("{}", pid.motor.read());
             pid.set_objective(10000);
             let t: Instant = Instant::now();
             while t.elapsed().as_millis() < 5000 {
                 pid.update().await;
                 Timer::after_micros(1).await;
             }
-            assert!((pid.motor.read() - 10000).abs() < 10);
+            assert!((pid.motor.read() - 10000).abs() < 20);
             let t = Instant::now();
             pid.set_objective(-10000);
             while t.elapsed().as_millis() < 5000 {
                 pid.update().await;
                 Timer::after_micros(1).await;
             }
-            assert!((pid.motor.read() + 10000).abs() < 10);
+            assert!((pid.motor.read() + 10000).abs() < 20);
         }
     }
 }

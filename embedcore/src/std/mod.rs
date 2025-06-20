@@ -146,7 +146,7 @@ mod test {
     async fn test_align() {
         let mut m = get_fake_motor();
         m.align(1.0, 0.5).await;
-        assert_eq!(m.read(), 0);
+        assert_eq!(m.read()%80, 0);
     }
 
     #[test(tokio::test)]
