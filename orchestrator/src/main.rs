@@ -1,7 +1,7 @@
 use std::{env, path::PathBuf, thread, time::Duration};
 
 use clap::Parser;
-use embedcore::protocol::cyber::Slave;
+use embedcore::{common::controllers::pid::CalibrationMode, protocol::cyber::Slave};
 use queue::QueueHandler;
 use state::StateHandler;
 use tokio::{signal::unix::{signal, SignalKind}, sync::oneshot};
@@ -50,6 +50,7 @@ async fn main() {
         let mut slave = Slave::new(slave, 1000, *b"test_slave", dummy_message_handler);
         let slave_handle = tokio::task::spawn(async move { slave.run().await });
         let motor_handle = tokio::task::spawn(async move {
+            motor.lock().await.calibration(0, CalibrationMode::NoOvershoot).await;
             let mut ticker = tokio::time::interval(Duration::from_millis(1));
             loop {
                 //println!("Updating motor, pos = {:?}", motor.lock().await.pid);
