@@ -148,14 +148,12 @@ impl<E: EncoderTrait, D: DiscreteDriver> PidController<E, D> {
 mod tests {
     extern crate std;
     use crate::{EncoderTrait, std::get_fake_motor};
-    use defmt_or_log::{info, trace};
     use embassy_time::{Instant, Timer};
     use test_log::test;
 
     use super::PidController;
     #[test(tokio::test)]
     async fn test_pid() {
-        trace!("ciao");
         let m = get_fake_motor();
         let mut pid = PidController::new(m, 2.0, 2.0);
 
