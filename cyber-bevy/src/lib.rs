@@ -1,5 +1,8 @@
 mod loading;
 mod settings;
+mod network;
+
+use std::time::Duration;
 
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
@@ -13,6 +16,8 @@ use loading::{
     unload_current_visualization, LoadingScreenPlugin, LoadingState, VisualizzationComponents,
 };
 use settings::{Resolution, SettingsPlugin};
+
+use crate::network::OrchestratorStateLoader;
 
 pub struct EmbeddedAssetPlugin;
 
@@ -190,6 +195,7 @@ pub fn spawn_bevy() -> AppExit {
         .add_plugins(LoadingScreenPlugin {
             img_path: "embedded://cyber_bevy/embedded_assets/logo.png".to_string(),
         })
+        .add_plugins(OrchestratorStateLoader::new(Duration::from_secs(1), "http://127.0.0.1:8000".to_string()))
         // insert setup function
         .insert_resource(ClearColor(Color::srgb(0.231, 0.31, 0.271)))
         .add_systems(
