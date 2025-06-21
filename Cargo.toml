@@ -3,6 +3,37 @@ resolver= "2"
 
 members = ["orchestrator", "embedcore", "cyber-bevy"]
 
+# TODO maybe move profiles to .cargo/config.toml so they don't conflict here?
+# https://stackoverflow.com/a/73759353
+
+#[cyber-bevy]
+[profile.dev]
+opt-level = 1
+
+#[cyber-bevy] Enable a large amount of optimization in the dev profile for dependencies.
+[profile.dev.package."*"]
+opt-level = 3
+
+#[cyber-bevy] Enable more optimization in the release profile at the cost of compile time.
+[profile.release]
+codegen-units = 1
+lto = "thin"
+opt-level = "z"
+strip = "debuginfo"
+
+#[cyber-bevy] particular optimization for wasm
+[profile.wasm-release]
+inherits = "release"
+opt-level = "s"
+strip = "debuginfo"
+
+#[cyber-bevy] patches for zune jpeg
+[patch.crates-io]
+zune-jpeg = { git = "https://github.com/etemesi254/zune-image", branch = "zune-jpeg-4.12"}
+[patch."https://github.com/etemesi254/zune-image"]
+zune-core = "0.4.12"
+
+#[embedcore] old stuff not needed
 # [profile.release]
 # strip = false   # symbols are not flashed to the microcontroller, so don't strip them.
 # lto = true
