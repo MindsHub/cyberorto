@@ -20,7 +20,7 @@ pub struct EmbeddedAssetPlugin;
 
 impl Plugin for EmbeddedAssetPlugin {
     fn build(&self, app: &mut App) {
-        embedded_asset!(app, "embedded_assets/logo.png");
+        embedded_asset!(app, "../embedded_assets/logo.png");
     }
 }
 

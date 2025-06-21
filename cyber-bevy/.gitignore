@@ -2,3 +2,4 @@
 Cargo.lock
 *.glb
 **/embedded_assets/**
+!embedded_assets/logo.png
