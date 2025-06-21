@@ -1,8 +1,6 @@
 mod loading;
 mod settings;
 
-use std::{sync::mpsc, thread::{spawn, JoinHandle}};
-
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     prelude::*,
@@ -34,7 +32,7 @@ pub fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-)->(){
+) {
 
     
     /*
@@ -165,48 +163,44 @@ fn muovi_braccioz(
     braccioz.translation.y = (braccioz.translation.y + time.delta_secs() * segno).clamp(-0.6, 0.75);
 }
 
-pub fn spawn_bevy()->(JoinHandle<AppExit>, mpsc::Sender<Setter>) {
-    let (sender, receiver) = mpsc::channel::<Setter>();
-    let joinhandler = spawn(|| {
-        let window = WindowPlugin {
-            primary_window: Some(Window {
-                title: "Cyber Bevy".to_string(),
-                ..default()
-            }),
+pub fn spawn_bevy() -> AppExit {
+    let window = WindowPlugin {
+        primary_window: Some(Window {
+            title: "Cyber Bevy".to_string(),
             ..default()
-        };
-        App::new()
-            // default plugin
-            .add_plugins(DefaultPlugins.set(window))
-            // libraries plugins
-            .add_plugins((
-                FrameTimeDiagnosticsPlugin::default(),
-                LogDiagnosticsPlugin::default(),
-            ))
-            .add_plugins(ObjPlugin)
-            .add_plugins(EguiPlugin {
-                enable_multipass_for_primary_context: true,
-            })
-            .add_plugins(PanOrbitCameraPlugin)
-            // custom plugins
-            .add_plugins(EmbeddedAssetPlugin)
-            .add_plugins(SettingsPlugin)
-            .add_plugins(LoadingScreenPlugin {
-                img_path: "embedded://cyber_bevy/embedded_assets/logo.png".to_string(),
-            })
-            // insert setup function
-            .insert_resource(ClearColor(Color::srgb(0.231, 0.31, 0.271)))
-            .add_systems(
-                Update,
-                (unload_current_visualization, setup)
-                    .chain()
-                    .run_if(resource_changed::<Resolution>),
-            )
-            .add_systems(
-                Update,
-                (muovi_torretta, muovi_braccioz).run_if(in_state(LoadingState::Ready)),
-            )
-            .run()
-    });
-    (joinhandler, sender)
+        }),
+        ..default()
+    };
+    App::new()
+        // default plugin
+        .add_plugins(DefaultPlugins.set(window))
+        // libraries plugins
+        .add_plugins((
+            FrameTimeDiagnosticsPlugin::default(),
+            LogDiagnosticsPlugin::default(),
+        ))
+        .add_plugins(ObjPlugin)
+        .add_plugins(EguiPlugin {
+            enable_multipass_for_primary_context: true,
+        })
+        .add_plugins(PanOrbitCameraPlugin)
+        // custom plugins
+        .add_plugins(EmbeddedAssetPlugin)
+        .add_plugins(SettingsPlugin)
+        .add_plugins(LoadingScreenPlugin {
+            img_path: "embedded://cyber_bevy/embedded_assets/logo.png".to_string(),
+        })
+        // insert setup function
+        .insert_resource(ClearColor(Color::srgb(0.231, 0.31, 0.271)))
+        .add_systems(
+            Update,
+            (unload_current_visualization, setup)
+                .chain()
+                .run_if(resource_changed::<Resolution>),
+        )
+        .add_systems(
+            Update,
+            (muovi_torretta, muovi_braccioz).run_if(in_state(LoadingState::Ready)),
+        )
+        .run()
 }
