@@ -1,3 +1,3 @@
-# cyberorto
+# CyberOrto
 
-![foto di cyberorto](cyberorto%20foto.jpg)
+![photo of CyberOrto](cyberorto%20foto.jpg)
