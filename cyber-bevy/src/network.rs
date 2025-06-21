@@ -3,8 +3,8 @@
 /// https://gist.github.com/miketwenty1/baa1634fe558186e606c02932b8f37c8
 use std::{path::PathBuf, time::Duration};
 
-use async_channel::{Receiver, Sender};
-use bevy::{app::{Plugin, Update}, ecs::{resource::Resource, schedule::IntoScheduleConfigs, system::{Res, ResMut}}, tasks::IoTaskPool, time::{common_conditions::on_timer, Time, Timer, TimerMode}};
+use bevy::{app::{Plugin, Update}, ecs::{event::{EventReader, EventWriter, Events}, resource::Resource, schedule::IntoScheduleConfigs, system::{Res, ResMut}}, time::common_conditions::on_timer};
+use bevy_http_client::{prelude::{HttpTypedRequestTrait, TypedRequest, TypedResponse, TypedResponseError}, HttpClient, HttpClientPlugin};
 use serde::{Deserialize, Serialize};
 
 pub struct OrchestratorStateLoader {
@@ -14,13 +14,11 @@ pub struct OrchestratorStateLoader {
 
 #[derive(Resource)]
 struct OrchestratorStateLoaderRes {
-    endpoint: String,
-    tx: Sender<OrchestratorState>,
-    rx: Receiver<OrchestratorState>,
+    endpoint: String
 }
 
 
-#[derive(Serialize, Deserialize, Default, Resource)]
+#[derive(Serialize, Deserialize, Default, Resource, Clone, Debug)]
 pub struct OrchestratorState {
     position: Position,
     target: Position,
@@ -38,58 +36,49 @@ impl OrchestratorStateLoader {
 
 impl Plugin for OrchestratorStateLoader {
     fn build(&self, app: &mut bevy::app::App) {
-        let (tx, rx) = async_channel::unbounded();
         app
-            .insert_resource(
-                OrchestratorStateLoaderRes {
-                    endpoint: self.endpoint.clone(),
-                    tx,
-                    rx,
-                }
-            )
+            .add_plugins(HttpClientPlugin)
+            .insert_resource(OrchestratorStateLoaderRes { endpoint: self.endpoint.clone() })
             .insert_resource(OrchestratorState::default())
-            .add_systems(Update, update_from_downloaded)
-            .add_systems(Update, download_from_orchestrator_if_needed.run_if(on_timer(self.update_period)));
+            .add_systems(Update, (handle_response, handle_error))
+            .add_systems(Update, download_from_orchestrator_if_needed.run_if(on_timer(self.update_period)))
+            .register_request_type::<OrchestratorState>();
     }
 }
 
 fn download_from_orchestrator_if_needed(
-    mut res: ResMut<OrchestratorStateLoaderRes>,
-    time: Res<Time>
+    res: Res<OrchestratorStateLoaderRes>,
+    mut ev_request: EventWriter<TypedRequest<OrchestratorState>>,
 ) {
-    let tx = res.tx.clone();
-    let endpoint = res.endpoint.clone();
-
-    IoTaskPool::get()
-        .spawn(async move {
-            let api_response_text = reqwest::get(format!("{endpoint}/state"))
-                .await
-                .unwrap()
-                .json()
-                .await
-                .unwrap();
-            let _ = tx.try_send(api_response_text);
-        })
-        .detach();
+    ev_request.write(
+        HttpClient::new()
+            .get(format!("{}/state", res.endpoint))
+            .with_type::<OrchestratorState>(),
+    );
 }
 
-fn update_from_downloaded(
-    res: Res<OrchestratorStateLoaderRes>,
-    mut state: ResMut<OrchestratorState>,
-) {
-    if let Ok(new_state) = res.rx.try_recv() {
-        *state = new_state;
+fn handle_response(mut events: ResMut<Events<TypedResponse<OrchestratorState>>>, mut state: ResMut<OrchestratorState>) {
+    for response in events.drain() {
+        let response: OrchestratorState = response.into_inner();
+        //println!("got response: {response:?}");
+        *state = response;
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+fn handle_error(mut ev_error: EventReader<TypedResponseError<OrchestratorState>>) {
+    for error in ev_error.read() {
+        println!("Error retrieving {}", error.err);
+    }
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Position {
     x: f32,
     y: f32,
     z: f32,
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Devices {
     water: bool,
     lights: bool,
@@ -110,7 +99,7 @@ pub struct BatteryLevel {
     volts: f32,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct QueueState {
     paused: bool,
     stopped: bool,
@@ -130,7 +119,7 @@ enum EmergencyStatus {
 
 pub type ActionId = u32;
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct ActionInfo {
     id: ActionId,
     type_name: String,
