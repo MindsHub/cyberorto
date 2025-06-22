@@ -25,7 +25,7 @@ pub struct RobotState {
     /// How much charge is in the battery.
     pub battery_level: BatteryLevel,
     /// The status of various connected actuators, e.g. whether they are on or off.
-    pub devices: Devices,
+    pub actuators: Actuators,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -36,7 +36,7 @@ pub struct Position {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Devices {
+pub struct Actuators {
     pub water: bool,
     pub lights: bool,
     pub pump: bool,

@@ -33,7 +33,7 @@ pub struct StateHandler {
     master_z: Arc<Master<SerialStream>>,
     /// Sensors might be implemented by a motor, so this may be a clone of one of
     /// master_x, master_y, master_z, so avoid using it while also using a motor!
-    master_devices: Arc<Master<SerialStream>>,
+    master_peripherals: Arc<Master<SerialStream>>,
 }
 
 fn acquire(state: &Arc<Mutex<State>>) -> MutexGuard<'_, State> {
@@ -61,7 +61,7 @@ impl StateHandler {
             master_x: master.clone(),
             master_y: master.clone(),
             master_z: master.clone(),
-            master_devices: master.clone(),
+            master_peripherals: master.clone(),
         }
     }
 
@@ -90,32 +90,32 @@ impl StateHandler {
     }
 
     pub async fn water(&self, cooldown_ms: u64) -> Result<(), ()> {
-        self.master_devices.water(cooldown_ms).await?;
+        self.master_peripherals.water(cooldown_ms).await?;
         // TODO remove and query state elsewhere, the above does not wait for completion!
         //a mutate_state!(&self.state, water = cooldown_ms != 0);
         Ok(())
     }
 
     pub async fn lights(&self, cooldown_ms: u64) -> Result<(), ()> {
-        self.master_devices.lights(cooldown_ms).await?;
+        self.master_peripherals.lights(cooldown_ms).await?;
         // TODO remove and query state elsewhere, the above does not wait for completion!
         //a mutate_state!(&self.state, lights = cooldown_ms != 0);
         Ok(())
     }
 
     pub async fn pump(&self, cooldown_ms: u64) -> Result<(), ()> {
-        self.master_devices.pump(cooldown_ms).await?;
+        self.master_peripherals.pump(cooldown_ms).await?;
         Ok(())
     }
 
     pub async fn plow(&self, cooldown_ms: u64) -> Result<(), ()> {
-        self.master_devices.plow(cooldown_ms).await?;
+        self.master_peripherals.plow(cooldown_ms).await?;
         Ok(())
     }
 
     pub async fn toggle_led(&self) -> Result<(), ()> {
-        let curr_led = self.master_devices.get_state().await?.led;
-        self.master_devices.set_led(!curr_led).await?;
+        let curr_led = self.master_peripherals.get_state().await?.led;
+        self.master_peripherals.set_led(!curr_led).await?;
         Ok(())
     }
 
@@ -159,27 +159,28 @@ impl StateHandler {
     }
 
     pub async fn update_state(&self) -> Result<(), ()> {
-        let (x, y, z, sensors) = rocket::futures::future::join4(
+        let (x, y, z, perhipherals) = rocket::futures::future::join4(
             self.master_x.get_state(),
             self.master_y.get_state(),
             self.master_z.get_state(),
-            self.master_devices.get_state()
+            self.master_peripherals.get_state()
         ).await;
+
         let x = x?;
         let y = y?;
         let z = z?;
-        let devices = sensors?;
+        let perhipherals = perhipherals?;
 
         mutate_state!(
             &self.state,
             position.x = x.motor_pos,
             position.y = y.motor_pos,
             position.z = z.motor_pos,
-            devices.water = devices.water,
-            devices.lights = devices.lights,
-            devices.pump = devices.pump,
-            devices.plow = devices.plow,
-            devices.led = devices.led,
+            actuators.water = perhipherals.water,
+            actuators.lights = perhipherals.lights,
+            actuators.pump = perhipherals.pump,
+            actuators.plow = perhipherals.plow,
+            actuators.led = perhipherals.led,
         );
 
         Ok(())
