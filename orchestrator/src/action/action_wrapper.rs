@@ -44,9 +44,8 @@ impl ActionWrapper {
     /// `A::get_type_name()`.
     ///
     /// * `action` the action to wrap (although in the end a `dyn Action` is
-    ///            stored in the wrapper, its type is needed at compile time to
-    ///            call the correct
-    ///            [`Action::get_type_name()`](Action::get_type_name()))
+    ///   stored in the wrapper, its type is needed at compile time to call the
+    ///   correct [`Action::get_type_name()`](Action::get_type_name()))
     /// * `id` a **unique** ID for this action
     pub fn new<A: Action + 'static>(action: A, id: ActionId, save_dir: &Path) -> ActionWrapper {
         ActionWrapper {
@@ -88,8 +87,8 @@ impl ActionWrapper {
     /// to load based on the TYPENAME stored in `dir`'s name.
     ///
     /// * `dir` is where to look for the files for the `Action` to load. The
-    ///         name must be of the form `ID_TYPENAME`, and ID and TYPENAME
-    ///         will be extracted from there.
+    ///   name must be of the form `ID_TYPENAME`, and ID and TYPENAME will be
+    ///   extracted from there.
     pub fn load_from_disk(dir: &Path) -> Result<ActionWrapper, String> {
         if !dir.is_dir() {
             return Err(format!("Not a directory: {dir:?}"));

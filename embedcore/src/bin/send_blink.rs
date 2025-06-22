@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use defmt_or_log::info;
 use embedcore::protocol::cyber::Master;
 use tokio::time::{Instant, sleep};
 

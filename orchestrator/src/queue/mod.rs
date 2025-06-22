@@ -334,7 +334,7 @@ impl QueueHandler {
                 Ok(action) => queue.actions.push_back(action),
                 Err(e) => {
                     // TODO log error
-                    println!("Error deserializing action {:?}: {}", save_dir, e)
+                    println!("Error deserializing action {save_dir:?}: {e}")
                 }
             }
         }
@@ -454,11 +454,10 @@ impl QueueHandler {
     /// killed successfully, or `false` otherwise.
     ///
     /// * `running_id` the id of the action that the caller thinks is currently
-    ///                being executed; if this is not equal to the id of the
-    ///                action currently being executed no action is killed, but
-    ///                the queue remains paused
+    ///   being executed; if this is not equal to the id of the action currently
+    ///   being executed no action is killed, but the queue remains paused
     /// * `keep_in_queue` whether the killed action should be kept in queue after
-    ///                   being killed (which is possibly risky), or not
+    ///   being killed (which is possibly risky), or not
     pub fn kill_running_action(&self, running_id: ActionId, keep_in_queue: bool) -> bool {
         self.mutate_queue_and_notify(|mut queue| {
             queue.paused = true;

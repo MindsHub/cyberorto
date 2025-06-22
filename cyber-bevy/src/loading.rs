@@ -152,7 +152,7 @@ fn update_loading_data(
                         pop_list.push(index);
                     }
                     bevy_asset::RecursiveDependencyLoadState::Failed(arc) => {
-                        println!("Failed to load asset: {:?}", arc);
+                        println!("Failed to load asset: {arc:?}");
                         loading_state.set(LoadingState::Ready);
                     }
                     _ => {}

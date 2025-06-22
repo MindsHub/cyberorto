@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use defmt_or_log::info;
 use embedcore::protocol::cyber::Master;
 use tokio::time::{Instant, sleep};
 
@@ -18,12 +17,14 @@ async fn main() {
     let mut state = true;
     sleep(Duration::from_millis(3000)).await;
     println!("Starting");
+    #[allow(unused)]
     let mut count = 0;
+    #[allow(unused)]
     let i = Instant::now();
     loop {
         state = !state;
 
-        let x = master.set_led(state).await;
+        master.set_led(state).await.unwrap();
         count += 1;
         println!("set");
         sleep(Duration::from_millis(1000)).await;

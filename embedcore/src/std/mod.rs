@@ -91,7 +91,7 @@ impl FakeEncoder {
         let d = 1.0 / decay_time;
 
         //elapsed time
-        let time = (i - self.last_update).as_micros() as f32 / 1000_000.0;
+        let time = (i - self.last_update).as_micros() as f32 / 1_000_000.0;
 
         // if no current, then we are not changing speed
         if self.current == 0.0 {
@@ -122,7 +122,7 @@ impl EncoderTrait for FakeEncoder {
             self.update(instant);
             let mut delta = (phase as i32 - self.position.round() as i32).rem_euclid(80);
             if delta > 40 {
-                delta = delta - 80;
+                delta -= 80;
             }
             assert!(delta.abs() <= 40);
             self.objective = self.position + delta as f32;
