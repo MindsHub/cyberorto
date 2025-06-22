@@ -38,8 +38,8 @@ pub fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    let gray = materials.add(Color::srgb_u8(171, 171, 170));
 
-    
     /*
     mut loading_data: ResMut<LoadingData>,
     asset_server: ResMut<AssetServer>,
@@ -52,7 +52,7 @@ pub fn setup(
     // add a circular base
     commands.spawn((
         Mesh3d(meshes.add(Circle::new(4.0))),
-        MeshMaterial3d(materials.add(Color::srgb_u8(124, 144, 255))),
+        MeshMaterial3d(materials.add(Color::srgb_u8(0x64, 0x61, 0x1C))),
         Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
             .with_translation(Vec3::new(0.0, -1.0, 0.0)),
         VisualizzationComponents,
@@ -61,16 +61,16 @@ pub fn setup(
     //elementi orto
     //binario
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(5., 1., 0.4))),
-        MeshMaterial3d(materials.add(Color::srgb_u8(171, 171, 170))),
+        Mesh3d(meshes.add(Cuboid::new(5., 1., 0.05))),
+        MeshMaterial3d(gray.clone()),
         Transform::from_xyz(0., -0.5, 0.),
         VisualizzationComponents,
     ));
     //braccio
     let braccio = commands
         .spawn((
-            Mesh3d(meshes.add(Cuboid::new(5., 0.25, 0.25))),
-            MeshMaterial3d(materials.add(Color::srgb_u8(171, 171, 170))),
+            Mesh3d(meshes.add(Cuboid::new(3., 0.05, 0.05))),
+            MeshMaterial3d(gray.clone()),
             Transform::from_xyz(0.75, -0.25, 0.),
             VisualizzationComponents,
         ))
@@ -78,8 +78,8 @@ pub fn setup(
 
     let braccioz = commands
         .spawn((
-            Mesh3d(meshes.add(Cuboid::new(0.25, 3., 0.25))),
-            MeshMaterial3d(materials.add(Color::srgb_u8(171, 171, 170))),
+            Mesh3d(meshes.add(Cuboid::new(0.05, 2., 0.05))),
+            MeshMaterial3d(gray.clone()),
             Transform::from_xyz(3.3, 0.2, 0.),
             Braccioz,
             VisualizzationComponents,
@@ -89,7 +89,7 @@ pub fn setup(
     commands
         .spawn((
             Mesh3d(meshes.add(Cuboid::new(0.7, 2.5, 0.7))),
-            MeshMaterial3d(materials.add(Color::srgb_u8(171, 171, 170))),
+            MeshMaterial3d(gray.clone()),
             Transform::from_xyz(0., 1.25, 0.),
             Torretta,
             VisualizzationComponents,
@@ -170,7 +170,7 @@ pub fn spawn_bevy() -> AppExit {
         .add_plugins(LoadingScreenPlugin {
             img_path: "embedded://cyber_bevy/embedded_assets/logo.png".to_string(),
         })
-        .add_plugins(OrchestratorStateLoader::new(Duration::from_secs(1), "http://127.0.0.1:8000".to_string()))
+        .add_plugins(OrchestratorStateLoader::new(Duration::from_millis(100), "http://127.0.0.1:8000".to_string()))
         // insert setup function
         .insert_resource(ClearColor(Color::srgb(0.231, 0.31, 0.271)))
         .add_systems(
