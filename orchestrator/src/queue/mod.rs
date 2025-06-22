@@ -8,6 +8,7 @@ use std::{
     sync::{Arc, Condvar, Mutex, MutexGuard},
 };
 
+use definitions::{ActionInfo, EmergencyStatus, QueueState};
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 
@@ -20,13 +21,6 @@ use crate::{
     state::StateHandler,
     util::serde::{deserialize_from_json_file, serialize_to_json_file},
 };
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
-enum EmergencyStatus {
-    None,
-    WaitingForReset,
-    Resetting,
-}
 
 #[derive(Debug)]
 pub enum ReorderError {
@@ -60,25 +54,6 @@ impl Queue {
 pub struct QueueTestStats {
     wait_counter: usize,
     tick_counter: usize,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ActionInfo {
-    id: ActionId,
-    type_name: String,
-    save_dir: PathBuf,
-    is_running: bool,
-}
-
-/// Just a utility struct to return when the user queries for state
-#[derive(Debug, Serialize, Deserialize)]
-pub struct QueueState {
-    paused: bool,
-    stopped: bool,
-    emergency: EmergencyStatus,
-    save_dir: PathBuf,
-    running_id: Option<ActionId>,
-    actions: Vec<ActionInfo>,
 }
 
 #[derive(Debug, Clone)]

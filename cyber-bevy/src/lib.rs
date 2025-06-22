@@ -17,7 +17,7 @@ use loading::{
 };
 use settings::{Resolution, SettingsPlugin};
 
-use crate::network::{OrchestratorState, OrchestratorStateLoader};
+use crate::network::{OrchestratorStateOutput, OrchestratorStateLoader};
 
 pub struct EmbeddedAssetPlugin;
 
@@ -130,7 +130,7 @@ struct Braccioz;
 
 fn muovi_torretta(
     mut torretta: Single<&mut Transform, With<Torretta>>,
-    state: Res<OrchestratorState>,
+    state: Res<OrchestratorStateOutput>,
 ) {
     torretta.translation.x = state.position.x;
     torretta.rotation = Quat::from_rotation_y(state.position.y);
@@ -138,7 +138,7 @@ fn muovi_torretta(
 
 fn muovi_braccioz(
     mut braccioz: Single<&mut Transform, With<Braccioz>>,
-    state: Res<OrchestratorState>,
+    state: Res<OrchestratorStateOutput>,
 ) {
     braccioz.translation.y = -state.position.z;
 }
@@ -182,7 +182,7 @@ pub fn spawn_bevy() -> AppExit {
         .add_systems(
             Update,
             (muovi_torretta, muovi_braccioz)
-                .run_if(resource_changed::<OrchestratorState>)
+                .run_if(resource_changed::<OrchestratorStateOutput>)
                 .run_if(in_state(LoadingState::Ready)),
         )
         .run()

@@ -14,18 +14,18 @@ use rocket::{
 
 use crate::{
     queue::QueueHandler,
-    state::{State, StateHandler},
+    state::StateHandler,
 };
 
 #[rocket::async_trait]
-impl<'r> FromRequest<'r> for State {
+impl<'r> FromRequest<'r> for &'r StateHandler {
     type Error = ();
 
     async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
         request
             .guard::<&rocket::State<StateHandler>>()
             .await
-            .map(|request_handler| request_handler.get_state())
+            .map(|request_handler| request_handler.inner())
     }
 }
 

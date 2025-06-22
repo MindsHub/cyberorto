@@ -1,7 +1,7 @@
 [workspace]
 resolver= "2"
 
-members = ["orchestrator", "embedcore", "cyber-bevy"]
+members = ["orchestrator", "embedcore", "cyber-bevy", "definitions"]
 
 # TODO maybe move profiles to .cargo/config.toml so they don't conflict here?
 # https://stackoverflow.com/a/73759353
