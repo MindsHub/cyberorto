@@ -20,12 +20,12 @@ struct OrchestratorStateLoaderRes {
 
 #[derive(Serialize, Deserialize, Default, Resource, Clone, Debug)]
 pub struct OrchestratorState {
-    position: Position,
-    target: Position,
-    water_level: WaterLevel,
-    battery_level: BatteryLevel,
-    queue: QueueState,
-    devices: Devices,
+    pub position: Position,
+    pub target: Position,
+    pub water_level: WaterLevel,
+    pub battery_level: BatteryLevel,
+    pub queue: QueueState,
+    pub devices: Devices,
 }
 
 impl OrchestratorStateLoader {
@@ -73,44 +73,44 @@ fn handle_error(mut ev_error: EventReader<TypedResponseError<OrchestratorState>>
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Position {
-    x: f32,
-    y: f32,
-    z: f32,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Devices {
-    water: bool,
-    lights: bool,
-    pump: bool,
-    plow: bool,
-    led: bool,
+    pub water: bool,
+    pub lights: bool,
+    pub pump: bool,
+    pub plow: bool,
+    pub led: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WaterLevel {
-    percentage: f32,
-    liters: f32,
+    pub percentage: f32,
+    pub liters: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BatteryLevel {
-    percentage: f32,
-    volts: f32,
+    pub percentage: f32,
+    pub volts: f32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct QueueState {
-    paused: bool,
-    stopped: bool,
-    emergency: EmergencyStatus,
-    save_dir: PathBuf,
-    running_id: Option<ActionId>,
-    actions: Vec<ActionInfo>,
+    pub paused: bool,
+    pub stopped: bool,
+    pub emergency: EmergencyStatus,
+    pub save_dir: PathBuf,
+    pub running_id: Option<ActionId>,
+    pub actions: Vec<ActionInfo>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy, Default)]
-enum EmergencyStatus {
+pub enum EmergencyStatus {
     #[default]
     None,
     WaitingForReset,

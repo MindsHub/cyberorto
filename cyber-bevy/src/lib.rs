@@ -17,7 +17,7 @@ use loading::{
 };
 use settings::{Resolution, SettingsPlugin};
 
-use crate::network::OrchestratorStateLoader;
+use crate::network::{OrchestratorState, OrchestratorStateLoader};
 
 pub struct EmbeddedAssetPlugin;
 
@@ -129,43 +129,18 @@ struct Torretta;
 struct Braccioz;
 
 fn muovi_torretta(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
     mut torretta: Single<&mut Transform, With<Torretta>>,
-    time: Res<Time>,
+    state: Res<OrchestratorState>,
 ) {
-    // A e D per muovere la torretta sul binario
-    let segno = if keyboard_input.pressed(KeyCode::KeyD) {
-        1.
-    } else if keyboard_input.pressed(KeyCode::KeyA) {
-        -1.
-    } else {
-        0.0
-    };
-    torretta.translation.x = (torretta.translation.x + time.delta_secs() * segno).clamp(-2.2, 2.2);
-
-    let segno = if keyboard_input.pressed(KeyCode::ArrowLeft) {
-        1.
-    } else if keyboard_input.pressed(KeyCode::ArrowRight) {
-        -1.
-    } else {
-        0.
-    };
-    torretta.rotate_y(time.delta_secs() * segno);
+    torretta.translation.x = state.position.x;
+    torretta.rotation = Quat::from_rotation_y(state.position.y);
 }
 
 fn muovi_braccioz(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
     mut braccioz: Single<&mut Transform, With<Braccioz>>,
-    time: Res<Time>,
+    state: Res<OrchestratorState>,
 ) {
-    let segno = if keyboard_input.pressed(KeyCode::KeyW) {
-        1.
-    } else if keyboard_input.pressed(KeyCode::KeyS) {
-        -1.
-    } else {
-        0.
-    };
-    braccioz.translation.y = (braccioz.translation.y + time.delta_secs() * segno).clamp(-0.6, 0.75);
+    braccioz.translation.y = -state.position.z;
 }
 
 pub fn spawn_bevy() -> AppExit {
@@ -206,7 +181,9 @@ pub fn spawn_bevy() -> AppExit {
         )
         .add_systems(
             Update,
-            (muovi_torretta, muovi_braccioz).run_if(in_state(LoadingState::Ready)),
+            (muovi_torretta, muovi_braccioz)
+                .run_if(resource_changed::<OrchestratorState>)
+                .run_if(in_state(LoadingState::Ready)),
         )
         .run()
 }
