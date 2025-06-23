@@ -23,8 +23,6 @@ pub struct Plant {
 
 type State = RobotState;
 
-/// TODO decide whether to remove the `state` field completely, and rather ask for state directly
-/// to the connected devices every time
 #[derive(Debug, Clone)]
 pub struct StateHandler {
     state: Arc<Mutex<State>>,
@@ -158,31 +156,39 @@ impl StateHandler {
         Ok(())
     }
 
-    pub async fn update_state(&self) -> Result<(), ()> {
-        let (x, y, z, perhipherals) = rocket::futures::future::join4(
+    pub async fn try_update_state(&self) -> State {
+        let (x, y, z, peripherals) = rocket::futures::future::join4(
             self.master_x.get_state(),
             self.master_y.get_state(),
             self.master_z.get_state(),
             self.master_peripherals.get_state()
         ).await;
 
-        let x = x?;
-        let y = y?;
-        let z = z?;
-        let perhipherals = perhipherals?;
+        let mut state = acquire(&self.state);
 
-        mutate_state!(
-            &self.state,
-            position.x = x.motor_pos,
-            position.y = y.motor_pos,
-            position.z = z.motor_pos,
-            actuators.water = perhipherals.water,
-            actuators.lights = perhipherals.lights,
-            actuators.pump = perhipherals.pump,
-            actuators.plow = perhipherals.plow,
-            actuators.led = perhipherals.led,
-        );
+        match x {
+            Ok(x) => state.position_config.x = x.motor_pos,
+            Err(_) => state.errors.motor_x = true,
+        }
+        match y {
+            Ok(y) => state.position_config.y = y.motor_pos,
+            Err(_) => state.errors.motor_y = true,
+        }
+        match z {
+            Ok(z) => state.position_config.z = z.motor_pos,
+            Err(_) => state.errors.motor_z = true,
+        }
+        match peripherals {
+            Ok(peripherals) => {
+                state.actuators.water = peripherals.water;
+                state.actuators.lights = peripherals.lights;
+                state.actuators.pump = peripherals.pump;
+                state.actuators.plow = peripherals.plow;
+                state.actuators.led = peripherals.led;
+            }
+            Err(_) => state.errors.peripherals = true,
+        }
 
-        Ok(())
+        state.clone()
     }
 }

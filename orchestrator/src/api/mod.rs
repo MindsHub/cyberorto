@@ -31,9 +31,7 @@ pub struct KillRunningActionResponse {
 #[get("/state")]
 pub async fn get_state(robot_state: &StateHandler, queue: &QueueHandler) -> Result<Json<RobotQueueState>, ()> {
     // TODO add comment here and fix update_state errors
-    robot_state.update_state().await?;
-
-    Ok(Json(RobotQueueState { robot: robot_state.get_state(), queue: queue.get_state() }))
+    Ok(Json(RobotQueueState { robot: robot_state.try_update_state().await, queue: queue.get_state() }))
 }
 
 #[get("/toggle_led")]

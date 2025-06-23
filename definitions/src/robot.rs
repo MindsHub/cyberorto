@@ -26,6 +26,8 @@ pub struct RobotState {
     pub battery_level: BatteryLevel,
     /// The status of various connected actuators, e.g. whether they are on or off.
     pub actuators: Actuators,
+    /// Whether there was an error connecting to any device
+    pub errors: Errors,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -54,4 +56,16 @@ pub struct WaterLevel {
 pub struct BatteryLevel {
     pub percentage: f32,
     pub volts: f32,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Errors {
+    /// Was there an error communicating to the x-axis motor?
+    pub motor_x: bool,
+    /// Was there an error communicating to the y-axis motor?
+    pub motor_y: bool,
+    /// Was there an error communicating to the z-axis motor?
+    pub motor_z: bool,
+    /// Was there an error communicating to the embedded device handling actuators and sensors?
+    pub peripherals: bool,
 }
