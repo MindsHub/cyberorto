@@ -61,26 +61,39 @@ pub fn setup(
     //elementi orto
     //binario
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(5., 1., 0.05))),
+        // x will be scaled, so it needs to be 1.0
+        Mesh3d(meshes.add(Cuboid::new(1.0, 1., 0.05))),
         MeshMaterial3d(gray.clone()),
         Transform::from_xyz(0., -0.5, 0.),
         VisualizzationComponents,
+        Binario,
     ));
     //braccio
     let braccio = commands
         .spawn((
-            Mesh3d(meshes.add(Cuboid::new(3., 0.05, 0.05))),
+            // x will be scaled, so it needs to be 1.0
+            Mesh3d(meshes.add(Cuboid::new(1.0, 0.05, 0.05))),
             MeshMaterial3d(gray.clone()),
-            Transform::from_xyz(0.75, -0.25, 0.),
+            Transform::from_xyz(0.75, 0.0, 0.),
+            VisualizzationComponents,
+            Braccio,
+        ))
+        .id();
+    let braccio_retro = commands
+        .spawn((
+            // x will be scaled, so it needs to be 1.0
+            Mesh3d(meshes.add(Cuboid::new(0.8, 0.05, 0.05))),
+            MeshMaterial3d(gray.clone()),
+            Transform::from_xyz(-0.4, 0.0, 0.),
             VisualizzationComponents,
         ))
         .id();
 
     let braccioz = commands
         .spawn((
-            Mesh3d(meshes.add(Cuboid::new(0.05, 2., 0.05))),
+            Mesh3d(meshes.add(Cuboid::new(0.05, 1.2, 0.05))),
             MeshMaterial3d(gray.clone()),
-            Transform::from_xyz(3.3, 0.2, 0.),
+            Transform::from_xyz(1.0, 0.4, 0.),
             Braccioz,
             VisualizzationComponents,
         ))
@@ -88,13 +101,14 @@ pub fn setup(
     // torretta
     commands
         .spawn((
-            Mesh3d(meshes.add(Cuboid::new(0.7, 2.5, 0.7))),
+            Mesh3d(meshes.add(Cylinder::new(0.16, 1.0))),
             MeshMaterial3d(gray.clone()),
-            Transform::from_xyz(0., 1.25, 0.),
+            Transform::from_xyz(0., 0.5, 0.),
             Torretta,
             VisualizzationComponents,
         ))
         .add_child(braccio)
+        .add_child(braccio_retro)
         .add_child(braccioz);
 
     // luce
@@ -128,11 +142,17 @@ struct Torretta;
 #[derive(Component)]
 struct Braccioz;
 
+#[derive(Component)]
+struct Binario;
+
+#[derive(Component)]
+struct Braccio;
+
 fn muovi_torretta(
     mut torretta: Single<&mut Transform, With<Torretta>>,
     state: Res<OrchestratorStateOutput>,
 ) {
-    torretta.translation.x = state.position_config.x;
+    torretta.translation.x = state.position_config.x - state.parameters.arm_length + state.parameters.rail_length / 2.0;
     torretta.rotation = Quat::from_rotation_y(state.position_config.y);
 }
 
@@ -140,7 +160,23 @@ fn muovi_braccioz(
     mut braccioz: Single<&mut Transform, With<Braccioz>>,
     state: Res<OrchestratorStateOutput>,
 ) {
-    braccioz.translation.y = state.position_config.z;
+    braccioz.translation.y = state.position_config.z + 0.4;
+    braccioz.translation.x = state.parameters.arm_length;
+}
+
+fn cambia_rotaia(
+    mut binario: Single<&mut Transform, With<Binario>>,
+    state: Res<OrchestratorStateOutput>,
+) {
+    binario.scale.x = state.parameters.rail_length;
+}
+
+fn cambia_braccio(
+    mut braccio: Single<&mut Transform, With<Braccio>>,
+    state: Res<OrchestratorStateOutput>,
+) {
+    braccio.translation.x = state.parameters.arm_length / 2.0;
+    braccio.scale.x = state.parameters.arm_length;
 }
 
 pub fn spawn_bevy() -> AppExit {
@@ -181,7 +217,7 @@ pub fn spawn_bevy() -> AppExit {
         )
         .add_systems(
             Update,
-            (muovi_torretta, muovi_braccioz)
+            (muovi_torretta, muovi_braccioz, cambia_rotaia, cambia_braccio)
                 .run_if(resource_changed::<OrchestratorStateOutput>)
                 .run_if(in_state(LoadingState::Ready)),
         )
