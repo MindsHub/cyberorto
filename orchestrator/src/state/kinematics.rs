@@ -1,18 +1,28 @@
-use definitions::Position;
+use definitions::{Parameters, Vec3};
 
-pub fn joint_to_world(x: f32, y: f32, z: f32, arm_length: f32) -> (f32, f32, f32) {
-    (
-        x - arm_length * y.sin(),
-        y - arm_length * y.cos(),
-        z,
-    )
+pub fn joint_to_world(pos: &Vec3, params: &Parameters) -> Vec3 {
+    Vec3 {
+        x: pos.x - params.arm_length * pos.y.sin(),
+        y: - params.arm_length * pos.y.cos(),
+        z: pos.z,
+    }
 }
 
-pub fn joint_to_world_pos(pos: &Position, arm_length: f32) -> Position {
-    let v = joint_to_world(pos.x, pos.y, pos.z, arm_length);
-    Position { x: v.0, y: v.1, z: v.2 }
+/// TODO implement any corrections due to tools
+pub fn world_to_joint(pos: &Vec3, params: &Parameters) -> (f32, f32, f32) {
+    let mut angle = (pos.x / params.arm_length).asin();
+
+    let mut x = pos.x;
+    if pos.x < params.rail_length - params.arm_length {
+        x += params.arm_length * angle.cos();
+        angle = angle.to_degrees();
+    } else {
+        x += -params.arm_length * angle.cos();
+        angle = (std::f32::consts::PI - angle).to_degrees();
+        if angle >= 180.0 {
+            angle -= 360.0;
+        }
+    }
+
+    (x, angle, pos.z)
 }
-
-/*fn world_to_joint(x: f32, y: f32, z: f32) -> (f32, f32, f32) {
-
-}*/

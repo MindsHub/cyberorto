@@ -8,18 +8,18 @@ pub struct RobotState {
     ///   to the other end of the rail
     /// * `y`: left and right from the rail, forms a right-handed system of coordinates
     /// * `z`: points up (the reset position is 0 so values will be mostly negative)
-    pub position: Position,
+    pub position: Vec3,
     /// The current raw configuration of the motors.
     /// * `x`: defined as [RobotState::position]'s `x` (but without tool displacements)
     /// * `y`: rotation of the tower in radians around the `z` axis pointing up
     /// * `z`: defined as [RobotState::position]'s `z` (but without tool displacements)
-    pub position_config: Position,
+    pub position_config: Vec3,
     /// The target position of the end effector of the robot, i.e. where the robot is
     /// trying to move to (see [RobotState::position] for a description of x, y, z).
-    pub target: Position,
+    pub target: Vec3,
     /// The target raw configuration of the motors, i.e. which configuration the robot is
     /// trying to go into (see [RobotState::position_config] for a description of x, y, z).
-    pub target_config: Position,
+    pub target_config: Vec3,
     /// How much water is in the tanks.
     pub water_level: WaterLevel,
     /// How much charge is in the battery.
@@ -33,7 +33,7 @@ pub struct RobotState {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Position {
+pub struct Vec3 {
     pub x: f32,
     pub y: f32,
     pub z: f32,

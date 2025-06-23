@@ -13,7 +13,7 @@ use embedcore::protocol::cyber::Master;
 use rocket::futures::future::{self, join4};
 use tokio_serial::SerialStream;
 
-use crate::{constants::{ARM_LENGTH, WATER_TIME_MS}, state::kinematics::joint_to_world_pos};
+use crate::{constants::{ARM_LENGTH, WATER_TIME_MS}, state::kinematics::joint_to_world};
 
 #[derive(Debug, Clone)]
 pub struct Plant {
@@ -182,7 +182,7 @@ impl StateHandler {
             Ok(z) => state.position_config.z = z.motor_pos,
             Err(_) => state.errors.motor_z = true,
         }
-        state.position = joint_to_world_pos(&state.position_config, state.parameters.arm_length);
+        state.position = joint_to_world(&state.position_config, &state.parameters);
 
         match peripherals {
             Ok(peripherals) => {
