@@ -2,6 +2,7 @@
 
 pub(crate) mod tests;
 pub mod dummy_message_handler;
+mod kinematics;
 
 use std::{
     sync::{Arc, Mutex, MutexGuard}, time::Duration
@@ -9,10 +10,10 @@ use std::{
 
 use definitions::{Parameters, RobotState};
 use embedcore::protocol::cyber::Master;
-use rocket::futures::future;
+use rocket::futures::future::{self, join4};
 use tokio_serial::SerialStream;
 
-use crate::constants::{ARM_LENGTH, WATER_TIME_MS};
+use crate::{constants::{ARM_LENGTH, WATER_TIME_MS}, state::kinematics::joint_to_world_pos};
 
 #[derive(Debug, Clone)]
 pub struct Plant {
@@ -160,7 +161,7 @@ impl StateHandler {
     }
 
     pub async fn try_update_state(&self) -> State {
-        let (x, y, z, peripherals) = rocket::futures::future::join4(
+        let (x, y, z, peripherals) = join4(
             self.master_x.get_state(),
             self.master_y.get_state(),
             self.master_z.get_state(),
@@ -181,6 +182,8 @@ impl StateHandler {
             Ok(z) => state.position_config.z = z.motor_pos,
             Err(_) => state.errors.motor_z = true,
         }
+        state.position = joint_to_world_pos(&state.position_config, state.parameters.arm_length);
+
         match peripherals {
             Ok(peripherals) => {
                 state.actuators.water = peripherals.water;
