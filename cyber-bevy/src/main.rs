@@ -51,20 +51,21 @@ pub fn setup(
     info!("setup");*/
     // add a circular base
     commands.spawn((
-        Mesh3d(meshes.add(Circle::new(4.0))),
+        // width and height will be scaled, so they need to be 1.0
+        Mesh3d(meshes.add(Rectangle::new(1.0, 1.0))),
         MeshMaterial3d(materials.add(Color::srgb_u8(0x64, 0x61, 0x1C))),
         Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
-            .with_translation(Vec3::new(0.0, -1.0, 0.0)),
+            .with_translation(Vec3::new(0.0, -0.7, 0.0)),
         VisualizzationComponents,
-        //Visibility::Hidden,
+        Terreno,
     ));
     //elementi orto
     //binario
     commands.spawn((
         // x will be scaled, so it needs to be 1.0
-        Mesh3d(meshes.add(Cuboid::new(1.0, 1., 0.05))),
+        Mesh3d(meshes.add(Cuboid::new(1.0, 0.7, 0.05))),
         MeshMaterial3d(gray.clone()),
-        Transform::from_xyz(0., -0.5, 0.),
+        Transform::from_xyz(0., -0.35, 0.),
         VisualizzationComponents,
         Binario,
     ));
@@ -74,7 +75,7 @@ pub fn setup(
             // x will be scaled, so it needs to be 1.0
             Mesh3d(meshes.add(Cuboid::new(1.0, 0.05, 0.05))),
             MeshMaterial3d(gray.clone()),
-            Transform::from_xyz(0.75, 0.0, 0.),
+            Transform::from_xyz(-0.5, -0.2, 0.),
             VisualizzationComponents,
             Braccio,
         ))
@@ -84,14 +85,14 @@ pub fn setup(
             // x will be scaled, so it needs to be 1.0
             Mesh3d(meshes.add(Cuboid::new(0.8, 0.05, 0.05))),
             MeshMaterial3d(gray.clone()),
-            Transform::from_xyz(-0.4, 0.0, 0.),
+            Transform::from_xyz(0.4, -0.2, 0.),
             VisualizzationComponents,
         ))
         .id();
 
     let braccioz = commands
         .spawn((
-            Mesh3d(meshes.add(Cuboid::new(0.05, 1.2, 0.05))),
+            Mesh3d(meshes.add(Cuboid::new(0.05, 1.6, 0.05))),
             MeshMaterial3d(gray.clone()),
             Transform::from_xyz(1.0, 0.4, 0.),
             Braccioz,
@@ -148,11 +149,14 @@ struct Binario;
 #[derive(Component)]
 struct Braccio;
 
+#[derive(Component)]
+struct Terreno;
+
 fn muovi_torretta(
     mut torretta: Single<&mut Transform, With<Torretta>>,
     state: Res<OrchestratorStateOutput>,
 ) {
-    torretta.translation.x = state.position_config.x - state.parameters.arm_length + state.parameters.rail_length / 2.0;
+    torretta.translation.x = state.position_config.x + state.parameters.arm_length - state.parameters.rail_length / 2.0;
     torretta.rotation = Quat::from_rotation_y(state.position_config.y);
 }
 
@@ -161,7 +165,7 @@ fn muovi_braccioz(
     state: Res<OrchestratorStateOutput>,
 ) {
     braccioz.translation.y = state.position_config.z + 0.4;
-    braccioz.translation.x = state.parameters.arm_length;
+    braccioz.translation.x = -state.parameters.arm_length;
 }
 
 fn cambia_rotaia(
@@ -175,8 +179,16 @@ fn cambia_braccio(
     mut braccio: Single<&mut Transform, With<Braccio>>,
     state: Res<OrchestratorStateOutput>,
 ) {
-    braccio.translation.x = state.parameters.arm_length / 2.0;
+    braccio.translation.x = -state.parameters.arm_length / 2.0;
     braccio.scale.x = state.parameters.arm_length;
+}
+
+fn cambia_terreno(
+    mut terreno: Single<&mut Transform, With<Terreno>>,
+    state: Res<OrchestratorStateOutput>,
+) {
+    terreno.scale.x = state.parameters.rail_length + 2.0 * state.parameters.arm_length;
+    terreno.scale.y = state.parameters.arm_length * 2.0;
 }
 
 pub fn spawn_bevy() -> AppExit {
@@ -217,7 +229,7 @@ pub fn spawn_bevy() -> AppExit {
         )
         .add_systems(
             Update,
-            (muovi_torretta, muovi_braccioz, cambia_rotaia, cambia_braccio)
+            (muovi_torretta, muovi_braccioz, cambia_rotaia, cambia_braccio, cambia_terreno)
                 .run_if(resource_changed::<OrchestratorStateOutput>)
                 .run_if(in_state(LoadingState::Ready)),
         )
