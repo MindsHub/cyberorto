@@ -20,8 +20,6 @@ serde = "1.0.197"
 serde_json = "1.0.115"
 definitions = { path = "../definitions" }
 
-[lib]
-
 #this library features
 [features]
 #default (enable all features by default)
