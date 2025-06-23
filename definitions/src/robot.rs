@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RobotState {
-    /// The current position of the end effector of the robot (including any
-    /// displacement caused by the currently selected tool):
+    /// The current position of the end effector of the robot in meters
+    /// (including any displacement caused by the currently selected tool):
     /// * `x`: in the direction of the rail, pointing from the reset position
     ///   to the other end of the rail
     /// * `y`: left and right from the rail, forms a right-handed system of coordinates
@@ -26,8 +26,10 @@ pub struct RobotState {
     pub battery_level: BatteryLevel,
     /// The status of various connected actuators, e.g. whether they are on or off.
     pub actuators: Actuators,
-    /// Whether there was an error connecting to any device
+    /// Whether there was an error connecting to any device.
     pub errors: Errors,
+    /// Parameters, sizes and settings that determine how the robot is controlled.
+    pub parameters: Parameters,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -68,4 +70,12 @@ pub struct Errors {
     pub motor_z: bool,
     /// Was there an error communicating to the embedded device handling actuators and sensors?
     pub peripherals: bool,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Parameters {
+    /// Length of the rotating arm, in meters.
+    pub arm_length: f32,
+    /// Length of the rail along which the tower moves, in meters.
+    pub rail_length: f32,
 }

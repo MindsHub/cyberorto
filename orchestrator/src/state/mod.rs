@@ -7,7 +7,7 @@ use std::{
     sync::{Arc, Mutex, MutexGuard}, time::Duration
 };
 
-use definitions::RobotState;
+use definitions::{Parameters, RobotState};
 use embedcore::protocol::cyber::Master;
 use rocket::futures::future;
 use tokio_serial::SerialStream;
@@ -55,7 +55,14 @@ impl StateHandler {
         // TODO use different masters for X, Y, Z and sensors (detect it from their name/capabilities)
         let master= Arc::new(Master::new(port, 100000, 20));
         StateHandler {
-            state: Arc::new(Mutex::new(State::default())),
+            state: Arc::new(Mutex::new(State {
+                // TODO read parameters from file
+                parameters: Parameters {
+                    arm_length: 1.511, // meters
+                    rail_length: 5.3, // meters
+                },
+                ..Default::default()
+            })),
             master_x: master.clone(),
             master_y: master.clone(),
             master_z: master.clone(),
@@ -89,15 +96,11 @@ impl StateHandler {
 
     pub async fn water(&self, cooldown_ms: u64) -> Result<(), ()> {
         self.master_peripherals.water(cooldown_ms).await?;
-        // TODO remove and query state elsewhere, the above does not wait for completion!
-        //a mutate_state!(&self.state, water = cooldown_ms != 0);
         Ok(())
     }
 
     pub async fn lights(&self, cooldown_ms: u64) -> Result<(), ()> {
         self.master_peripherals.lights(cooldown_ms).await?;
-        // TODO remove and query state elsewhere, the above does not wait for completion!
-        //a mutate_state!(&self.state, lights = cooldown_ms != 0);
         Ok(())
     }
 
