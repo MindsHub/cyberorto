@@ -34,10 +34,6 @@ struct Args {
     #[arg(short, long, value_parser = SerialPorts::parse, default_value = "auto")]
     ports: SerialPorts,
 
-    /// Whether to skip connecting to the serial port, and instead just set up a dummy serial connection for testing
-    #[arg(short, long, action)]
-    no_serial: bool,
-
     /// The directory in which to save data about the queue
     #[arg(short, long, default_value_os_t = PathBuf::from(env::var("HOME").unwrap_or(".".to_string()) + "/.cyberorto/queue"))]
     queue_dir: PathBuf,
