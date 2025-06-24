@@ -73,8 +73,9 @@ test_with_state!(
     async fn test_toggle_led(s: &mut TestState) {
         let mut messages = Vec::new();
         for i in 0..10 {
+            // TODO fix this test
             messages.push(Message::SetLed { led: i % 2 == 0 });
-            s.state_handler.toggle_led().await;
+            s.state_handler.toggle_led().await.unwrap();
         }
 
         assert_eq!(messages, s.slave_bot_data.lock().unwrap().incoming,);

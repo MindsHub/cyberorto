@@ -19,4 +19,5 @@ definitions = { path = "../definitions" }
 [dev-dependencies]
 tempdir = "0.3.7"
 futures = "0.3.30"
+rand = "0.9.1"
 
