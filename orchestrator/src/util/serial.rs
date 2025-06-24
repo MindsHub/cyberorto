@@ -154,6 +154,7 @@ impl SerialPorts {
                         exit(1);
                     }
                     // probably this is not supposed to be a connected device, just ignore the error
+                    eprintln!("Warning: Could not open port {port}: {e}");
                     continue;
                 }
             };
@@ -167,9 +168,11 @@ impl SerialPorts {
                         exit(1);
                     }
                     // probably this is not supposed to be a connected device, just ignore the error
+                    eprintln!("Warning: Could not obtain device identifier from {port}: {e:?}");
                     continue;
                 }
             };
+            eprintln!("Info: Obtained device identifier from port {port}: {id:?}");
 
             let master = Arc::new(master);
             set_var(&mut x, 'x', port, &master, &id);
