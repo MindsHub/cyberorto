@@ -13,7 +13,7 @@ use embedcore::protocol::cyber::Master;
 use rocket::futures::future::{self, join4};
 use tokio_serial::SerialStream;
 
-use crate::{constants::{ARM_LENGTH, WATER_TIME_MS}, state::kinematics::{joint_to_world, world_to_joint}};
+use crate::{constants::{ARM_LENGTH, WATER_TIME_MS}, state::kinematics::{joint_to_world, world_to_joint}, util::serial::Masters};
 
 #[derive(Debug, Clone)]
 pub struct Plant {
@@ -52,9 +52,7 @@ macro_rules! mutate_state {
 }
 
 impl StateHandler {
-    pub fn new(port: SerialStream) -> StateHandler {
-        // TODO use different masters for X, Y, Z and sensors (detect it from their name/capabilities)
-        let master= Arc::new(Master::new(port, 100000, 20));
+    pub fn new(masters: Masters) -> StateHandler {
         StateHandler {
             state: Arc::new(Mutex::new(State {
                 // TODO read parameters from file
@@ -64,10 +62,10 @@ impl StateHandler {
                 },
                 ..Default::default()
             })),
-            master_x: master.clone(),
-            master_y: master.clone(),
-            master_z: master.clone(),
-            master_peripherals: master.clone(),
+            master_x: masters.x,
+            master_y: masters.y,
+            master_z: masters.z,
+            master_peripherals: masters.peripherals,
         }
     }
 

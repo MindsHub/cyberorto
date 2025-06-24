@@ -1,14 +1,12 @@
-use std::{env, path::PathBuf, thread, time::Duration};
+use std::{env, path::PathBuf, thread};
 
 use clap::Parser;
-use embedcore::{common::controllers::pid::CalibrationMode, protocol::cyber::Slave};
 use queue::QueueHandler;
 use state::StateHandler;
 use tokio::{signal::unix::{signal, SignalKind}, sync::oneshot};
-use tokio_serial::{SerialPortBuilderExt, SerialStream};
 use util::cors::Cors;
 
-use crate::state::dummy_message_handler::DummyMessageHandler;
+use crate::util::serial::SerialPorts;
 
 mod action;
 mod api;
@@ -23,9 +21,18 @@ extern crate rocket;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// The port to connect to, where an Arduino should be listening
-    #[arg(short, long, default_value = "/dev/ttyACM0")]
-    port: String,
+    /// The ports to connect to, where a device implementing the cyberorto messaging
+    /// protocol should be listening. Accepts one of these:
+    /// - "auto" to autodiscover ports (default),
+    /// - "simulated" to simulate connecting to fake motors and fake peripherals,
+    /// - "PORT1,PORT2" to specify comma separated port names (e.g. "/dev/ttyACM0")
+    ///
+    /// The type (i.e. motor x, y, z or peripherals) of each connected device will be determined
+    /// based on their name automatically.
+    ///
+    /// The port baud rate will always be 115200.
+    #[arg(short, long, value_parser = SerialPorts::parse, default_value = "auto")]
+    ports: SerialPorts,
 
     /// Whether to skip connecting to the serial port, and instead just set up a dummy serial connection for testing
     #[arg(short, long, action)]
@@ -42,35 +49,9 @@ async fn main() {
 
     // TODO use 4 different serial ports: x, y, z, sensors
 
-    let (master, slave_handle, motor_handle) = if args.no_serial {
-        let (master, slave) = SerialStream::pair()
-            .expect("Failed to create dummy serial");
+    let (masters, simulation_join_handles) = args.ports.to_masters();
 
-        let (dummy_message_handler, motor) = DummyMessageHandler::new();
-        let mut slave = Slave::new(slave, 1000, *b"test_slave", dummy_message_handler);
-        let slave_handle = tokio::task::spawn(async move { slave.run().await });
-        let motor_handle = tokio::task::spawn(async move {
-            motor.lock().await.calibration(0, CalibrationMode::NoOvershoot).await;
-            let mut ticker = tokio::time::interval(Duration::from_millis(1));
-            loop {
-                //println!("Updating motor, pos = {:?}", motor.lock().await.pid);
-                motor.lock().await.update().await;
-                ticker.tick().await;
-            }
-        });
-
-        (master, Some(slave_handle), Some(motor_handle))
-    } else {
-        (tokio_serial::new(&args.port, 115200)
-            .timeout(Duration::from_millis(3))
-            .parity(tokio_serial::Parity::None)
-            .stop_bits(tokio_serial::StopBits::One)
-            .flow_control(tokio_serial::FlowControl::None)
-            .open_native_async()
-            .expect("Failed to open port"), None, None)
-    };
-
-    let state_handler = StateHandler::new(master);
+    let state_handler = StateHandler::new(masters);
     let queue_handler = QueueHandler::new(state_handler.clone(), args.queue_dir);
 
     let queue_handler_clone = queue_handler.clone();
@@ -130,10 +111,7 @@ async fn main() {
     let _ = sigint_stop_tx.send(());
     sigint_thread.await.unwrap();
 
-    if let Some(slave_handle) = slave_handle {
-        slave_handle.abort();
-    }
-    if let Some(motor_handle) = motor_handle {
-        motor_handle.abort();
+    for join_handle in simulation_join_handles {
+        join_handle.abort();
     }
 }
