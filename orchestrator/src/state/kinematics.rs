@@ -2,7 +2,7 @@ use std::f32::consts::{PI, TAU};
 
 use definitions::{Parameters, Vec3};
 
-const EPSILON: f32 = 1e-6;
+const EPSILON: f32 = 1e-6; // 1 micrometer
 
 pub fn joint_to_world(pos: &Vec3, params: &Parameters) -> Vec3 {
     Vec3 {

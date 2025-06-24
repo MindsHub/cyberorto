@@ -156,15 +156,15 @@ fn muovi_torretta(
     mut torretta: Single<&mut Transform, With<Torretta>>,
     state: Res<OrchestratorStateOutput>,
 ) {
-    torretta.translation.x = state.position_config.x + state.parameters.arm_length - state.parameters.rail_length / 2.0;
-    torretta.rotation = Quat::from_rotation_y(state.position_config.y);
+    torretta.translation.x = state.position_joint.x + state.parameters.arm_length - state.parameters.rail_length / 2.0;
+    torretta.rotation = Quat::from_rotation_y(state.position_joint.y);
 }
 
 fn muovi_braccioz(
     mut braccioz: Single<&mut Transform, With<Braccioz>>,
     state: Res<OrchestratorStateOutput>,
 ) {
-    braccioz.translation.y = state.position_config.z + 0.4;
+    braccioz.translation.y = state.position_joint.z + 0.4;
     braccioz.translation.x = -state.parameters.arm_length;
 }
 

@@ -159,7 +159,7 @@ impl StateHandler {
 
         // TODO compute trajectory that avoids obstacles and optimizes path
         // TODO handle errors while motors are moving and stop everything if errors happen
-        mutate_state!(&self.state, target = world, target_config = joint.clone());
+        mutate_state!(&self.state, target = world, target_joint = joint.clone());
         self.master_x.move_to(joint.x).await?;
         self.master_y.move_to(joint.y).await?;
         self.master_z.move_to(joint.z).await?;
@@ -177,18 +177,18 @@ impl StateHandler {
         let mut state = acquire(&self.state);
 
         match x {
-            Ok(x) => state.position_config.x = x.motor_pos,
+            Ok(x) => state.position_joint.x = x.motor_pos,
             Err(_) => state.errors.motor_x = true,
         }
         match y {
-            Ok(y) => state.position_config.y = y.motor_pos,
+            Ok(y) => state.position_joint.y = y.motor_pos,
             Err(_) => state.errors.motor_y = true,
         }
         match z {
-            Ok(z) => state.position_config.z = z.motor_pos,
+            Ok(z) => state.position_joint.z = z.motor_pos,
             Err(_) => state.errors.motor_z = true,
         }
-        state.position = joint_to_world(&state.position_config, &state.parameters);
+        state.position = joint_to_world(&state.position_joint, &state.parameters);
 
         match peripherals {
             Ok(peripherals) => {
