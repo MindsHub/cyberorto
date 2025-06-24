@@ -8,12 +8,12 @@ use std::{
     sync::{Arc, Mutex, MutexGuard}, time::Duration
 };
 
-use definitions::{Parameters, RobotState};
+use definitions::{Parameters, RobotState, Vec3};
 use embedcore::protocol::cyber::Master;
 use rocket::futures::future::{self, join4};
 use tokio_serial::SerialStream;
 
-use crate::{constants::{ARM_LENGTH, WATER_TIME_MS}, state::kinematics::joint_to_world};
+use crate::{constants::{ARM_LENGTH, WATER_TIME_MS}, state::kinematics::{joint_to_world, world_to_joint}};
 
 #[derive(Debug, Clone)]
 pub struct Plant {
@@ -151,12 +151,18 @@ impl StateHandler {
     }
 
     pub async fn move_to(&self, x: f32, y: f32, z: f32) -> Result<(), ()> {
+        let params = self.get_state().parameters.clone();
+        let world = Vec3 { x, y, z };
+        let Some(joint) = world_to_joint(&world, &params) else {
+            return Err(());
+        };
+
         // TODO compute trajectory that avoids obstacles and optimizes path
-        mutate_state!(&self.state, target.x = x, target.y = y, target.z = z);
-        self.master_x.move_to(x).await?;
-        self.master_y.move_to(y).await?;
-        self.master_z.move_to(z).await?;
-        mutate_state!(&self.state, position.x = x, position.y = y, position.z = z);
+        // TODO handle errors while motors are moving and stop everything if errors happen
+        mutate_state!(&self.state, target = world, target_config = joint.clone());
+        self.master_x.move_to(joint.x).await?;
+        self.master_y.move_to(joint.y).await?;
+        self.master_z.move_to(joint.z).await?;
         Ok(())
     }
 
