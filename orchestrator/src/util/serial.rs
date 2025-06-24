@@ -92,10 +92,17 @@ impl SerialPorts {
                 exit(1);
             }
         };
+
         let available_ports = available_ports.into_iter()
             .filter(|p| matches!(p.port_type, SerialPortType::UsbPort(_) | SerialPortType::Unknown))
             .map(|p| p.port_name)
             .collect::<Vec<String>>();
+
+        if available_ports.is_empty() {
+            eprintln!("Error: No serial ports discovered");
+            exit(1);
+        }
+
         Self::to_masters_ports(&available_ports, false)
     }
 
