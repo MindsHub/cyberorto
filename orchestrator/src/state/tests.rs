@@ -38,8 +38,9 @@ pub fn get_test_state() -> TestState {
             });
     });
 
+    let master = Arc::new(Master::new(master, 10000, 8));
     TestState {
-        state_handler: StateHandler::new(master),
+        state_handler: StateHandler::new(Masters { x: master.clone(), y: master.clone(), z: master.clone(), peripherals: master }),
         slave_bot_join_handle,
         slave_bot_killer: slave_bot_killer_tx,
         slave_bot_data,
