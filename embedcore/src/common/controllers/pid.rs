@@ -121,6 +121,7 @@ impl<E: EncoderTrait, D: DiscreteDriver> PidController<E, D> {
     pub fn set_p(&mut self, gain: f32, limit: f32) {
         self.pid.p(gain, limit);
     }
+    // TODO why is this an i32 and not an f32?
     pub fn set_objective(&mut self, obj: i32) {
         self.pid.setpoint(obj as f32);
     }

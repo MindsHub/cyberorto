@@ -55,7 +55,7 @@ impl DummyMessageHandler {
 impl MessagesHandler for DummyMessageHandler {
     async fn move_motor(&mut self, x: f32) -> Option<Response> {
         self.motor.lock().await.set_objective((x * Self::METERS_TO_STEPS) as i32);
-        Some(Response::Done)
+        Some(Response::Wait { ms: 100u64 })
     }
     async fn reset_motor(&mut self) -> Option<Response> {
         self.motor
@@ -64,6 +64,17 @@ impl MessagesHandler for DummyMessageHandler {
             .calibration(0, CalibrationMode::NoOvershoot)
             .await;
         Some(Response::Done)
+    }
+    async fn poll(&mut self) -> Option<Response> {
+        let difference = {
+            let mut motor = self.motor.lock().await;
+            motor.motor.read() as f32 - motor.pid.setpoint
+        };
+        if difference.abs() < 20.0 { // 20 steps (?)
+            Some(Response::Done)
+        } else {
+            Some(Response::Wait { ms: 100u64 })
+        }
     }
     async fn state(&mut self) -> Option<Response> {
         if self.time_finished <= Instant::now() {
@@ -83,19 +94,6 @@ impl MessagesHandler for DummyMessageHandler {
         // TODO add logging
         //println!("Got request for state: {resp_state:?}");
         Some(Response::State(resp_state))
-    }
-    async fn poll(&mut self) -> Option<Response> {
-        if self.time_finished <= Instant::now() {
-            self.water_state = false;
-            self.lights_state = false;
-            self.pump_state = false;
-            self.plow_state = false;
-            Some(Response::Done)
-        } else {
-            Some(Response::Wait {
-                ms: (self.time_finished - Instant::now()).as_millis() as u64,
-            })
-        }
     }
     async fn water(&mut self, cooldown_ms: u64) -> Option<Response> {
         Self::update_time_finished(&mut self.water_state, &mut self.time_finished, cooldown_ms)
