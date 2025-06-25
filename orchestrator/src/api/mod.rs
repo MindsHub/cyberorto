@@ -59,7 +59,7 @@ pub fn clear(queue: &QueueHandler) {
     queue.clear();
 }
 
-#[post("/queue/kill-running-action", data = "<kill_running_action_args>")]
+#[post("/queue/kill_running_action", data = "<kill_running_action_args>")]
 pub fn kill_running_action(
     queue: &QueueHandler,
     kill_running_action_args: Json<KillRunningActionArgs>,
