@@ -38,7 +38,8 @@ pub fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let gray = materials.add(Color::srgb_u8(171, 171, 170));
+    let structure_color = materials.add(Color::srgb_u8(171, 171, 170));
+    let terrain_color = materials.add(Color::srgb_u8(0x64, 0x61, 0x1C));
 
     /*
     mut loading_data: ResMut<LoadingData>,
@@ -49,22 +50,40 @@ pub fn setup(
     let model: Handle<Image> = asset_server.load("embedded://cyber_bevy/embedded_assets/logo.png");
     loading_data.add_asset(&model);
     info!("setup");*/
-    // add a circular base
+    // terreno (rettangolo + 2 semicerchi)
     commands.spawn((
         // width and height will be scaled, so they need to be 1.0
         Mesh3d(meshes.add(Rectangle::new(1.0, 1.0))),
-        MeshMaterial3d(materials.add(Color::srgb_u8(0x64, 0x61, 0x1C))),
+        MeshMaterial3d(terrain_color.clone()),
         Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
             .with_translation(Vec3::new(0.0, -0.7, 0.0)),
         VisualizzationComponents,
-        Terreno,
+        Terreno::Rettangolo,
+    ));
+    commands.spawn((
+        // radius will be scaled, so it needs to be 0.5
+        Mesh3d(meshes.add(Circle::new(0.5))),
+        MeshMaterial3d(terrain_color.clone()),
+        Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
+            .with_translation(Vec3::new(-0.5, -0.7, 0.0)),
+        VisualizzationComponents,
+        Terreno::Semicerchio { offset_wrt_rail_length: -0.5 },
+    ));
+    commands.spawn((
+        // radius will be scaled, so it needs to be 0.5
+        Mesh3d(meshes.add(Circle::new(0.5))),
+        MeshMaterial3d(terrain_color.clone()),
+        Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
+            .with_translation(Vec3::new(0.5, -0.7, 0.0)),
+        VisualizzationComponents,
+        Terreno::Semicerchio { offset_wrt_rail_length: 0.5 },
     ));
     //elementi orto
     //binario
     commands.spawn((
         // x will be scaled, so it needs to be 1.0
         Mesh3d(meshes.add(Cuboid::new(1.0, 0.7, 0.05))),
-        MeshMaterial3d(gray.clone()),
+        MeshMaterial3d(structure_color.clone()),
         Transform::from_xyz(0., -0.35, 0.),
         VisualizzationComponents,
         Binario,
@@ -74,7 +93,7 @@ pub fn setup(
         .spawn((
             // x will be scaled, so it needs to be 1.0
             Mesh3d(meshes.add(Cuboid::new(1.0, 0.05, 0.05))),
-            MeshMaterial3d(gray.clone()),
+            MeshMaterial3d(structure_color.clone()),
             Transform::from_xyz(-0.5, -0.2, 0.),
             VisualizzationComponents,
             Braccio,
@@ -84,7 +103,7 @@ pub fn setup(
         .spawn((
             // x will be scaled, so it needs to be 1.0
             Mesh3d(meshes.add(Cuboid::new(0.8, 0.05, 0.05))),
-            MeshMaterial3d(gray.clone()),
+            MeshMaterial3d(structure_color.clone()),
             Transform::from_xyz(0.4, -0.2, 0.),
             VisualizzationComponents,
         ))
@@ -93,8 +112,8 @@ pub fn setup(
     let braccioz = commands
         .spawn((
             Mesh3d(meshes.add(Cuboid::new(0.05, 1.6, 0.05))),
-            MeshMaterial3d(gray.clone()),
-            Transform::from_xyz(1.0, 0.4, 0.),
+            MeshMaterial3d(structure_color.clone()),
+            Transform::from_xyz(-1.0, 0.4, 0.),
             Braccioz,
             VisualizzationComponents,
         ))
@@ -103,7 +122,7 @@ pub fn setup(
     commands
         .spawn((
             Mesh3d(meshes.add(Cylinder::new(0.16, 1.0))),
-            MeshMaterial3d(gray.clone()),
+            MeshMaterial3d(structure_color.clone()),
             Transform::from_xyz(0., 0.5, 0.),
             Torretta,
             VisualizzationComponents,
@@ -150,7 +169,14 @@ struct Binario;
 struct Braccio;
 
 #[derive(Component)]
-struct Terreno;
+enum Terreno {
+    Rettangolo,
+    Semicerchio {
+        /// Il terreno è fatto di tre figure e questa variabile dice la
+        /// posizione relativa rispetto alla rotaia.
+        offset_wrt_rail_length: f32,
+    }
+}
 
 fn muovi_torretta(
     mut torretta: Single<&mut Transform, With<Torretta>>,
@@ -183,12 +209,22 @@ fn cambia_braccio(
     braccio.scale.x = state.parameters.arm_length;
 }
 
-fn cambia_terreno(
-    mut terreno: Single<&mut Transform, With<Terreno>>,
+fn cambia_terreni(
+    mut terreni: Query<(&mut Transform, &Terreno)>,
     state: Res<OrchestratorStateOutput>,
 ) {
-    terreno.scale.x = state.parameters.rail_length + 2.0 * state.parameters.arm_length;
-    terreno.scale.y = state.parameters.arm_length * 2.0;
+    for mut terreno in &mut terreni {
+        terreno.0.scale.y = state.parameters.arm_length * 2.0;
+        match terreno.1 {
+            Terreno::Rettangolo => {
+                terreno.0.scale.x = state.parameters.rail_length;
+            },
+            Terreno::Semicerchio { offset_wrt_rail_length } => {
+                terreno.0.scale.x = state.parameters.arm_length * 2.0;
+                terreno.0.translation.x = state.parameters.rail_length * offset_wrt_rail_length;
+            },
+        }
+    }
 }
 
 pub fn spawn_bevy() -> AppExit {
@@ -229,7 +265,7 @@ pub fn spawn_bevy() -> AppExit {
         )
         .add_systems(
             Update,
-            (muovi_torretta, muovi_braccioz, cambia_rotaia, cambia_braccio, cambia_terreno)
+            (muovi_torretta, muovi_braccioz, cambia_rotaia, cambia_braccio, cambia_terreni)
                 .run_if(resource_changed::<OrchestratorStateOutput>)
                 .run_if(in_state(LoadingState::Ready)),
         )
