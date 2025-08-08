@@ -131,6 +131,14 @@ pub fn setup(
         .add_child(braccio_retro)
         .add_child(braccioz);
 
+    //arrivo
+    commands.spawn((
+        Mesh3d(meshes.add(Sphere::new(0.05))),
+        MeshMaterial3d(materials.add(Color::srgb(2.0,0.0,0.0))),
+        Arrivo,
+        VisualizzationComponents,
+    ));
+
     // luce
     commands.spawn((
         PointLight {
@@ -169,6 +177,9 @@ struct Binario;
 struct Braccio;
 
 #[derive(Component)]
+struct Arrivo;
+
+#[derive(Component)]
 enum Terreno {
     Rettangolo,
     Semicerchio {
@@ -192,6 +203,15 @@ fn muovi_braccioz(
 ) {
     braccioz.translation.y = state.position_joint.z + 0.4;
     braccioz.translation.x = -state.parameters.arm_length;
+}
+
+fn muovi_arrivo(
+    mut arrivo: Single<&mut Transform, With<Arrivo>>,
+    state: Res<OrchestratorStateOutput>,
+) {
+    arrivo.translation.y = -state.target.y;
+    arrivo.translation.x = state.target.x-(state.parameters.rail_length / 2.0);
+    arrivo.translation.z = state.target.z;
 }
 
 fn cambia_rotaia(
@@ -265,7 +285,7 @@ pub fn spawn_bevy() -> AppExit {
         )
         .add_systems(
             Update,
-            (muovi_torretta, muovi_braccioz, cambia_rotaia, cambia_braccio, cambia_terreni)
+            (muovi_torretta, muovi_braccioz, muovi_arrivo, cambia_rotaia, cambia_braccio, cambia_terreni)
                 .run_if(resource_changed::<OrchestratorStateOutput>)
                 .run_if(in_state(LoadingState::Ready)),
         )

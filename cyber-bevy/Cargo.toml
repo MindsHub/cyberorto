@@ -23,7 +23,7 @@ definitions = { path = "../definitions" }
 #this library features
 [features]
 #default (enable all features by default)
-default = ["x11", "wayland", "dynamic_linking"]
+default = ["x11", "dynamic_linking"]
 #support for x11
 x11 = ["bevy/x11"]
 #support for wayland
