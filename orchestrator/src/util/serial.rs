@@ -1,4 +1,4 @@
-use std::{process::exit, sync::Arc, time::Duration};
+use std::{path::Path, process::exit, sync::Arc, time::Duration};
 
 use embedcore::{common::controllers::pid::CalibrationMode, protocol::cyber::{DeviceIdentifier, Master, Slave}};
 use rocket::futures::{never::Never, executor::block_on};
@@ -63,10 +63,14 @@ impl SerialPorts {
             }
         };
 
-        let available_ports = available_ports.into_iter()
+        let mut available_ports = available_ports.into_iter()
             .filter(|p| matches!(p.port_type, SerialPortType::UsbPort(_) | SerialPortType::Unknown))
             .map(|p| p.port_name)
             .collect::<Vec<String>>();
+
+        if Path::new("/dev/serial0").exists() {
+            available_ports.push("/dev/serial0".to_owned());
+        }
 
         if available_ports.is_empty() {
             eprintln!("Error: No serial ports discovered");
