@@ -1,0 +1,20 @@
+[build]
+target = "riscv32imfc-unknown-none-elf.json"
+
+[unstable]
+build-std = ["core"]
+build-std-features=[]
+
+#correct should be riscv32imafc-unknown-none-elf
+[target.riscv32imfc-unknown-none-elf]
+#runner = "wlink flash --enable-sdi-print --watch-serial"
+#runner = "wlink -v flash --speed medium --chip CH32V30X"
+#runner = "probe-rs run --rtt-scan-memory --preverify --verify --speed 400 --chip CH32V305 "
+#runner = "wlink flash --chip ch32v30x" 
+runner ="./runner.sh"
+# Use the following or build.rs
+
+[env]
+#default = "error"; other options: trace, debug, warn or off
+#to set by module: "warn,{crate}::{mod}=trace"
+DEFMT_LOG="trace"

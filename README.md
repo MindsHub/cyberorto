@@ -2,6 +2,14 @@
 
 ![photo of CyberOrto](cyberorto%20foto.jpg)
 
+## Eseguire l'orchestrator
+
+Per far partire l'orchestrator (che espone anche un server) usare questo comando
+
+```sh
+cargo run -- --ports=PORTS
+```
+
 ## Comandi comodi per fare richieste all'orchestrator
 
 Per ottenere lo stato (il link funziona anche da browser):

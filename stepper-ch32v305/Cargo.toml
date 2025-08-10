@@ -1,0 +1,145 @@
+[package]
+name = "ch32v305"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ch32-hal = { path = "../../ch32-hal", features = [
+    "ch32v305gbu6",
+    "memory-x",
+    "rt",
+    "embassy",
+    "highcode"
+], default-features =  false} #rev = "01d6564b0bf0cf05ecc8baabea4b245c0089dd5a", 
+
+embassy-executor = { version="*", features = [
+    "nightly",
+    "arch-spin",
+    "executor-thread",
+] }
+
+serialmessage = {version="0.2.0", default-features = false}
+embassy-time = {version="*"}
+embassy-time-driver = { version = "*", features = ["tick-hz-1_000_000",] }
+embassy-sync="*"
+embassy-futures = "*"
+defmt={version="*", optional = true, features=["encoding-rzcobs"]}
+
+defmt-or-log={version="0.2.1", default-features = false}
+
+qingke-rt = "*"
+qingke={version="*"}
+
+embedcore = { path = "../embedcore", default-features = false, features = ["ch32"] }
+
+embedded-storage = "*"
+
+
+serde = {version = "*", features = ["derive"], default-features = false}
+postcard = {version="*", default-features = false}
+
+portable-atomic = {version="1", features = ["critical-section"]}
+critical-section="*"
+
+[dev-dependencies]
+#defmt-test={path="../../defmt/firmware/defmt-test"}
+#embedded-test = { version="0.5", features = ["embassy"]}
+#heapless ={version = "0.7.17", features = ["default"]}
+[profile.dev]
+opt-level = 'z'
+debug = 2
+strip = "none"
+debug-assertions = true
+overflow-checks = true
+lto = false
+incremental = true
+codegen-units = 256
+
+
+[profile.release]
+debug = 2
+strip = false   # symbols are not flashed to the microcontroller, so don't strip them.
+lto = true
+opt-level = "z" # Optimize for size.
+
+codegen-units = 1
+
+[features]
+defmt=[
+    "dep:defmt",
+    "embedcore/defmt",
+    "qingke/defmt",
+    "ch32-hal/defmt",
+    "embassy-time/defmt"
+]
+log=[]
+default=["encoder_exti2", "driver_pwm", "defmt"]
+encoder_exti=[]
+encoder_exti2=[]
+encoder_pool=[]
+encoder_pool2=[]
+driver_dac=[]
+driver_pwm=[]
+
+
+[[bin]]
+name = "main"
+test = false
+bench = false
+
+[[bin]]
+name = "test_size"
+test = false
+bench = false
+
+[[bin]]
+name = "speed_test"
+test = false
+bench = false
+
+[[bin]]
+name = "test_flash"
+test = false
+bench = false
+
+[[bin]]
+name = "test_encoder"
+test = false
+bench = false
+
+[[bin]]
+name = "test_driver"
+test = false
+bench = false
+
+[[bin]]
+name = "test_motor"
+test = false
+bench = false
+
+[[bin]]
+name = "test_motor2"
+test = false
+bench = false
+
+[[bin]]
+name = "test_pid"
+test = false
+bench = false
+
+[[bin]]
+name = "test_defmt"
+test = false
+bench = false
+
+
+[[test]]
+name = "example_test"
+harness = false
+
+
+[lib]
+test = false
+bench = false
+crate-type = ["lib"]
+

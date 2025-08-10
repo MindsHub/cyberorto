@@ -13,11 +13,17 @@ pub struct Comunication<Serial: AsyncSerial> {
     /// Or How much time should I wait for a Byte to become Writable?
     timeout_us: u64,
     /// Serial interface
-    serial: Serial,
+    pub serial: Serial,
     /// serial buffer
     input_buf: SerMsg,
     /// max incoming message size.
     buf: [u8; 50],
+}
+
+pub enum CommunicationError {
+    InvalidMsg,
+    CantRead,
+    PostcardError(postcard::Error),
 }
 
 impl<Serial: AsyncSerial> Comunication<Serial> {
@@ -31,8 +37,10 @@ impl<Serial: AsyncSerial> Comunication<Serial> {
         }
     }
     /// try read a single byte. If waits more than timeout_us microseconds, then it returns None.
-    async fn try_read_byte(&mut self) -> Option<u8> {
-        match select(
+    pub async fn try_read_byte(&mut self) -> Option<u8> {
+        Some(self.serial.read().await)
+        // TODO fix select
+        /*match select(
             pin!(self.serial.read()),
             pin!(Timer::after_micros(self.timeout_us)),
         )
@@ -40,7 +48,7 @@ impl<Serial: AsyncSerial> Comunication<Serial> {
         {
             Either::First(b) => Some(b),
             Either::Second(_) => None,
-        }
+        }*/
     }
     /// try read a single byte.
     ///
@@ -48,6 +56,8 @@ impl<Serial: AsyncSerial> Comunication<Serial> {
     ///
     /// If waits more than timeout_us microseconds, then it returns false.
     async fn try_send_byte(&mut self, to_send: u8) -> bool {
+        self.serial.write(to_send).await;
+        return true; // TODO fix select
         //let t = Select{ l: pin!(self.serial.write(to_send)), r: pin!(Sleeper::await_us(self.timeout_us)) };
         match select(
             pin!(self.serial.write(to_send)),
@@ -64,16 +74,19 @@ impl<Serial: AsyncSerial> Comunication<Serial> {
     /// On success returns the message and the corresponding Id
     ///
     /// On failure None
-    pub async fn try_read<Out: for<'a> Deserialize<'a>>(&mut self) -> Option<(u8, Out)> {
+    pub async fn try_read<Out: for<'a> Deserialize<'a>>(&mut self) -> Result<(u8, Out), CommunicationError> {
         while let Some(b) = self.try_read_byte().await {
             let (state, _) = self.input_buf.parse_read_bytes(&[b]);
             if let ParseState::DataReady = state {
                 let data = self.input_buf.return_read_data();
                 let id = self.input_buf.return_msg_id();
-                return Some((id, postcard::from_bytes(data).ok()?));
+                //return Ok((id, postcard::from_bytes(&[0]).unwrap()));
+                return postcard::from_bytes(data)
+                    .map(|m| (id, m))
+                    .map_err(CommunicationError::PostcardError);
             }
         }
-        None
+        Err(CommunicationError::CantRead)
     }
     ///tries to send a complex message.
     ///

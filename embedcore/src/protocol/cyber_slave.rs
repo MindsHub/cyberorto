@@ -8,7 +8,7 @@ use super::{
 
 pub struct Slave<Serial: AsyncSerial, MA: MessagesHandler> {
     /// comunication interface, that permit to read/send messages
-    com: Comunication<Serial>,
+    pub com: Comunication<Serial>,
     /// what is my name?
     name: [u8; 10],
     /// struct used to handle all messages
@@ -26,8 +26,7 @@ impl<Serial: AsyncSerial, MA: MessagesHandler> Slave<Serial, MA> {
     }
     pub async fn run(&mut self) -> ! {
         loop {
-            if let Some((id, message)) = self.com.try_read::<Message>().await {
-                // TODO clarify what happens when a function returns None (at the moment no response is provided)
+            if let Ok((id, message)) = self.com.try_read::<Message>().await {
                 match message {
                     Message::WhoAreYou => {
                         self.com

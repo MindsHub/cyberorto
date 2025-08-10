@@ -28,7 +28,7 @@ impl<Serial: AsyncSerial> InnerMaster<Serial> {
 
     ///tries to read a message
     async fn try_read<Out: for<'a> Deserialize<'a>>(&mut self) -> Option<(u8, Out)> {
-        self.com.try_read().await
+        self.com.try_read().await.ok()
     }
 }
 
