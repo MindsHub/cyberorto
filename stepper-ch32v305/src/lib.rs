@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 #![feature(type_alias_impl_trait)]
-#![feature(naked_functions)]
 #![feature(impl_trait_in_assoc_type)]
 #![allow(non_snake_case)]
 /*!
@@ -24,7 +23,6 @@ mod defmt_impl;
 mod driver;
 pub mod encoder;
 pub mod irqs;
-use ch32_hal::rcc::{Pll, PllMul, PllPreDiv, PllSource, Sysclk};
 #[cfg(feature = "defmt")]
 use defmt_impl::SDIPrint;
 
@@ -35,13 +33,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
-use ch32_hal::interrupt::typelevel::Binding;
-use ch32_hal::peripherals::{DMA1_CH4, DMA1_CH5, PA8, PB15, USART1};
-use ch32_hal::usart::{self, Uart};
-use ch32_hal::{self as hal, Config};
 use ch32_hal::{Peripherals, rcc};
-
-use embedcore::SerialWrapper;
 
 pub fn init() -> Peripherals {
     // IMPORTANT COMMENT: using the default clock (i.e. rcc::Config::default()) results in broken
@@ -54,15 +46,20 @@ pub fn init() -> Peripherals {
     };
     #[cfg(feature = "defmt")]
     SDIPrint::enable();
-    let p = hal::init(config);
+    let p = ch32_hal::init(config);
     unsafe {
-        hal::embassy::init();
+        ch32_hal::embassy::init();
     }
     p
 }
 
 // TODO implement serial
-/*pub fn serial<
+/*
+use ch32_hal::peripherals::{DMA1_CH4, DMA1_CH5, PA8, PB15, USART1};
+use ch32_hal::usart::{self, Uart};
+use ch32_hal::interrupt::typelevel::Binding;
+use ch32_hal::{self as hal, Config};
+pub fn serial<
     Irqs: 'static + Binding<ch32_hal::interrupt::typelevel::USART1, usart::InterruptHandler<USART1>>,
 >(
     usart: USART1,

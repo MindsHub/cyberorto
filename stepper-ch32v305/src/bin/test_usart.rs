@@ -1,10 +1,8 @@
 #![no_std]
 #![no_main]
 #![feature(type_alias_impl_trait)]
-#![feature(naked_functions)]
 #![feature(impl_trait_in_assoc_type)]
-#![allow(non_snake_case)]
-#![allow(unsafe_op_in_unsafe_fn)]
+#![allow(non_snake_case, unsafe_op_in_unsafe_fn, unused_imports, unused_mut)]
 /*!
  * Monolitic code test, first version of the implementation of the driver. if necessary, it could be best to modulirize a little more */
 
@@ -98,7 +96,7 @@ async fn blink(pin: AnyPin, interval_ms: u64) {
 }
 
 #[embassy_executor::task]
-async fn message_handler(mut s: Slave<SerialWrapper<'static, USART1>, SerialToMotorHandler>, mut status_pin: Option<Output<'static>>) {
+async fn message_handler(mut s: Slave<SerialWrapper<'static, USART1>, SerialToMotorHandler>, mut _status_pin: Option<Output<'static>>) {
     /*loop {
         let mut buf = ['a' as u8];
         s.com.serial.rx.read(&mut buf).await.unwrap();
@@ -239,6 +237,7 @@ async fn main(spawner: Spawner) -> ! {
             embassy_futures::yield_now().await;
         }
     }
+    #[allow(unreachable_code)]
     loop {
         //out.toggle();
         //let mut c = [55u8];

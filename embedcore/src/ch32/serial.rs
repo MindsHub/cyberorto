@@ -1,5 +1,5 @@
 use ch32_hal::{
-    gpio::{AnyPin, Output}, mode, usart::{self, Uart, UartRx, UartTx}
+    gpio::Output, mode, usart::{self, Uart, UartRx, UartTx}
 };
 
 use crate::protocol::AsyncSerial;
