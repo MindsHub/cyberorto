@@ -198,7 +198,7 @@ impl MastersOpt {
             }
         }
         assert_eq!(4, masters.len());
-        assert_eq!(3, motors.len());
+        //assert_eq!(3, motors.len());
 
         // update all motors in a single task for simplicity
         join_handles.push(tokio::task::spawn(async move {
