@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-ch32-hal = { path = "../../ch32-hal", features = [
+ch32-hal = { git = "https://github.com/MindsHub/ch32-hal/", features = [
     "ch32v305gbu6",
     "memory-x",
     "rt",
     "embassy",
     "highcode"
-], default-features =  false} #rev = "01d6564b0bf0cf05ecc8baabea4b245c0089dd5a", 
+], default-features =  false, rev = "8b6c23120fa6f710499deef8a0359ff25a3b22fb" }
 
 embassy-executor = { version="*", features = [
     "nightly",
@@ -131,12 +131,6 @@ bench = false
 name = "test_defmt"
 test = false
 bench = false
-
-
-[[test]]
-name = "example_test"
-harness = false
-
 
 [lib]
 test = false

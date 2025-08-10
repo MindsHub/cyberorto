@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 #![feature(impl_trait_in_assoc_type)]
-#![allow(unsafe_op_in_unsafe_fn)]
+#![allow(non_snake_case, unsafe_op_in_unsafe_fn, unused_imports, unused_mut)]
 use ch32_hal::gpio::Pin;
 use ch32v305::{init, irqs};
 use defmt_or_log::info;

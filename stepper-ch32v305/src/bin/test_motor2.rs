@@ -1,10 +1,8 @@
 #![no_std]
 #![no_main]
 #![feature(type_alias_impl_trait)]
-#![feature(naked_functions)]
 #![feature(impl_trait_in_assoc_type)]
-#![allow(non_snake_case)]
-#![allow(unsafe_op_in_unsafe_fn)]
+#![allow(non_snake_case, unsafe_op_in_unsafe_fn, unused_imports, unused_mut)]
 
 use ch32_hal::usart::{Config, Uart};
 use ch32v305::{driver, encoder, init, irqs};

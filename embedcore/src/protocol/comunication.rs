@@ -1,7 +1,4 @@
-use core::pin::pin;
 
-use embassy_futures::select::{Either, select};
-use embassy_time::Timer;
 use serde::{Deserialize, Serialize};
 use serialmessage::{ParseState, SerMsg};
 
@@ -11,6 +8,7 @@ pub struct Comunication<Serial: AsyncSerial> {
     /// how much time should I wait for a Byte to become available?
     ///
     /// Or How much time should I wait for a Byte to become Writable?
+    #[allow(dead_code)] // TODO maybe implement select?
     timeout_us: u64,
     /// Serial interface
     pub serial: Serial,
@@ -39,7 +37,7 @@ impl<Serial: AsyncSerial> Comunication<Serial> {
     /// try read a single byte. If waits more than timeout_us microseconds, then it returns None.
     pub async fn try_read_byte(&mut self) -> Option<u8> {
         Some(self.serial.read().await)
-        // TODO fix select
+        // TODO maybe use select? Shouldn't be needed though
         /*match select(
             pin!(self.serial.read()),
             pin!(Timer::after_micros(self.timeout_us)),
@@ -57,9 +55,9 @@ impl<Serial: AsyncSerial> Comunication<Serial> {
     /// If waits more than timeout_us microseconds, then it returns false.
     async fn try_send_byte(&mut self, to_send: u8) -> bool {
         self.serial.write(to_send).await;
-        return true; // TODO fix select
-        //let t = Select{ l: pin!(self.serial.write(to_send)), r: pin!(Sleeper::await_us(self.timeout_us)) };
-        match select(
+        true
+        // TODO maybe use select? Shouldn't be needed though
+        /*match select(
             pin!(self.serial.write(to_send)),
             pin!(Timer::after_micros(self.timeout_us)),
         )
@@ -67,7 +65,7 @@ impl<Serial: AsyncSerial> Comunication<Serial> {
         {
             Either::First(_) => true,
             Either::Second(_) => false,
-        }
+        }*/
     }
     /// tries to read a complex message.
     ///

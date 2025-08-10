@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 #![feature(type_alias_impl_trait)]
-#![feature(naked_functions)]
 #![feature(impl_trait_in_assoc_type)]
 #![allow(non_snake_case)]
 #![allow(unsafe_op_in_unsafe_fn)]

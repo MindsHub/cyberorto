@@ -13,6 +13,7 @@ use crate::state::dummy_message_handler::DummyMessageHandler;
 pub enum SerialPorts {
     Simulated,
     Autodiscover,
+    AutodiscoverOrSimulate,
     Ports(Vec<String>),
 }
 
@@ -23,12 +24,22 @@ pub struct Masters {
     pub peripherals: Arc<Master<SerialStream>>,
 }
 
+#[derive(Default)]
+pub struct MastersOpt {
+    pub x: Option<Arc<Master<SerialStream>>>,
+    pub y: Option<Arc<Master<SerialStream>>>,
+    pub z: Option<Arc<Master<SerialStream>>>,
+    pub peripherals: Option<Arc<Master<SerialStream>>>,
+}
+
 impl SerialPorts {
     pub fn parse(s: &str) -> Result<SerialPorts, String> {
         if s == "simulated" {
             Ok(SerialPorts::Simulated)
         } else if s == "auto" {
             Ok(SerialPorts::Autodiscover)
+        } else if s == "autosimulated" {
+            Ok(SerialPorts::AutodiscoverOrSimulate)
         } else {
             Ok(SerialPorts::Ports(s.split(',').map(str::to_string).collect()))
         }
@@ -36,55 +47,14 @@ impl SerialPorts {
 
     pub fn to_masters(&self) -> (Masters, Vec<JoinHandle<Never>>) {
         match self {
-            SerialPorts::Simulated => Self::to_masters_simulated(),
-            SerialPorts::Autodiscover => (Self::to_masters_autodiscover(), vec![]),
-            SerialPorts::Ports(ports) => (Self::to_masters_ports(ports, true), vec![]),
+            SerialPorts::Simulated => MastersOpt::default().into_masters_or_simulated(),
+            SerialPorts::Autodiscover => (Self::to_masters_autodiscover().into_masters(), vec![]),
+            SerialPorts::AutodiscoverOrSimulate => Self::to_masters_autodiscover().into_masters_or_simulated(),
+            SerialPorts::Ports(ports) => (Self::to_masters_ports(ports, true).into_masters(), vec![]),
         }
     }
 
-    fn to_masters_simulated() -> (Masters, Vec<JoinHandle<Never>>) {
-        let mut masters = vec![];
-        let mut motors = vec![];
-        let mut join_handles = vec![];
-        for name in [b"x         ", b"y         ", b"z         ", b"p         "] {
-            let (master, slave) = SerialStream::pair()
-                .expect("Failed to create dummy serial");
-            masters.push(Arc::new(Master::new(master, 100000, 20)));
-
-            let (dummy_message_handler, motor) = DummyMessageHandler::new();
-            let mut slave = Slave::new(slave, 1000, *name, dummy_message_handler);
-            join_handles.push(tokio::task::spawn(async move { slave.run().await }));
-            if name != b"p         " {
-                // the last
-                motors.push(motor);
-            }
-        }
-        assert_eq!(4, masters.len());
-        assert_eq!(3, motors.len());
-
-        // update all motors in a single task for simplicity
-        join_handles.push(tokio::task::spawn(async move {
-            for motor in &motors {
-                motor.lock().await.calibration(0, CalibrationMode::NoOvershoot).await;
-            }
-            let mut ticker = tokio::time::interval(Duration::from_millis(1));
-            loop {
-                for motor in &motors {
-                    motor.lock().await.update().await;
-                    //println!("Updating motor, pos = {:?}", motor.lock().await.pid);
-                }
-                ticker.tick().await;
-            }
-        }));
-
-        let x = masters.remove(0);
-        let y = masters.remove(0);
-        let z = masters.remove(0);
-        let peripherals = masters.remove(0);
-        (Masters { x, y, z, peripherals }, join_handles)
-    }
-
-    fn to_masters_autodiscover() -> Masters {
+    fn to_masters_autodiscover() -> MastersOpt {
         let available_ports = match tokio_serial::available_ports() {
             Ok(available_ports) => available_ports,
             Err(e) => {
@@ -106,7 +76,7 @@ impl SerialPorts {
         Self::to_masters_ports(&available_ports, false)
     }
 
-    fn to_masters_ports(ports: &[String], must_all_be_openable: bool) -> Masters {
+    fn to_masters_ports(ports: &[String], must_all_be_openable: bool) -> MastersOpt {
         let mut x = None;
         let mut y = None;
         let mut z = None;
@@ -125,16 +95,6 @@ impl SerialPorts {
                     exit(1);
                 }
                 *var = Some(master.clone());
-            }
-        }
-
-        fn assert_some(var: Option<Arc<Master<SerialStream>>>, capability: char) -> Arc<Master<SerialStream>> {
-            match var {
-                Some(var) => var,
-                None => {
-                    eprintln!("Error: No serial device can handle capability \"{capability}\"");
-                    exit(1);
-                },
             }
         }
 
@@ -181,11 +141,80 @@ impl SerialPorts {
             set_var(&mut peripherals, 'p', port, &master, &id);
         }
 
-        Masters {
-            x: assert_some(x, 'x'),
-            y: assert_some(y, 'y'),
-            z: assert_some(z, 'z'),
-            peripherals: assert_some(peripherals, 'p'),
+        MastersOpt { x, y, z, peripherals }
+    }
+}
+
+impl MastersOpt {
+    fn assert_some(var: Option<Arc<Master<SerialStream>>>, capability: char) -> Arc<Master<SerialStream>> {
+        match var {
+            Some(var) => var,
+            None => {
+                eprintln!("Error: No serial device can handle capability \"{capability}\"");
+                exit(1);
+            },
         }
+    }
+
+    fn into_masters(self) -> Masters {
+        Masters {
+            x: Self::assert_some(self.x, 'x'),
+            y: Self::assert_some(self.y, 'y'),
+            z: Self::assert_some(self.z, 'z'),
+            peripherals: Self::assert_some(self.peripherals, 'p'),
+        }
+    }
+
+    fn into_masters_or_simulated(self) -> (Masters, Vec<JoinHandle<Never>>) {
+        let mut masters = vec![];
+        let mut motors = vec![];
+        let mut join_handles = vec![];
+        for (name, opt_master) in [
+            (b"x         ", self.x),
+            (b"y         ", self.y),
+            (b"z         ", self.z),
+            (b"p         ", self.peripherals),
+        ] {
+            if let Some(master) = opt_master {
+                masters.push(master);
+                // real Master exists for this struct, no need to simulate it
+                continue;
+            }
+
+            let (master, slave) = SerialStream::pair()
+                .expect("Failed to create dummy serial");
+            masters.push(Arc::new(Master::new(master, 100000, 20)));
+
+            let (dummy_message_handler, motor) = DummyMessageHandler::new();
+            let mut slave = Slave::new(slave, 1000, *name, dummy_message_handler);
+            join_handles.push(tokio::task::spawn(async move { slave.run().await }));
+            if name != b"p         " {
+                // the last
+                motors.push(motor);
+            }
+        }
+        assert_eq!(4, masters.len());
+        assert_eq!(3, motors.len());
+
+        // update all motors in a single task for simplicity
+        join_handles.push(tokio::task::spawn(async move {
+            for motor in &motors {
+                motor.lock().await.calibration(0, CalibrationMode::NoOvershoot).await;
+            }
+            let mut ticker = tokio::time::interval(Duration::from_millis(1));
+            loop {
+                for motor in &motors {
+                    motor.lock().await.update().await;
+                    //println!("Updating motor, pos = {:?}", motor.lock().await.pid);
+                }
+                ticker.tick().await;
+            }
+        }));
+
+        let x = masters.remove(0);
+        let y = masters.remove(0);
+        let z = masters.remove(0);
+        let peripherals = masters.remove(0);
+        (Masters { x, y, z, peripherals }, join_handles)
     }
 }

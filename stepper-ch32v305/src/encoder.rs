@@ -1,10 +1,10 @@
 #[cfg(any(
     all(feature = "encoder_exti", feature = "encoder_pool"),
-    all(feature = "encoder_exti", feature = "encoder_exti2")
-    all(feature = "encoder_exti", feature = "encoder_pool2")
-    all(feature = "encoder_pool", feature = "encoder_exti2")
-    all(feature = "encoder_pool", feature = "encoder_pool2")
-    all(feature = "encoder_exti2", feature = "encoder_pool2")
+    all(feature = "encoder_exti", feature = "encoder_exti2"),
+    all(feature = "encoder_exti", feature = "encoder_pool2"),
+    all(feature = "encoder_pool", feature = "encoder_exti2"),
+    all(feature = "encoder_pool", feature = "encoder_pool2"),
+    all(feature = "encoder_exti2", feature = "encoder_pool2"),
 ))]
 compile_error!("Impossible to use two implementations for encoder, please choose one");
 
