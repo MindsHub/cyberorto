@@ -132,12 +132,6 @@ name = "test_defmt"
 test = false
 bench = false
 
-
-[[test]]
-name = "example_test"
-harness = false
-
-
 [lib]
 test = false
 bench = false
