@@ -97,11 +97,12 @@ async fn update_motor(mut motor: PidController<StaticEncoder, driver_type!()>) {
                 motor.set_objective(x);
                 while (motor.motor.read() - x).abs() > 10 {
                     motor.update().await;
-                    Timer::after(Duration::from_micros(500)).await;
+                    embassy_futures::yield_now().await;
                 }
                 SHARED.lock(|x| {
-                    x.borrow_mut().cmd = CMD::Waiting;
+                    x.borrow_mut().cmd = CMD::;
                 });
+                
             }
             CMD::Reset => {
                 let cur_pos = motor.motor.read();
@@ -123,44 +124,55 @@ async fn update_motor(mut motor: PidController<StaticEncoder, driver_type!()>) {
     }
 }
 
+
 #[embassy_executor::main(entry = "qingke_rt::entry")]
 async fn main(spawner: Spawner) -> ! {
     let p = init();
     Timer::after_millis(300).await;
-    let e = encoder!(p, spawner, IrqsExti);
-    //let mut e = encoder(p.PD1, p.PD2, p.PD3, p.PD4, &spawner);
-    /*let d = ch32v305::driver!(p, spawner);*/
-    /*let mut serial: SerialWrapper<'_, USART1> =
-        serial(p.USART1, p.PA8, p.PB15, IrqsUsart, p.DMA1_CH4, p.DMA1_CH5);
-*/
-let mut serial = Uart::new(p.USART1, p.PA8, p.PB15, IrqsUsart, p.DMA1_CH4, p.DMA1_CH5, Config::default()).unwrap();
-    /*let motor = Motor::new(e, d, false);
-    let mut pid = PidController::new(motor, 1.8, 1.8);
+    let mut serial_config = Config::default();
+    // IMPORTANT COMMENT: the multiplier here was obtained by reading the signals with an
+    // oscilloscope. Apparently the frequency of SYSCLK_FREQ_144MHZ_HSI (used in init())
+    // is not correctly handled in the Uart constructor, or something like that.
+    serial_config.baudrate = (115200.0 * 1.205882352941176) as u32;
+    let serial = Uart::new(p.USART1, p.PA8, p.PB15, IrqsUsart, p.DMA1_CH4, p.DMA1_CH5, serial_config).unwrap();
 
-    pid.calibration(2000, CalibrationMode::NoOvershoot).await;*/
 
-   /* let mh = SerialToMotorHandler::new(p.PA4.degrade());
+    let mh = SerialToMotorHandler::new(p.PA4.degrade());
 
     // spawn message handler thread
-    let s: Slave<SerialWrapper<'static, USART1>, _> = Slave::new(serial, 100, *b"ciao      ", mh);
-    spawner.must_spawn(message_handler(s));*/
+    let serial_wrapperafter_millis = SerialWrapper::new(serial, None);
+    let s: Slave<SerialWrapper<'static, USART1>, _> = Slave::new(serial_wrapper, 10000, *b"ciao      ", mh);
+    
+
     //spawner.must_spawn(update_motor(pid));
-    let mut out = Output::new(p.PA4, Level::High, Speed::High);
+    //let mut out = Output::new(p.PA4, Level::High, Speed::High);
+    let e = encoder!(p, spawner, IrqsExti);
+    let d = driver!(p, spawner);
+    let mut motor = Motor::new(e, d, true);
+
+
+
+    let mut pid = PidController::new(motor, 2.0, 2.0);
+    //pid.motor.align(1.0, 1.0).await;
+    let _ = pid.calibration(2000, CalibrationMode::NoOvershoot).await;
+    //info!("Motor initialized");
+    spawner.must_spawn(message_handler(s, None));
+    spawner.must_spawn(update_motor(pid));
     loop {
-        out.toggle();
-        let mut c = [55u8];
-        //let _= serial.blocking_read(&mut c);
+        Timer::after(Duration::from_micros(1000)).await;
+        /*defmt_or_log::info!("{}", pid.motor.read());
 
-        serial.blocking_write(&c);
-        serial.blocking_flush();
-        /*for i in 0..80{
-            pid.try_from::<DE>().unwrap().set_phase(i%80, 1.0);
-            yield_now().await;
-
+        pid.set_objective(10000);
+        let t: Instant = Instant::now();
+        while t.elapsed().as_millis() < 3000 {
+            pid.update().await;
+            embassy_futures::yield_now().await;
+        }
+        let t = Instant::now();
+        pid.set_objective(-10000);
+        while t.elapsed().as_millis() < 3000 {
+            pid.update().await;
+            embassy_futures::yield_now().await;
         }*/
-        //pid.update(1.0.into());
-        Timer::after(Duration::from_millis(100)).await;
     }
-    //x.write(buffer)
-    //SerialWrapper::new(tx);*/
 }
