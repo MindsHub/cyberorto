@@ -13,13 +13,15 @@ use crate::{DiscreteDriver, EncoderTrait, common::motor::Motor, protocol::AsyncS
 impl AsyncSerial for SerialStream {
     async fn read(&mut self) -> u8 {
         let mut buf = [0u8];
-        while tokio::io::AsyncReadExt::read(self, &mut buf).await.is_err() {}
+        while let Err(e) = tokio::io::AsyncReadExt::read(self, &mut buf).await {
+            info!("Error {:?}", e);
+        }
         buf[0]
     }
 
     async fn write(&mut self, buf: u8) {
         while tokio::io::AsyncWriteExt::write(self, &[buf]).await.is_err() {}
-        let _ = tokio::io::AsyncWriteExt::flush(self).await; // ignore the result
+        //let _ = tokio::io::AsyncWriteExt::flush(self).await; // ignore the result
     }
 }
 

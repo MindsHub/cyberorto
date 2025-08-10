@@ -27,6 +27,7 @@ impl<Serial: AsyncSerial, MA: MessagesHandler> Slave<Serial, MA> {
     pub async fn run(&mut self) -> ! {
         loop {
             if let Ok((id, message)) = self.com.try_read::<Message>().await {
+                defmt_or_log::info!("Got message: {:?}", id);
                 match message {
                     Message::WhoAreYou => {
                         self.com

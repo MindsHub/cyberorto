@@ -34,6 +34,10 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 }
 
 use ch32_hal::{Peripherals, rcc};
+use ch32_hal::peripherals::{DMA1_CH4, DMA1_CH5, PA8, PB15, USART1};
+use ch32_hal::usart::{self, Uart};
+use ch32_hal::interrupt::typelevel::Binding;
+use embedcore::SerialWrapper;
 
 pub fn init() -> Peripherals {
     // IMPORTANT COMMENT: using the default clock (i.e. rcc::Config::default()) results in broken
@@ -53,12 +57,6 @@ pub fn init() -> Peripherals {
     p
 }
 
-// TODO implement serial
-/*
-use ch32_hal::peripherals::{DMA1_CH4, DMA1_CH5, PA8, PB15, USART1};
-use ch32_hal::usart::{self, Uart};
-use ch32_hal::interrupt::typelevel::Binding;
-use ch32_hal::{self as hal, Config};
 pub fn serial<
     Irqs: 'static + Binding<ch32_hal::interrupt::typelevel::USART1, usart::InterruptHandler<USART1>>,
 >(
@@ -69,9 +67,12 @@ pub fn serial<
     dma_rx: DMA1_CH4,
     dma_tx: DMA1_CH5,
 ) -> SerialWrapper<'static, USART1> {
-    let mut uart_config = hal::usart::Config::default();
-    uart_config.baudrate = 9600;
-    let async_serial = Uart::new(usart, rx, tx, irqs, dma_rx, dma_tx, uart_config).unwrap();
+    let mut uart_config = ch32_hal::usart::Config::default();
+    // IMPORTANT COMMENT: the multiplier here was obtained by reading the signals with an
+    // oscilloscope. Apparently the frequency of SYSCLK_FREQ_144MHZ_HSI (used in init())
+    // is not correctly handled in the Uart constructor, or something like that.
+    uart_config.baudrate = (115200.0 * 1.205882352941176) as u32;
 
-    SerialWrapper::new(async_serial)
-}*/
+    let async_serial = Uart::new(usart, rx, tx, irqs, dma_rx, dma_tx, uart_config).unwrap();
+    SerialWrapper::new(async_serial, None)
+}

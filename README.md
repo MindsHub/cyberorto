@@ -10,6 +10,12 @@ Per far partire l'orchestrator (che espone anche un server) usare questo comando
 cargo run -- --ports=PORTS
 ```
 
+Per eseguirlo sul raspberry con i file `.rs` usati in locale, usare questo:
+
+```sh
+scp -r ./embedcore/src mindshub@192.168.1.102:/home/mindshub/Desktop/cyberorto/embedcore && scp -r ./orchestrator/src mindshub@192.168.1.102:/home/mindshub/Desktop/cyberorto/orchestrator && ssh -t mindshub@192.168.1.102 "bash -l -c 'cd /home/mindshub/Desktop/cyberorto/orchestrator; ROCKET_ADDRESS=0.0.0.0 cargo run -- --ports=autosimulated'"
+```
+
 ## Comandi comodi per fare richieste all'orchestrator
 
 Per ottenere lo stato (il link funziona anche da browser):
