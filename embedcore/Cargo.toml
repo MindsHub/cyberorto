@@ -10,7 +10,7 @@ serde={version="1.0", features = ["derive"], default-features = false}
 postcard = {version="1.0.0", default-features = false}
 
 #hal libs
-ch32-hal = { path = "../../ch32-hal", optional=true, default-features =  false}
+ch32-hal = { git = "https://github.com/MindsHub/ch32-hal/", optional = true, default-features = false, rev = "8b6c23120fa6f710499deef8a0359ff25a3b22fb" }
 qingke={version="*",  optional = true}
 
 #debug/formatting libs
