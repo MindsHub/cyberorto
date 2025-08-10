@@ -1,6 +1,7 @@
 use std::{env, path::PathBuf, thread};
 
 use clap::Parser;
+use env_logger::Env;
 use queue::QueueHandler;
 use state::StateHandler;
 use tokio::{signal::unix::{signal, SignalKind}, sync::oneshot};
@@ -41,6 +42,8 @@ struct Args {
 
 #[rocket::main]
 async fn main() {
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    log::info!("Cyberorto orchestrator starting...");
     let args = Args::parse();
 
     // TODO use 4 different serial ports: x, y, z, sensors
