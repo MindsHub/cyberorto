@@ -58,8 +58,13 @@ impl<Serial: AsyncSerial> Master<Serial> {
         todo!();
     }
 
+    /// See [Message::EmergencyStop]
+    pub async fn emergency_stop(&self) -> Result<(), ()> {
+        todo!();
+    }
+
     /// See [Message::MoveMotor]
-    pub async fn move_to(&self, pos: f32) -> Result<(), ()> {
+    pub async fn move_to(&self, pos: f32) -> Result<(), [u8; 10]> {
         let m = Message::MoveMotor { x: pos };
         let mut lock = Some(self.inner.lock().await);
         blocking_send!(self, lock, m:
@@ -69,9 +74,12 @@ impl<Serial: AsyncSerial> Master<Serial> {
             Response::Done => {
                 return Ok(());
             },
+            Response::Error(err) => {
+                return Err(err);
+            },
             _ => {}
         );
-        Err(())
+        Err(*b"?ERR     0")
     }
 
     /// See [Message::Water]
