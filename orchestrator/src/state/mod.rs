@@ -10,7 +10,7 @@ use std::{
 
 use definitions::{Parameters, RobotState, Vec3};
 use embedcore::protocol::cyber::Master;
-use rocket::futures::future::{self, join4};
+use rocket::futures::future::{self, join4, join3, try_join3};
 use tokio_serial::SerialStream;
 
 use crate::{constants::{ARM_LENGTH, WATER_TIME_MS}, state::kinematics::{joint_to_world, world_to_joint}, util::serial::Masters};
@@ -73,11 +73,11 @@ impl StateHandler {
         acquire(&self.state).clone()
     }
 
-    pub async fn water_a_plant(&self, x: f32, y: f32, z: f32) -> Result<(), ()> {
+    pub async fn water_a_plant(&self, x: f32, y: f32, z: f32) -> Result<(), String> {
         self.move_to(x, y, z).await?;
-        self.water(WATER_TIME_MS).await?;
+        self.water(WATER_TIME_MS).await.map_err(|_| "Impossible to start water".to_string())?;
         tokio::time::sleep(Duration::from_millis(WATER_TIME_MS)).await;
-        self.water(0).await?;
+        self.water(0).await.map_err(|_| "Impossible to stop water".to_string())?;
         Ok(())
     }
 
@@ -85,7 +85,7 @@ impl StateHandler {
         // TODO add plant to DB
     }
 
-    pub async fn water_all(&self) -> Result<(), ()> {
+    pub async fn water_all(&self) -> Result<(), String> {
         let plants: Vec<Plant> = vec![]; // TODO load plant from DB
         for plant in plants {
             self.water_a_plant(plant.x, plant.y, plant.z).await?;
@@ -93,39 +93,39 @@ impl StateHandler {
         Ok(())
     }
 
-    pub async fn water(&self, cooldown_ms: u64) -> Result<(), ()> {
-        self.master_peripherals.water(cooldown_ms).await?;
+    pub async fn water(&self, cooldown_ms: u64) -> Result<(), String> {
+        self.master_peripherals.water(cooldown_ms).await.map_err(|_| "Watering error")?;
         Ok(())
     }
 
-    pub async fn lights(&self, cooldown_ms: u64) -> Result<(), ()> {
-        self.master_peripherals.lights(cooldown_ms).await?;
+    pub async fn lights(&self, cooldown_ms: u64) -> Result<(), String> {
+        self.master_peripherals.lights(cooldown_ms).await.map_err(|_| "Lights error")?;
         Ok(())
     }
 
-    pub async fn pump(&self, cooldown_ms: u64) -> Result<(), ()> {
-        self.master_peripherals.pump(cooldown_ms).await?;
+    pub async fn pump(&self, cooldown_ms: u64) -> Result<(), String> {
+        self.master_peripherals.pump(cooldown_ms).await.map_err(|_| "Pump error")?;
         Ok(())
     }
 
-    pub async fn plow(&self, cooldown_ms: u64) -> Result<(), ()> {
-        self.master_peripherals.plow(cooldown_ms).await?;
+    pub async fn plow(&self, cooldown_ms: u64) -> Result<(), String> {
+        self.master_peripherals.plow(cooldown_ms).await.map_err(|_| "Plowing error")?;
         Ok(())
     }
 
-    pub async fn toggle_led(&self) -> Result<(), ()> {
-        let curr_led = self.master_peripherals.get_state().await?.led;
-        self.master_peripherals.set_led(!curr_led).await?;
+    pub async fn toggle_led(&self) -> Result<(), String> {
+        let curr_led = self.master_peripherals.get_state().await.map_err(|_| "State get error")?.led;
+        self.master_peripherals.set_led(!curr_led).await.map_err(|_| "Led setting error")?;
         Ok(())
     }
 
-    pub async fn home(&self) -> Result<(), ()> {
+    pub async fn home(&self) -> Result<(), String> {
         self.move_to(0.0, 0.0, 0.0).await
     }
 
-    pub async fn reset(&self) -> Result<(), ()> {
+    pub async fn reset(&self) -> Result<(), String> {
         // first wait for the Z axis to reset
-        self.retract().await?;
+        self.retract().await.map_err(|_| "Retract error")?;
 
         // then also reset X and Y in parallel (to make things faster)
         mutate_state!(&self.state, target.x = 0.0, target.y = -ARM_LENGTH);
@@ -133,35 +133,55 @@ impl StateHandler {
             self.master_x.reset(),
             self.master_y.reset(),
         ).await;
-        res_x?;
-        res_y?;
+        res_x.map_err(|_| "x reset error")?;
+        res_y.map_err(|_| "y reset error")?;
         mutate_state!(&self.state, position.x = 0.0, position.y = -ARM_LENGTH);
 
         Ok(())
     }
 
-    pub async fn retract(&self) -> Result<(), ()> {
+    pub async fn retract(&self) -> Result<(), String> {
         // "retract" means resetting just the Z axis
         mutate_state!(&self.state, target.z = 0.0);
-        self.master_z.reset().await?;
+        self.master_z.reset().await.map_err(|_| "Retract error")?;
         mutate_state!(&self.state, position.z = 0.0);
         Ok(())
     }
 
-    pub async fn move_to(&self, x: f32, y: f32, z: f32) -> Result<(), ()> {
+    pub async fn move_to(&self, x: f32, y: f32, z: f32) -> Result<(), String> {
+        // TODO add logging
         let params = self.get_state().parameters.clone();
         let world = Vec3 { x, y, z };
         let Some(joint) = world_to_joint(&world, &params) else {
-            return Err(());
+            return Err("Error during world-to-joint".to_string());
         };
 
         // TODO compute trajectory that avoids obstacles and optimizes path
-        // TODO handle errors while motors are moving and stop everything if errors happen
         mutate_state!(&self.state, target = world, target_joint = joint.clone());
-        self.master_x.move_to(joint.x).await?;
-        self.master_y.move_to(joint.y).await?;
-        self.master_z.move_to(joint.z).await?;
-        Ok(())
+        // TODO check if can use try_join!
+        let handle = try_join3(
+            self.master_x.move_to(joint.x),
+            self.master_y.move_to(joint.y),
+            self.master_z.move_to(joint.z),
+        );
+
+        match handle.await {
+            Ok(result) => { // all move_to calls are successful
+                return Ok(());
+            }
+
+            Err(result) => { // at least one move_to call had an error
+                let _ = join3(
+                    self.master_x.emergency_stop(),
+                    self.master_y.emergency_stop(),
+                    self.master_z.emergency_stop(),
+                ).await;
+                return Err(
+                    String::from_utf8(result.to_vec())
+                    .unwrap_or("Error during string conversion".to_string())
+                );
+            }
+        };
     }
 
     pub async fn try_update_state(&self) -> State {

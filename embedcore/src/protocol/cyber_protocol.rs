@@ -8,6 +8,8 @@ pub enum Message {
     /// asking for information about the slave.
     /// EVERY DEVICE SHOULD RESPOND TO THAT
     WhoAreYou,
+    /// emergency stop
+    EmergencyStop,
     /// variant to move motor
     MoveMotor { x: f32 },
     /// reset this motor
@@ -88,6 +90,9 @@ pub enum Response {
 
     /// All ok
     Done,
+
+    /// Err
+    Error ([u8; 10]),
 }
 
 #[derive(Serialize, Deserialize, Debug)]

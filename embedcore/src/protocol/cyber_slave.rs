@@ -40,6 +40,9 @@ impl<Serial: AsyncSerial, MA: MessagesHandler> Slave<Serial, MA> {
                             )
                             .await;
                     }
+                    Message::EmergencyStop => {
+                        todo!();
+                    }
                     Message::MoveMotor { x } => {
                         if let Some(resp) = self.message_handler.move_motor(x).await {
                             self.com.send(resp, id).await;
