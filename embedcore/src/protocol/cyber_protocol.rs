@@ -1,3 +1,5 @@
+use core::fmt::Debug;
+
 use serde::{Deserialize, Serialize};
 
 #[repr(u8)]
@@ -90,10 +92,22 @@ pub enum Response {
     Done,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct DeviceIdentifier {
     pub name: [u8; 10],
     pub version: u8,
+}
+
+impl Debug for DeviceIdentifier {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut f = f.debug_struct("DeviceIdentifier");
+        match str::from_utf8(&self.name) {
+            Ok(v) => f.field("name", &v),
+            Err(_) => f.field("name", &self.name),
+        };
+        f.field("version", &self.version);
+        f.finish()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
