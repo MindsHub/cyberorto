@@ -70,7 +70,9 @@ impl<Serial: AsyncSerial> Master<Serial> {
         let mut lock = Some(self.inner.lock().await);
         blocking_send!(self, lock, m =>
             Response::Wait { ms } => {
-                wait!(self, lock, ms);
+                return Ok(());
+                // TODO wait does not work
+                //wait!(self, lock, ms);
             },
             Response::Done => {
                 return Ok(());
