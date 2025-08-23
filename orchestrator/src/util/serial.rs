@@ -51,9 +51,9 @@ impl SerialPorts {
 
     pub async fn to_masters(&self) -> (Masters, Vec<JoinHandle<Never>>) {
         match self {
-            SerialPorts::Simulated => MastersOpt::default().into_masters_or_simulated(),
+            SerialPorts::Simulated => MastersOpt::default().into_masters_or_simulated(false),
             SerialPorts::Autodiscover => (Self::to_masters_autodiscover().await.into_masters(), vec![]),
-            SerialPorts::AutodiscoverOrSimulate => Self::to_masters_autodiscover().await.into_masters_or_simulated(),
+            SerialPorts::AutodiscoverOrSimulate => Self::to_masters_autodiscover().await.into_masters_or_simulated(true),
             SerialPorts::Ports(ports) => (Self::to_masters_ports(ports, true).await.into_masters(), vec![]),
         }
     }
@@ -97,7 +97,7 @@ impl SerialPorts {
             master: &Arc<Master<SerialStream>>,
             id: &DeviceIdentifier,
         ) {
-            if id.name.contains(&(capability as u8)) {
+            if id.name.contains(&(capability as u8)) || (capability == 'z' && id.name == *b"ciao      ") {
                 if var.is_some() {
                     eprintln!("Error: Two serial devices say they can handle capability \"{capability}\", the last of which was {port}, whose identifier is {id:?}");
                     exit(1);
@@ -109,7 +109,7 @@ impl SerialPorts {
         for port in ports {
             debug!("Opening serial port {port}...");
             let serial_port = tokio_serial::new(port, 115200)
-                .timeout(Duration::from_millis(3))
+                .timeout(TIMEOUT)
                 .parity(tokio_serial::Parity::None)
                 .stop_bits(tokio_serial::StopBits::One)
                 .flow_control(tokio_serial::FlowControl::None)
@@ -186,7 +186,7 @@ impl MastersOpt {
         }
     }
 
-    fn into_masters_or_simulated(self) -> (Masters, Vec<JoinHandle<Never>>) {
+    fn into_masters_or_simulated(self, require_at_least_one_real: bool) -> (Masters, Vec<JoinHandle<Never>>) {
         let mut masters = vec![];
         let mut motors = vec![];
         let mut join_handles = vec![];
@@ -216,6 +216,12 @@ impl MastersOpt {
                 motors.push(motor);
             }
         }
+
+        if require_at_least_one_real && join_handles.len() >= 4 {
+            eprintln!("No real device connected found");
+            exit(1);
+        }
+
         assert_eq!(4, masters.len());
         //assert_eq!(3, motors.len()); -> only true if all things in self are None
 
