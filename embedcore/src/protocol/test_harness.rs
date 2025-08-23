@@ -143,7 +143,6 @@ pub fn new_testable_slave<Serial: AsyncSerial>(
 ) -> Slave<Serial, Arc<std::sync::Mutex<MessageRecorderSlave>>> {
     Slave::new(
         serial,
-        3,
         name,
         Arc::new(std::sync::Mutex::new(MessageRecorderSlave::default())),
     )

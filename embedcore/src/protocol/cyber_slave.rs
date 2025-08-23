@@ -17,9 +17,9 @@ pub struct Slave<Serial: AsyncSerial, MA: MessagesHandler> {
 
 impl<Serial: AsyncSerial, MA: MessagesHandler> Slave<Serial, MA> {
     /// init this struct, you should provide what serial you will use, and some other configs
-    pub fn new(serial: Serial, timeout_us: u64, name: [u8; 10], message_handler: MA) -> Self {
+    pub fn new(serial: Serial, name: [u8; 10], message_handler: MA) -> Self {
         Self {
-            com: Comunication::new(serial, timeout_us),
+            com: Comunication::new(serial),
             name,
             message_handler,
         }

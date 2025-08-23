@@ -9,8 +9,8 @@ use super::{
 
 async fn init_test(timeout_us: u64) -> (TestMaster<Testable>, Slave<Testable, Dummy>) {
     let (master, slave) = Testable::new(0.0, 0.0);
-    let master: TestMaster<Testable> = Master::new(master, timeout_us, 10);
-    let slave: Slave<Testable, _> = Slave::new(slave, 10, b"ciao      ".clone(), Dummy::default());
+    let master: TestMaster<Testable> = Master::new(master, Duration::from_micros(timeout_us), 10);
+    let slave: Slave<Testable, _> = Slave::new(slave, *b"ciao      ", Dummy::default());
 
     (master, slave)
 }
@@ -60,9 +60,9 @@ async fn test_blocking() {
 #[tokio::test]
 async fn test_timeout() {
     let (master, slave) = Testable::new(0.0, 1.0);
-    let master: TestMaster<Testable> = Master::new(master, 10, 10);
+    let master: TestMaster<Testable> = Master::new(master, Duration::from_micros(10), 10);
     let mut slave: Slave<Testable, _> =
-        Slave::new(slave, 10, b"ciao      ".clone(), Dummy::default());
+        Slave::new(slave, *b"ciao      ", Dummy::default());
     tokio::time::sleep(Duration::from_millis(10)).await;
     let _ = tokio::spawn(async move { slave.run().await });
     let ret = master.who_are_you().await;

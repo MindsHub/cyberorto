@@ -1,12 +1,16 @@
 use std::{path::Path, process::exit, sync::Arc, time::Duration};
 
 use embedcore::{common::controllers::pid::CalibrationMode, protocol::cyber::{DeviceIdentifier, Master, Slave}};
-use rocket::futures::{never::Never, executor::block_on};
+use log::debug;
+use rocket::futures::never::Never;
 use tokio::task::JoinHandle;
 use tokio_serial::{SerialPortBuilderExt, SerialPortType, SerialStream};
 
 use crate::state::dummy_message_handler::DummyMessageHandler;
 
+
+const TIMEOUT: Duration = Duration::from_millis(100);
+const RESEND_TIMES: u8 = 20;
 
 
 #[derive(Debug, Clone)]
@@ -45,16 +49,16 @@ impl SerialPorts {
         }
     }
 
-    pub fn to_masters(&self) -> (Masters, Vec<JoinHandle<Never>>) {
+    pub async fn to_masters(&self) -> (Masters, Vec<JoinHandle<Never>>) {
         match self {
             SerialPorts::Simulated => MastersOpt::default().into_masters_or_simulated(),
-            SerialPorts::Autodiscover => (Self::to_masters_autodiscover().into_masters(), vec![]),
-            SerialPorts::AutodiscoverOrSimulate => Self::to_masters_autodiscover().into_masters_or_simulated(),
-            SerialPorts::Ports(ports) => (Self::to_masters_ports(ports, true).into_masters(), vec![]),
+            SerialPorts::Autodiscover => (Self::to_masters_autodiscover().await.into_masters(), vec![]),
+            SerialPorts::AutodiscoverOrSimulate => Self::to_masters_autodiscover().await.into_masters_or_simulated(),
+            SerialPorts::Ports(ports) => (Self::to_masters_ports(ports, true).await.into_masters(), vec![]),
         }
     }
 
-    fn to_masters_autodiscover() -> MastersOpt {
+    async fn to_masters_autodiscover() -> MastersOpt {
         let available_ports = match tokio_serial::available_ports() {
             Ok(available_ports) => available_ports,
             Err(e) => {
@@ -77,10 +81,10 @@ impl SerialPorts {
             exit(1);
         }
 
-        Self::to_masters_ports(&available_ports, false)
+        Self::to_masters_ports(&available_ports, false).await
     }
 
-    fn to_masters_ports(ports: &[String], must_all_be_openable: bool) -> MastersOpt {
+    async fn to_masters_ports(ports: &[String], must_all_be_openable: bool) -> MastersOpt {
         let mut x = None;
         let mut y = None;
         let mut z = None;
@@ -103,6 +107,7 @@ impl SerialPorts {
         }
 
         for port in ports {
+            debug!("Opening serial port {port}...");
             let serial_port = tokio_serial::new(port, 115200)
                 .timeout(Duration::from_millis(3))
                 .parity(tokio_serial::Parity::None)
@@ -123,8 +128,20 @@ impl SerialPorts {
                 }
             };
 
-            let master = Master::new(serial_port, 100000, 20);
-            let id = match block_on(master.who_are_you()) {
+            // let f = tokio::spawn(async move {
+            //     for _ in 0..2000 {
+            //         let a = tokio::io::AsyncWriteExt::write(&mut serial_port, &[1u8]).await;
+            //         println!("res {a:?} {:?}", std::time::Instant::now());
+            //         tokio::time::sleep(Duration::from_millis(1)).await;
+            //     }
+            //     println!("here {:?}", std::thread::current());
+            //     5
+            // });
+            // println!("block on {:?}", block_on(f).unwrap());
+
+            debug!("Opened serial port {port}, sending who_are_you()");
+            let master = Master::new(serial_port, TIMEOUT, RESEND_TIMES);
+            let id = match master.who_are_you().await {
                 Ok(id) => id,
                 Err(e) => {
                     if must_all_be_openable {
@@ -187,18 +204,20 @@ impl MastersOpt {
 
             let (master, slave) = SerialStream::pair()
                 .expect("Failed to create dummy serial");
-            masters.push(Arc::new(Master::new(master, 100000, 20)));
+            masters.push(Arc::new(Master::new(master, TIMEOUT, RESEND_TIMES)));
 
             let (dummy_message_handler, motor) = DummyMessageHandler::new();
-            let mut slave = Slave::new(slave, 1000, *name, dummy_message_handler);
+            let mut slave = Slave::new(slave, *name, dummy_message_handler);
+            // TODO if the simulated serial hangs, the slave will not recover
+            // (should not happen though).
             join_handles.push(tokio::task::spawn(async move { slave.run().await }));
             if name != b"p         " {
-                // the last
+                // the last device is not a motor but a peripheral
                 motors.push(motor);
             }
         }
         assert_eq!(4, masters.len());
-        //assert_eq!(3, motors.len());
+        //assert_eq!(3, motors.len()); -> only true if all things in self are None
 
         // update all motors in a single task for simplicity
         join_handles.push(tokio::task::spawn(async move {

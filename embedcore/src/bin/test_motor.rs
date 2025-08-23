@@ -13,7 +13,7 @@ async fn main() {
         .flow_control(tokio_serial::FlowControl::None)
         .open_native_async()
         .expect("Failed to open port");
-    let master: Master<SerialStream> = Master::new(port, 40000, 1);
+    let master: Master<SerialStream> = Master::new(port, Duration::from_millis(40), 1);
     let mut state = true;
     sleep(Duration::from_millis(3000)).await;
     println!("Starting");

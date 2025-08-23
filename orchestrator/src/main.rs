@@ -48,7 +48,7 @@ async fn main() {
 
     // TODO use 4 different serial ports: x, y, z, sensors
 
-    let (masters, simulation_join_handles) = args.ports.to_masters();
+    let (masters, simulation_join_handles) = args.ports.to_masters().await;
 
     let state_handler = StateHandler::new(masters);
     let queue_handler = QueueHandler::new(state_handler.clone(), args.queue_dir);

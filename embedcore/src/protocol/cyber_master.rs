@@ -1,7 +1,8 @@
-use core::marker::PhantomData;
+use core::{marker::PhantomData, time::Duration};
 
 use crate::{blocking_send, protocol::cyber::{DeviceIdentifier, ResponseState}, wait};
 use core::fmt::Debug;
+use defmt_or_log::trace;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
 use serde::Deserialize;
 
@@ -23,6 +24,7 @@ impl<Serial: AsyncSerial> InnerMaster<Serial> {
     /// increments id by one, and then sends a message
     async fn send(&mut self, m: Message) -> bool {
         self.id = self.id.wrapping_add(1);
+        trace!("InnerMaster: sending message {m:?} with id {}", self.id);
         self.com.send(m, self.id).await
     }
 
@@ -39,18 +41,21 @@ pub struct Master<Serial: AsyncSerial> {
     inner: Mutex<CriticalSectionRawMutex, InnerMaster<Serial>>,
     /// how many times should a message be resent? Bigger numbers means better comunication but possibly slower.
     resend_times: u8,
+    /// how much time should we wait for a message, before trying to resend it?
+    timeout: Duration,
 }
 
 impl<Serial: AsyncSerial> Master<Serial> {
     /// init a new Mutex
-    pub fn new(serial: Serial, timeout_us: u64, resend_times: u8) -> Self {
+    pub fn new(serial: Serial, timeout: Duration, resend_times: u8) -> Self {
         Self {
             ph: PhantomData,
             inner: Mutex::new(InnerMaster {
-                com: Comunication::new(serial, timeout_us),
+                com: Comunication::new(serial),
                 id: 0,
             }),
             resend_times,
+            timeout,
         }
     }
 
@@ -62,7 +67,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
     pub async fn move_to(&self, pos: f32) -> Result<(), ()> {
         let m = Message::MoveMotor { x: pos };
         let mut lock = Some(self.inner.lock().await);
-        blocking_send!(self, lock, m:
+        blocking_send!(self, lock, m =>
             Response::Wait { ms } => {
                 wait!(self, lock, ms);
             },
@@ -70,15 +75,14 @@ impl<Serial: AsyncSerial> Master<Serial> {
                 return Ok(());
             },
             _ => {}
-        );
-        Err(())
+        )
     }
 
     /// See [Message::Water]
     pub async fn water(&self, cooldown_ms: u64) -> Result<(), ()> {
         let m = Message::Water { cooldown_ms };
         let mut lock = Some(self.inner.lock().await);
-        blocking_send!(self, lock, m:
+        blocking_send!(self, lock, m =>
             Response::Wait { ms } => {
                 wait!(self, lock, ms);
             },
@@ -86,8 +90,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
                 return Ok(())
             },
             _ => {}
-        );
-        Err(())
+        )
     }
 
     /// See [Message::Lights]
@@ -104,7 +107,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
     pub async fn plow(&self, cooldown_ms: u64) -> Result<(), ()> {
         let m = Message::Plow { cooldown_ms };
         let mut lock = Some(self.inner.lock().await);
-        blocking_send!(self, lock, m:
+        blocking_send!(self, lock, m =>
             Response::Wait { ms } => {
                 wait!(self, lock, ms);
             },
@@ -112,53 +115,40 @@ impl<Serial: AsyncSerial> Master<Serial> {
                 return Ok(())
             },
             _ => {}
-        );
-        Err(())
+        )
     }
 
     pub async fn set_led(&self, led: bool) -> Result<(), ()> {
         let m = Message::SetLed { led };
         let mut lock = Some(self.inner.lock().await);
-        blocking_send!(self, lock, m:
+        blocking_send!(self, lock, m =>
             Response::Done => {
                 return Ok(());
             },
             _ => {}
-        );
-        Err(())
+        )
     }
 
     pub async fn who_are_you(&self) -> Result<DeviceIdentifier, ()> {
-        let mut lock = self.inner.lock().await;
-
-        for _ in 0..self.resend_times {
-            if !lock.send(Message::WhoAreYou).await {
-                continue;
-            }
-            let id = lock.id;
-
-            while let Some((id_read, msg)) = lock.try_read::<Response>().await {
-                if id_read != id {
-                    continue;
-                }
-                if let Response::Iam(device_identifier) = msg {
-                    return Ok(device_identifier);
-                }
-            }
-        }
-        Err(())
+        debug!("who_are_you(): called");
+        let mut lock = Some(self.inner.lock().await);
+        blocking_send!(self, lock, Message::WhoAreYou =>
+            Response::Iam(device_identifier) => {
+                return Ok(device_identifier);
+            },
+            _ => {}
+        )
     }
 
     pub async fn get_state(&self) -> Result<ResponseState, ()> {
         let m = Message::State;
         let mut lock = Some(self.inner.lock().await);
-        blocking_send!(self, lock, m:
+        blocking_send!(self, lock, m =>
             Response::State(state) => {
                 return Ok(state);
             },
             _ => {}
-        );
-        Err(())
+        )
     }
 }
 

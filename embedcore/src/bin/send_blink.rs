@@ -15,7 +15,7 @@ async fn main() {
         .open_native_async()
         .expect("Failed to open port");
     println!("Port opened");
-    let master: Master<SerialStream> = Master::new(port, 4000, 1);
+    let master: Master<SerialStream> = Master::new(port, Duration::from_millis(4), 1);
     let mut state = true;
     sleep(Duration::from_millis(3000)).await;
     println!("wuts");

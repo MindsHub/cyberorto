@@ -2,7 +2,7 @@
 Std only implementations
 */
 extern crate std;
-use defmt_or_log::info;
+use defmt_or_log::{info, trace};
 use embassy_time::Instant;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use tokio_serial::SerialStream;
@@ -12,16 +12,19 @@ use crate::{DiscreteDriver, EncoderTrait, common::motor::Motor, protocol::AsyncS
 /// implement AsyncSerial for SerialStream
 impl AsyncSerial for SerialStream {
     async fn read(&mut self) -> u8 {
+        // TODO handle errors
         let mut buf = [0u8];
-        while let Err(e) = tokio::io::AsyncReadExt::read(self, &mut buf).await {
-            info!("Error {:?}", e);
+        match tokio::io::AsyncReadExt::read(self, &mut buf).await {
+            Ok(_) => buf[0],
+            Err(_) => 0,
         }
-        buf[0]
     }
 
     async fn write(&mut self, buf: u8) {
-        while tokio::io::AsyncWriteExt::write(self, &[buf]).await.is_err() {}
-        //let _ = tokio::io::AsyncWriteExt::flush(self).await; // ignore the result
+        // TODO handle errors
+        trace!("Write {buf}");
+        let _ = tokio::io::AsyncWriteExt::write(self, &[buf]).await;
+        trace!("Written {buf}");
     }
 }
 
