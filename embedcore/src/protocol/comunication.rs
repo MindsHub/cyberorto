@@ -1,5 +1,5 @@
 
-use defmt_or_log::{debug, error, trace};
+use defmt_or_log::{error, trace};
 use serde::{Deserialize, Serialize};
 use serialmessage::{ParseState, SerMsg};
 
@@ -33,6 +33,7 @@ impl<Serial: AsyncSerial> Comunication<Serial> {
     }
     /// try read a single byte. If waits more than timeout_us microseconds, then it returns None.
     pub async fn try_read_byte(&mut self) -> Option<u8> {
+        trace!("try_read_byte() called");
         Some(self.serial.read().await)
         // TODO maybe use select? Shouldn't be needed though
         /*match select(
@@ -71,7 +72,9 @@ impl<Serial: AsyncSerial> Comunication<Serial> {
     ///
     /// On failure None
     pub async fn try_read<Out: for<'a> Deserialize<'a>>(&mut self) -> Result<(u8, Out), CommunicationError> {
+        trace!("try_read() called");
         while let Some(b) = self.try_read_byte().await {
+            trace!("try_read() got {b}");
             let (state, _) = self.input_buf.parse_read_bytes(&[b]);
             if let ParseState::DataReady = state {
                 let data = self.input_buf.return_read_data();

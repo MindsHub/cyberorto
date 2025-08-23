@@ -2,7 +2,7 @@ use core::{marker::PhantomData, time::Duration};
 
 use crate::{blocking_send, protocol::cyber::{DeviceIdentifier, ResponseState}, wait};
 use core::fmt::Debug;
-use defmt_or_log::trace;
+use defmt_or_log::{debug, trace};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
 use serde::Deserialize;
 
@@ -65,6 +65,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
 
     /// See [Message::MoveMotor]
     pub async fn move_to(&self, pos: f32) -> Result<(), ()> {
+        debug!("Move to called with pos = {pos}");
         let m = Message::MoveMotor { x: pos };
         let mut lock = Some(self.inner.lock().await);
         blocking_send!(self, lock, m =>
@@ -141,6 +142,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
     }
 
     pub async fn get_state(&self) -> Result<ResponseState, ()> {
+        debug!("get_state(): called");
         let m = Message::State;
         let mut lock = Some(self.inner.lock().await);
         blocking_send!(self, lock, m =>

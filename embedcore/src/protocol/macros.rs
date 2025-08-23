@@ -5,11 +5,12 @@ macro_rules! blocking_send {
         let mut result: Result<Result<_, ()>, _> = Ok(Err(()));
         for _ in 0..$self.resend_times {
             result = tokio::time::timeout(
-                $self.timeout.clone(),
+                $self.timeout,
                 async {
                     if !$lock.as_mut().unwrap().send($m.clone()).await {
                         return Err(());
                     }
+                    defmt_or_log::debug!("blocking_send!: sent");
 
                     while let Some((id_read, msg)) = $lock.as_mut().unwrap().try_read::<Response>().await {
                         if id_read != $lock.as_mut().unwrap().id {
@@ -29,11 +30,13 @@ macro_rules! blocking_send {
 
             if let Ok(r) = result {
                 if r.is_ok() {
+                    defmt_or_log::debug!("blocking_send!: success");
                     return r;
                 } else {
                     result = Ok(r);
                 }
             }
+            defmt_or_log::debug!("blocking_send!: timeout");
         }
 
         match result {
