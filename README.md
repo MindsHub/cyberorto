@@ -54,3 +54,8 @@ Per svuotare la coda di azioni (lasciando però che l'azione corrente finisca il
 ```sh
 curl http://127.0.0.1:8000/queue/clear --request POST
 ```
+
+## Se i motori funzionano solo quando il debugger è attaccato
+
+Disattivare la feature "defmt" quando si compilano i motori, altrimenti quando i motori provano a inviare qualcosa al debugger (tipo `info!()`) si blocca tutto.
+
