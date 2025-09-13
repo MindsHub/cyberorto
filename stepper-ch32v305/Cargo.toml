@@ -73,7 +73,8 @@ defmt=[
     "embassy-time/defmt"
 ]
 log=[]
-default=["encoder_exti2", "driver_pwm", "defmt"]
+#ALSO, IT FUCKING LOOKS LIKE THE CLOCK GET'S AFFECTED BY THE DEBUGGER... WTF
+default=["encoder_exti2", "driver_pwm"]#"defmt"
 encoder_exti=[]
 encoder_exti2=[]
 encoder_pool=[]

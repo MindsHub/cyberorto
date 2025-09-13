@@ -6,7 +6,7 @@ use tokio::time::{Instant, sleep};
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
 #[tokio::main]
 async fn main() {
-    let port = tokio_serial::new("/dev/ttyACM0", 115200)
+    let port = tokio_serial::new("/dev/ttyUSB0", 115200)
         .timeout(Duration::from_millis(3))
         .parity(tokio_serial::Parity::None)
         .stop_bits(tokio_serial::StopBits::One)

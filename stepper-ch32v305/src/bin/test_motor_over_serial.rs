@@ -242,7 +242,7 @@ async fn main(spawner: Spawner) -> ! {
     // IMPORTANT COMMENT: the multiplier here was obtained by reading the signals with an
     // oscilloscope. Apparently the frequency of SYSCLK_FREQ_144MHZ_HSI (used in init())
     // is not correctly handled in the Uart constructor, or something like that.
-    serial_config.baudrate = (115200.0 * 1.205882352941176) as u32;
+    //serial_config.baudrate = (115200.0 * 1.205882352941176) as u32;
     let serial = Uart::new(
         p.USART1,
         p.PA8,
@@ -257,7 +257,7 @@ async fn main(spawner: Spawner) -> ! {
     /*let (mut tx, mut rx) = serial.split();
     loop {
         let mut buf = [0u8];
-        rx.read(&mut buf).await.unwrap();
+        //rx.read(&mut buf).await.unwrap();
         tx.write(&buf).await.unwrap();
         tx.write(&buf).await.unwrap();
         tx.write(&buf).await.unwrap();
@@ -276,7 +276,7 @@ async fn main(spawner: Spawner) -> ! {
     // spawn message handler thread
     let serial_wrapper = SerialWrapper::new(serial, None);
     let s: Slave<SerialWrapper<'static, USART1>, _> =
-        Slave::new(serial_wrapper, *b"ciao      ", mh);
+        Slave::new(serial_wrapper, *b"z         ", mh);
     spawner.must_spawn(message_handler(s, None));
 
     //spawner.must_spawn(update_motor(pid));
@@ -306,7 +306,7 @@ async fn main(spawner: Spawner) -> ! {
     //let _ = pid.calibration(2000, CalibrationMode::NoOvershoot).await;
     //pid.set_p(0.02, 2.0);
     pid.pid.p(0.005, 2.0);
-    pid.pid.i(0.0005, 1.0);
+    pid.pid.i(0.0005,1.0);
     pid.pid.d(-0.0005, 0.5);
     //0.046299618, i=0.000670455, d=0.00044697
     //info!("Motor initialized");
