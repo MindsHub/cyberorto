@@ -62,7 +62,7 @@ impl SerialPorts {
         let available_ports = match tokio_serial::available_ports() {
             Ok(available_ports) => available_ports,
             Err(e) => {
-                eprintln!("Error: Could not obtain list of available serial ports: {e}");
+                eprintln!("\x1b[31mError: Could not obtain list of available serial ports: {e}\x1b[0m");
                 exit(1);
             }
         };
@@ -79,7 +79,7 @@ impl SerialPorts {
         }
 
         if available_ports.is_empty() {
-            eprintln!("Error: No serial ports discovered");
+            eprintln!("\x1b[31mError: No serial ports discovered\x1b[0m");
             exit(1);
         }
 
