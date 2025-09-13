@@ -169,7 +169,7 @@ async fn receive_i_am_raw(serial_port: &mut tokio_serial::SerialStream) {
 
 async fn move_motor_with_master(master: &Master<SerialStream>) {
     println!("Sending move motor command using a Master");
-    match master.move_to(100.0).await {
+    match master.move_to(10000.0).await {
         Ok(_) => println!("\x1b[32mSent move motor command successfully\x1b[0m"),
         Err(e) => println!("\x1b[31mCould not send move motor command: {e:?}\x1b[0m"),
     }
