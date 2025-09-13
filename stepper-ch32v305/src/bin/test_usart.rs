@@ -205,7 +205,7 @@ async fn main(spawner: Spawner) -> ! {
 
     // spawn message handler thread
     let serial_wrapper = SerialWrapper::new(serial, None);
-    let s: Slave<SerialWrapper<'static, USART1>, _> = Slave::new(serial_wrapper, 10000, *b"z         ", mh);
+    let s: Slave<SerialWrapper<'static, USART1>, _> = Slave::new(serial_wrapper, *b"z         ", mh);
     spawner.must_spawn(message_handler(s, None));
 
     //spawner.must_spawn(update_motor(pid));

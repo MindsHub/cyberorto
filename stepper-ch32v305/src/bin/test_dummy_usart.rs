@@ -95,7 +95,7 @@ async fn main(spawner: Spawner) -> ! {
     // GND, VCC, TX, RX (USART4, remap=5)
     // GND, VCC, RX, TX (USART4, remap=2)
 
-    let mut uart_config = hal::usart::Config::default();
+    let uart_config = hal::usart::Config::default();
     //uart_config.baudrate = 9600;
     /*T::enable_and_reset();
 
