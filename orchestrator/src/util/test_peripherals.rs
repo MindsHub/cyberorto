@@ -102,7 +102,7 @@ async fn receive_i_am_raw(serial_port: &mut tokio_serial::SerialStream) {
                 let b = match tokio::io::AsyncReadExt::read(serial_port, &mut buf).await {
                     Ok(1) => buf[0],
                     Ok(v) => {
-                        eprintln!("\x1b[31mserial_port.read() should have read 1 byte, instead wrote {v}\x1b[0m");
+                        eprintln!("\x1b[31mserial_port.read() should have read 1 byte, instead read {v}\x1b[0m");
                         break;
                     }
                     Err(e) => {
@@ -110,7 +110,7 @@ async fn receive_i_am_raw(serial_port: &mut tokio_serial::SerialStream) {
                         break;
                     }
                 };
-                println!("{b} ");
+                print!("{b} ");
 
                 let (state, _) = input_buf.parse_read_bytes(&[b]);
                 if let ParseState::DataReady = state {
