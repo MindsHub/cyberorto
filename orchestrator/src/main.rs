@@ -49,7 +49,6 @@ struct Args {
 #[rocket::main]
 async fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
-    log::info!("Cyberorto orchestrator starting...");
     let args = Args::parse();
 
     if args.test_peripherals {
@@ -57,6 +56,7 @@ async fn main() {
         return;
     }
 
+    log::info!("Cyberorto orchestrator starting...");
     let (masters, simulation_join_handles) = args.ports.to_masters().await;
 
     let state_handler = StateHandler::new(masters);

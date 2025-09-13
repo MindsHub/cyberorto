@@ -17,6 +17,8 @@ rocket = { version = "0.5.1", features = ["json"] }
 definitions = { path = "../definitions" }
 env_logger = "0.11"
 log = "0.4"
+serialmessage = {version="0.2.0", default-features = false}
+postcard = {version="1.0.0", default-features = false}
 [dev-dependencies]
 tempdir = "0.3.7"
 futures = "0.3.30"
