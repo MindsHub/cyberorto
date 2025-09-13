@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 #[repr(u8)]
 #[non_exhaustive]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 /// In our comunication protocol we send this structure from master-> slave
 pub enum Message {
     /// asking for information about the slave.

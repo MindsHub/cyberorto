@@ -1,4 +1,4 @@
-use core::{marker::PhantomData, time::Duration};
+use core::marker::PhantomData;
 
 use crate::{blocking_send, protocol::cyber::{DeviceIdentifier, ResponseState}, wait};
 use core::fmt::Debug;
@@ -24,7 +24,7 @@ impl<Serial: AsyncSerial> InnerMaster<Serial> {
     /// increments id by one, and then sends a message
     async fn send(&mut self, m: Message) -> bool {
         self.id = self.id.wrapping_add(1);
-        trace!("InnerMaster: sending message {m:?} with id {}", self.id);
+        trace!("InnerMaster: sending message {:?} with id {}", m, self.id);
         self.com.send(m, self.id).await
     }
 
@@ -42,12 +42,18 @@ pub struct Master<Serial: AsyncSerial> {
     /// how many times should a message be resent? Bigger numbers means better comunication but possibly slower.
     resend_times: u8,
     /// how much time should we wait for a message, before trying to resend it?
-    timeout: Duration,
+    #[cfg(feature = "std")]
+    timeout: core::time::Duration,
 }
 
 impl<Serial: AsyncSerial> Master<Serial> {
     /// init a new Mutex
-    pub fn new(serial: Serial, timeout: Duration, resend_times: u8) -> Self {
+    pub fn new(
+        serial: Serial,
+        #[cfg(feature = "std")]
+        timeout: core::time::Duration,
+        resend_times: u8
+    ) -> Self {
         Self {
             ph: PhantomData,
             inner: Mutex::new(InnerMaster {
@@ -55,6 +61,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
                 id: 0,
             }),
             resend_times,
+        #[cfg(feature = "std")]
             timeout,
         }
     }
@@ -65,11 +72,11 @@ impl<Serial: AsyncSerial> Master<Serial> {
 
     /// See [Message::MoveMotor]
     pub async fn move_to(&self, pos: f32) -> Result<(), ()> {
-        debug!("Move to called with pos = {pos}");
+        debug!("Move to called with pos = {}", pos);
         let m = Message::MoveMotor { x: pos };
         let mut lock = Some(self.inner.lock().await);
         blocking_send!(self, lock, m =>
-            Response::Wait { ms } => {
+            Response::Wait { ms: _ms } => {
                 return Ok(());
                 // TODO wait does not work
                 //wait!(self, lock, ms);

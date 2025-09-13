@@ -52,7 +52,7 @@ impl<Serial: AsyncSerial> Comunication<Serial> {
     ///
     /// If waits more than timeout_us microseconds, then it returns false.
     async fn try_send_byte(&mut self, to_send: u8) -> bool {
-        trace!("try_send_byte() {to_send}");
+        trace!("try_send_byte() {}", to_send);
         self.serial.write(to_send).await;
         true
         // TODO maybe use select? Shouldn't be needed though
@@ -74,7 +74,7 @@ impl<Serial: AsyncSerial> Comunication<Serial> {
     pub async fn try_read<Out: for<'a> Deserialize<'a>>(&mut self) -> Result<(u8, Out), CommunicationError> {
         trace!("try_read() called");
         while let Some(b) = self.try_read_byte().await {
-            trace!("try_read() got {b}");
+            trace!("try_read() got {}", b);
             let (state, _) = self.input_buf.parse_read_bytes(&[b]);
             if let ParseState::DataReady = state {
                 let data = self.input_buf.return_read_data();
