@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use embedcore::protocol::cyber::{Message, Response};
+use embedcore::protocol::cyber::{DeviceIdentifier, Message, Response};
 use serialmessage::{ParseState, SerMsg};
 use tokio_serial::SerialPortBuilderExt;
 
@@ -90,7 +90,13 @@ async fn send_who_are_you_raw(serial_port: &mut tokio_serial::SerialStream) {
 }
 
 async fn receive_i_am_raw(serial_port: &mut tokio_serial::SerialStream) {
-    println!("Receiving response to {:?} (should be Iam(...))", Message::WhoAreYou);
+    let sampleIamMessage = {
+        let mut buf: [u8; 50] = [0; 50];
+        let msg = postcard::to_slice(&Response::Iam(DeviceIdentifier { name: *b"x         ", version: 1 }), &mut buf).unwrap();
+        let (buf, len) = SerMsg::create_msg_arr(msg, ID).unwrap();
+        buf[..len].to_vec()
+    };
+    println!("Receiving response to {:?} (should be Iam(...), e.g. {sampleIamMessage:?})", Message::WhoAreYou);
     let mut input_buf = SerMsg::new();
 
     let res = tokio::time::timeout(
@@ -136,7 +142,7 @@ async fn receive_i_am_raw(serial_port: &mut tokio_serial::SerialStream) {
 
     let id = input_buf.return_msg_id();
     let data = input_buf.return_read_data();
-    println!("Received message with id {id}: {data:?}");
+    println!("\nReceived message with id {id}: {data:?}");
     if id != ID {
         eprintln!("\x1b[31mMismatched IDs: expected {ID}, got {id}\x1b[0m");
     }
@@ -152,7 +158,7 @@ async fn receive_i_am_raw(serial_port: &mut tokio_serial::SerialStream) {
     println!("Received response: {response:?}");
 
     if let Response::Iam(iam) = response {
-        println!("\n\x1b[32mReceived Iam successfully: {iam:?}\x1b[0m");
+        println!("\x1b[32mReceived Iam successfully: {iam:?}\x1b[0m");
     } else {
         eprintln!("\x1b[31mDid not receive Iam as response\x1b[0m");
     }
