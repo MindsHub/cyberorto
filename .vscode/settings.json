@@ -1,6 +1,7 @@
 {
     "rust-analyzer.linkedProjects": [
-        "./Cargo.toml"
+        "./Cargo.toml",
+        "./stepper-ch32v305/Cargo.toml"
     ],
     "rust-analyzer.showUnlinkedFileNotification": true
 }

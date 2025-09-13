@@ -134,10 +134,10 @@ impl<E: EncoderTrait, D: DiscreteDriver> PidController<E, D> {
         let diff = (self.pid.setpoint - pos as f32).abs();
         if diff > 20.0 {
             self.motor.set_current(out).await;
-        } else if diff > 5.0 {
+        } else if diff > 10.0 {
             self.motor.set_phase(
                 (self.pid.setpoint as i32).rem_euclid(D::MICROSTEP as i32 * 4) as u8,
-                out.abs(),
+                1.8,
             );
         } else {
             self.motor.set_phase(0, 0.0);
