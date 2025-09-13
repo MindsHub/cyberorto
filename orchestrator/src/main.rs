@@ -7,7 +7,7 @@ use state::StateHandler;
 use tokio::{signal::unix::{signal, SignalKind}, sync::oneshot};
 use util::cors::Cors;
 
-use crate::util::serial::SerialPorts;
+use crate::util::{serial::SerialPorts, test_peripherals::test_peripherals};
 
 mod action;
 mod api;
@@ -38,6 +38,12 @@ struct Args {
     /// The directory in which to save data about the queue
     #[arg(short, long, default_value_os_t = PathBuf::from(env::var("HOME").unwrap_or(".".to_string()) + "/.cyberorto/queue"))]
     queue_dir: PathBuf,
+
+    /// If this option is passed, the orchestrator will not start, and instead some checks will be
+    /// performed on connected serial port peripherals, to check if they work and print some
+    /// information about them.
+    #[arg(short, long)]
+    test_peripherals: bool,
 }
 
 #[rocket::main]
@@ -46,7 +52,10 @@ async fn main() {
     log::info!("Cyberorto orchestrator starting...");
     let args = Args::parse();
 
-    // TODO use 4 different serial ports: x, y, z, sensors
+    if args.test_peripherals {
+        test_peripherals(args.ports).await;
+        return;
+    }
 
     let (masters, simulation_join_handles) = args.ports.to_masters().await;
 

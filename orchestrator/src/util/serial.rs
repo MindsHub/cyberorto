@@ -58,7 +58,7 @@ impl SerialPorts {
         }
     }
 
-    async fn to_masters_autodiscover() -> MastersOpt {
+    pub fn get_available_ports_or_exit() -> Vec<String> {
         let available_ports = match tokio_serial::available_ports() {
             Ok(available_ports) => available_ports,
             Err(e) => {
@@ -72,6 +72,8 @@ impl SerialPorts {
             .map(|p| p.port_name)
             .collect::<Vec<String>>();
 
+        // special path for the serial port exposed through pins on Raspberry,
+        // which does not get reported by available_ports() for some reason
         if Path::new("/dev/serial0").exists() {
             available_ports.push("/dev/serial0".to_owned());
         }
@@ -81,6 +83,11 @@ impl SerialPorts {
             exit(1);
         }
 
+        available_ports
+    }
+
+    async fn to_masters_autodiscover() -> MastersOpt {
+        let available_ports = Self::get_available_ports_or_exit();
         Self::to_masters_ports(&available_ports, false).await
     }
 
@@ -97,7 +104,7 @@ impl SerialPorts {
             master: &Arc<Master<SerialStream>>,
             id: &DeviceIdentifier,
         ) {
-            if id.name.contains(&(capability as u8)) || (capability == 'z' && id.name == *b"ciao      ") {
+            if id.name.contains(&(capability as u8)) {
                 if var.is_some() {
                     eprintln!("Error: Two serial devices say they can handle capability \"{capability}\", the last of which was {port}, whose identifier is {id:?}");
                     exit(1);
