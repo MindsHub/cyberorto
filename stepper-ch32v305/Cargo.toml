@@ -133,6 +133,21 @@ name = "test_defmt"
 test = false
 bench = false
 
+[[bin]]
+name = "test_dummy_usart"
+test = false
+bench = false
+
+[[bin]]
+name = "test_motor_over_serial"
+test = false
+bench = false
+
+[[bin]]
+name = "test_usart"
+test = false
+bench = false
+
 [lib]
 test = false
 bench = false
