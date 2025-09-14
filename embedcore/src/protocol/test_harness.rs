@@ -10,6 +10,8 @@ use tokio::sync::{
     mpsc::{self, Receiver, Sender},
 };
 
+use crate::protocol::comunication::CommunicationError;
+
 use super::{AsyncSerial, cyber::*};
 pub type TestMaster<Serial> = Master<Serial>;
 
@@ -44,19 +46,20 @@ impl Testable {
 }
 
 impl AsyncSerial for Testable {
-    async fn read(&mut self) -> u8 {
-        self.rx.recv().await.unwrap()
+    async fn read(&mut self) -> Result<u8, CommunicationError> {
+        Ok(self.rx.recv().await.unwrap())
     }
 
-    async fn write(&mut self, buf: u8) {
+    async fn write(&mut self, buf: u8) -> Result<(), CommunicationError> {
         let buf = if self.random.random_bool(self.error_rate) {
             self.random.random()
         } else {
             buf
         };
         if self.random.random_bool(1.0 - self.omission_rate) {
-            let _ = self.tx.send(buf).await;
+            self.tx.send(buf).await.unwrap();
         }
+        Ok(())
     }
 }
 

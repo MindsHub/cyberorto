@@ -5,6 +5,8 @@
 
 use core::future::Future;
 
+use crate::protocol::comunication::CommunicationError;
+
 pub mod comunication;
 mod cyber_master;
 mod cyber_protocol;
@@ -22,7 +24,7 @@ pub mod tests;
 /// Serial abstraction. It's considered infallible
 pub trait AsyncSerial {
     ///tries to read a single byte from Serial
-    fn read(&mut self) -> impl Future<Output = u8>;
+    fn read(&mut self) -> impl Future<Output = Result<u8, CommunicationError>>;
     ///writes a single byte over Serial
-    fn write(&mut self, buf: u8) -> impl Future<Output = ()>;
+    fn write(&mut self, buf: u8) -> impl Future<Output = Result<(), CommunicationError>>;
 }

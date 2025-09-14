@@ -40,7 +40,9 @@ impl<Serial: AsyncSerial, MA: MessagesHandler> Slave<Serial, MA> {
                     Message::Plow { cooldown_ms } => self.message_handler.plow(cooldown_ms).await,
                     Message::SetLed { led } => self.message_handler.set_led(led).await,
                 };
-                self.com.send(resp, id).await;
+                if let Err(e) = self.com.send(resp, id).await {
+                    defmt_or_log::info!("Sending response gave error: {:?}", e);
+                }
             }
         }
     }

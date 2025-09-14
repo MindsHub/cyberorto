@@ -59,3 +59,10 @@ curl http://127.0.0.1:8000/queue/clear --request POST
 
 Disattivare la feature "defmt" quando si compilano i motori, altrimenti quando i motori provano a inviare qualcosa al debugger (tipo `info!()`) si blocca tutto.
 
+## Altre cose utili
+
+Da `./stepper-ch32v305`, eseguire questo per controllare se compilano tutti i bin.
+
+```sh
+for i in ./src/bin/*; do cargo build --release --bin "${$(basename "$i")%.*}"; done
+```

@@ -2,29 +2,42 @@
 Std only implementations
 */
 extern crate std;
-use defmt_or_log::{info, trace};
+use defmt_or_log::info;
 use embassy_time::Instant;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use tokio_serial::SerialStream;
 
-use crate::{DiscreteDriver, EncoderTrait, common::motor::Motor, protocol::AsyncSerial};
+use crate::{common::motor::Motor, protocol::{comunication::CommunicationError, AsyncSerial}, DiscreteDriver, EncoderTrait};
 
 /// implement AsyncSerial for SerialStream
 impl AsyncSerial for SerialStream {
-    async fn read(&mut self) -> u8 {
-        // TODO handle errors
+    async fn read(&mut self) -> Result<u8, CommunicationError> {
         let mut buf = [0u8];
         match tokio::io::AsyncReadExt::read(self, &mut buf).await {
-            Ok(_) => buf[0],
-            Err(_) => 0,
+            Ok(1) => Ok(buf[0]),
+            Ok(v) => Err(CommunicationError::ReadShouldReturnOneByte {
+                actual_byte_count_read: v,
+                buffer_content: buf[0],
+            }),
+            Err(e) => Err(CommunicationError::ReadError {
+                error: e,
+                buffer_content: buf[0],
+            }),
         }
     }
 
-    async fn write(&mut self, buf: u8) {
-        // TODO handle errors
-        trace!("Write {buf}");
-        let _ = tokio::io::AsyncWriteExt::write(self, &[buf]).await;
-        trace!("Written {buf}");
+    async fn write(&mut self, buf: u8) -> Result<(), CommunicationError> {
+        match tokio::io::AsyncWriteExt::write(self, &[buf]).await {
+            Ok(1) => Ok(()),
+            Ok(v) => Err(CommunicationError::WriteShouldReturnOneByte {
+                actual_byte_count_written: v,
+                buffer_content: buf,
+            }),
+            Err(e) => Err(CommunicationError::WriteError {
+                error: e,
+                buffer_content: buf,
+            }),
+        }
     }
 }
 

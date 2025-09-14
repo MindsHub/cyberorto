@@ -2,7 +2,7 @@ use ch32_hal::{
     gpio::Output, mode, usart::{self, Uart, UartRx, UartTx}
 };
 
-use crate::protocol::AsyncSerial;
+use crate::protocol::{comunication::CommunicationError, AsyncSerial};
 
 pub struct SerialWrapper<'a, T: usart::Instance> {
     pub rx: UartRx<'a, T, mode::Async>,
@@ -17,19 +17,21 @@ impl<'a, T: usart::Instance> SerialWrapper<'a, T> {
 }
 
 impl<'a, T: usart::Instance> AsyncSerial for SerialWrapper<'a, T> {
-    async fn read(&mut self) -> u8 {
+    async fn read(&mut self) -> Result<u8, CommunicationError> {
         if let Some(pin) = &mut self.status_pin {
             pin.toggle();
         }
         let mut to_read = [0u8; 1];
-        if let Ok(_) = self.rx.read(&mut to_read).await {
-            to_read[0]
-        } else {
-            0
+        match self.rx.read(&mut to_read).await {
+            Ok(()) => Ok(to_read[0]),
+            Err(e) => Err(CommunicationError::ReadError { error: e, buffer_content: to_read[0] }),
         }
     }
 
-    async fn write(&mut self, buf: u8) {
-        let _ = self.tx.write(&mut [buf]).await;
+    async fn write(&mut self, buf: u8) -> Result<(), CommunicationError> {
+        match self.tx.write(&mut [buf]).await {
+            Ok(()) => Ok(()),
+            Err(e) => Err(CommunicationError::WriteError { error: e, buffer_content: buf }),
+        }
     }
 }

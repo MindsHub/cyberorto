@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::{protocol::cyber::{DeviceIdentifier, MotorState, PeripheralsState}};
+use crate::protocol::{comunication::CommunicationError, cyber::{DeviceIdentifier, MotorState, PeripheralsState}};
 use core::fmt::Debug;
 use defmt_or_log::{debug, trace};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
@@ -20,17 +20,18 @@ pub struct InnerMaster<Serial: AsyncSerial> {
     id: u8,
 }
 
+// TODO handle errors
 impl<Serial: AsyncSerial> InnerMaster<Serial> {
     /// increments id by one, and then sends a message
-    async fn send(&mut self, m: Message) -> bool {
+    async fn send(&mut self, m: Message) -> Result<(), CommunicationError> {
         self.id = self.id.wrapping_add(1);
         trace!("InnerMaster: sending message {:?} with id {}", m, self.id);
         self.com.send(m, self.id).await
     }
 
     ///tries to read a message
-    async fn try_read<Out: for<'a> Deserialize<'a>>(&mut self) -> Option<(u8, Out)> {
-        self.com.try_read().await.ok()
+    async fn try_read<Out: for<'a> Deserialize<'a>>(&mut self) -> Result<(u8, Out), CommunicationError> {
+        self.com.try_read().await
     }
 }
 
@@ -50,20 +51,20 @@ macro_rules! match_response {
     ($msg:expr, $($p:pat => $e:expr,)+) => {{
         let msg = $msg;
         match $msg {
-            $crate::protocol::cyber::Response::Unsupported => {
+            Response::Unsupported => {
                 defmt_or_log::error!("match_response!: received response Unsupported");
-                Err(())
+                Err(CommunicationError::UnsupportedResponse)
             },
-            $crate::protocol::cyber::Response::Error(e) => {
+            Response::Error(e) => {
                 defmt_or_log::error!("match_response!: received response Error({:?})", e);
-                Err(())
+                Err(CommunicationError::ErrorResponse(e))
             }
             $(
                 $p => $e,
             ),*
             _ => {
                 defmt_or_log::error!("match_response!: received unexpected response {:?}", msg);
-                Err(())
+                Err(CommunicationError::MismatchedResponse(msg))
             }
         }
     }};
@@ -90,26 +91,23 @@ impl<Serial: AsyncSerial> Master<Serial> {
     }
 
     #[cfg(feature = "std")]
-    async fn send_message(&self, message: Message) -> Result<Response, ()> {
-        let mut result: Result<Result<_, ()>, _> = Ok(Err(()));
+    async fn send_message(&self, message: Message) -> Result<Response, CommunicationError> {
+        let mut result: Result<Result<_, CommunicationError>, _> = Ok(Err(CommunicationError::Timeout));
         let mut lock = self.inner.lock().await;
         for _ in 0..self.resend_times {
             let future = async {
                 defmt_or_log::debug!("send_message: sending {:?}", message);
-                if !lock.send(message.clone()).await {
-                    return Err(());
-                }
+                lock.send(message.clone()).await?;
                 defmt_or_log::debug!("send_message: sent {:?}", message);
 
-                while let Some((id_read, msg)) = lock.try_read::<Response>().await {
+                loop {
+                    let (id_read, msg) = lock.try_read::<Response>().await?;
                     if id_read != lock.id {
                         continue;
                     }
 
                     return Ok(msg)
                 }
-
-                Err(())
             };
             result = tokio::time::timeout(self.timeout, future).await;
 
@@ -126,42 +124,52 @@ impl<Serial: AsyncSerial> Master<Serial> {
 
         match result {
             Ok(result) => result,
-            Err(_) => Err(()),
+            Err(_) => Err(CommunicationError::Timeout),
         }
     }
 
     // Useless implementation, we don't use Master on embedded (i.e. no-std) anyway.
     #[cfg(not(feature = "std"))]
-    async fn send_message(&self, message: Message) -> Result<Response, ()> {
+    async fn send_message(&self, message: Message) -> Result<Response, CommunicationError> {
         let mut lock = self.inner.lock().await;
+        // will always be overwritten before being returned
+        let mut last_error: CommunicationError = CommunicationError::Timeout;
         for _ in 0..self.resend_times {
             defmt_or_log::debug!("send_message: sending {:?}", message);
-            if !lock.send(message.clone()).await {
+            if let Err(e) = lock.send(message.clone()).await {
+                last_error = e;
                 continue;
-            }
+            };
             defmt_or_log::debug!("send_message: sent {:?}", message);
 
-            // Replace the "while let" used in the implementation above with another for loop,
+            // Replace the infinite loop used in the implementation above with a for loop,
             // since we don't have timeouts here.
             // TODO if we end up having Master on embedded (i.e. no-std), properly implement async
             // timeouts.
             for _ in 0..self.resend_times {
-                if let Some((id_read, msg)) = lock.try_read::<Response>().await {
-                    if id_read != lock.id {
-                        continue;
-                    }
+                match lock.try_read::<Response>().await {
+                    Ok((id_read, msg)) => {
+                        if id_read != lock.id {
+                            continue;
+                        }
 
-                    defmt_or_log::debug!("send_message: received {:?}", msg);
-                    return Ok(msg)
+                        defmt_or_log::debug!("send_message: received {:?}", msg);
+                        return Ok(msg)
+                    }
+                    Err(e) => {
+                        last_error = e;
+                        break;
+                    }
                 }
             }
         }
 
-        Err(())
+        defmt_or_log::debug!("send_message: exiting with error {:?}", last_error);
+        Err(last_error)
     }
 
     /// See [Message::WhoAreYou].
-    pub async fn who_are_you(&self) -> Result<DeviceIdentifier, ()> {
+    pub async fn who_are_you(&self) -> Result<DeviceIdentifier, CommunicationError> {
         debug!("who_are_you(): called");
         match_response!(
             self.send_message(Message::WhoAreYou).await?,
@@ -170,7 +178,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
     }
 
     /// See [Message::GetMotorState].
-    pub async fn get_motor_state(&self) -> Result<MotorState, ()> {
+    pub async fn get_motor_state(&self) -> Result<MotorState, CommunicationError> {
         match_response!(
             self.send_message(Message::GetMotorState).await?,
             Response::MotorState(motor_state) => Ok(motor_state),
@@ -178,7 +186,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
     }
 
     /// See [Message::ResetMotor].
-    pub async fn reset_motor(&self) -> Result<(), ()> {
+    pub async fn reset_motor(&self) -> Result<(), CommunicationError> {
         match_response!(
             self.send_message(Message::ResetMotor).await?,
             Response::Ok => Ok(()),
@@ -186,7 +194,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
     }
 
     /// See [Message::MoveMotor].
-    pub async fn move_motor(&self, pos: f32) -> Result<(), ()> {
+    pub async fn move_motor(&self, pos: f32) -> Result<(), CommunicationError> {
         debug!("Move to called with pos = {}", pos);
         match_response!(
             self.send_message(Message::MoveMotor { x: pos }).await?,
@@ -195,7 +203,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
     }
 
     /// See [Message::GetPeripheralsState].
-    pub async fn get_peripherals_state(&self) -> Result<PeripheralsState, ()> {
+    pub async fn get_peripherals_state(&self) -> Result<PeripheralsState, CommunicationError> {
         match_response!(
             self.send_message(Message::GetPeripheralsState).await?,
             Response::PeripheralsState(peripherals_state) => Ok(peripherals_state),
@@ -203,7 +211,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
     }
 
     /// See [Message::Water].
-    pub async fn water(&self, cooldown_ms: u64) -> Result<(), ()> {
+    pub async fn water(&self, cooldown_ms: u64) -> Result<(), CommunicationError> {
         match_response!(
             self.send_message(Message::Water { cooldown_ms }).await?,
             Response::Ok => Ok(()),
@@ -211,7 +219,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
     }
 
     /// See [Message::Lights].
-    pub async fn lights(&self, cooldown_ms: u64) -> Result<(), ()> {
+    pub async fn lights(&self, cooldown_ms: u64) -> Result<(), CommunicationError> {
         match_response!(
             self.send_message(Message::Lights { cooldown_ms }).await?,
             Response::Ok => Ok(()),
@@ -219,7 +227,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
     }
 
     /// See [Message::Pump].
-    pub async fn pump(&self, cooldown_ms: u64) -> Result<(), ()> {
+    pub async fn pump(&self, cooldown_ms: u64) -> Result<(), CommunicationError> {
         match_response!(
             self.send_message(Message::Pump { cooldown_ms }).await?,
             Response::Ok => Ok(()),
@@ -227,7 +235,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
     }
 
     /// See [Message::Plow].
-    pub async fn plow(&self, cooldown_ms: u64) -> Result<(), ()> {
+    pub async fn plow(&self, cooldown_ms: u64) -> Result<(), CommunicationError> {
         match_response!(
             self.send_message(Message::Plow { cooldown_ms }).await?,
             Response::Ok => Ok(()),
@@ -235,7 +243,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
     }
 
     /// See [Message::SetLed].
-    pub async fn set_led(&self, led: bool) -> Result<(), ()> {
+    pub async fn set_led(&self, led: bool) -> Result<(), CommunicationError> {
         match_response!(
             self.send_message(Message::SetLed { led }).await?,
             Response::Ok => Ok(()),

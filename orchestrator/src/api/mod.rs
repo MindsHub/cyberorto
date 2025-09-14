@@ -35,8 +35,8 @@ pub async fn get_state(robot_state: &StateHandler, queue: &QueueHandler) -> Resu
 }
 
 #[get("/toggle_led")]
-pub async fn toggle_led(robot_state: &StateHandler) -> Result<(), ()> {
-    robot_state.toggle_led().await
+pub async fn toggle_led(robot_state: &StateHandler) -> Result<(), String> {
+    robot_state.toggle_led().await.map_err(|e| format!("{e:?}"))
 }
 
 #[post("/queue/add_action_list", data = "<commands>")]

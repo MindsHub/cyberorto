@@ -134,6 +134,7 @@ impl SerialPorts {
                     continue;
                 }
             };
+            eprintln!("Info: Opened port {port}");
 
             // let f = tokio::spawn(async move {
             //     for _ in 0..2000 {

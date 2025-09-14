@@ -3,7 +3,7 @@ use std::{collections::VecDeque, future::Future, time::Duration};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    state::StateHandler,
+    state::{StateHandler, StateHandlerError},
     util::serde::{deserialize_from_json_file, serialize_to_json_file},
 };
 
@@ -41,11 +41,14 @@ impl CommandListAction {
         }
     }
 
-    fn duration_to_ms(duration: Duration) -> Result<u64, ()> {
-        duration.as_millis().try_into().map_err(|_| ())
+    fn duration_to_ms(duration: Duration) -> Result<u64, StateHandlerError> {
+        duration.as_millis().try_into()
+            .map_err(|e| StateHandlerError::GenericError(
+                format!("Millis value for \"{duration:?}\" does not fit in u64: {e}")
+            ))
     }
 
-    fn option_duration_to_ms(duration: Option<Duration>) -> Result<u64, ()> {
+    fn option_duration_to_ms(duration: Option<Duration>) -> Result<u64, StateHandlerError> {
         duration
             .map(Self::duration_to_ms)
             // when no duration is provided, it means "turn off", i.e. 0 cooldown
@@ -56,10 +59,10 @@ impl CommandListAction {
         f: F,
         state_handler: &'a StateHandler,
         duration: Option<Duration>,
-    ) -> Result<(), ()>
+    ) -> Result<(), StateHandlerError>
     where
         F: Fn(&'a StateHandler, u64) -> Fut,
-        Fut: Future<Output = Result<(), ()>>,
+        Fut: Future<Output = Result<(), StateHandlerError>>,
     {
         f(state_handler, Self::option_duration_to_ms(duration)?).await
     }
@@ -68,10 +71,10 @@ impl CommandListAction {
         f: F,
         state_handler: &'a StateHandler,
         duration: Duration,
-    ) -> Result<(), ()>
+    ) -> Result<(), StateHandlerError>
     where
         F: Fn(&'a StateHandler, u64) -> Fut,
-        Fut: Future<Output = Result<(), ()>>,
+        Fut: Future<Output = Result<(), StateHandlerError>>,
     {
         f(state_handler, Self::duration_to_ms(duration)?).await?;
         tokio::time::sleep(duration).await;

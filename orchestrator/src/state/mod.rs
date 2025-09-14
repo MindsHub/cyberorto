@@ -9,7 +9,7 @@ use std::{
 };
 
 use definitions::{Parameters, RobotState, Vec3};
-use embedcore::protocol::cyber::Master;
+use embedcore::protocol::{comunication::CommunicationError, cyber::Master};
 use rocket::futures::future::{self, join4};
 use tokio_serial::SerialStream;
 
@@ -73,7 +73,7 @@ impl StateHandler {
         acquire(&self.state).clone()
     }
 
-    pub async fn water_a_plant(&self, x: f32, y: f32, z: f32) -> Result<(), ()> {
+    pub async fn water_a_plant(&self, x: f32, y: f32, z: f32) -> Result<(), StateHandlerError> {
         self.move_to(x, y, z).await?;
         self.water(WATER_TIME_MS).await?;
         tokio::time::sleep(Duration::from_millis(WATER_TIME_MS)).await;
@@ -85,7 +85,7 @@ impl StateHandler {
         // TODO add plant to DB
     }
 
-    pub async fn water_all(&self) -> Result<(), ()> {
+    pub async fn water_all(&self) -> Result<(), StateHandlerError> {
         let plants: Vec<Plant> = vec![]; // TODO load plant from DB
         for plant in plants {
             self.water_a_plant(plant.x, plant.y, plant.z).await?;
@@ -93,37 +93,33 @@ impl StateHandler {
         Ok(())
     }
 
-    pub async fn water(&self, cooldown_ms: u64) -> Result<(), ()> {
-        self.master_peripherals.water(cooldown_ms).await?;
-        Ok(())
+    pub async fn water(&self, cooldown_ms: u64) -> Result<(), StateHandlerError> {
+        self.master_peripherals.water(cooldown_ms).await.map_err(StateHandlerError::Communication)
     }
 
-    pub async fn lights(&self, cooldown_ms: u64) -> Result<(), ()> {
-        self.master_peripherals.lights(cooldown_ms).await?;
-        Ok(())
+    pub async fn lights(&self, cooldown_ms: u64) -> Result<(), StateHandlerError> {
+        self.master_peripherals.lights(cooldown_ms).await.map_err(StateHandlerError::Communication)
     }
 
-    pub async fn pump(&self, cooldown_ms: u64) -> Result<(), ()> {
-        self.master_peripherals.pump(cooldown_ms).await?;
-        Ok(())
+    pub async fn pump(&self, cooldown_ms: u64) -> Result<(), StateHandlerError> {
+        self.master_peripherals.pump(cooldown_ms).await.map_err(StateHandlerError::Communication)
     }
 
-    pub async fn plow(&self, cooldown_ms: u64) -> Result<(), ()> {
-        self.master_peripherals.plow(cooldown_ms).await?;
-        Ok(())
+    pub async fn plow(&self, cooldown_ms: u64) -> Result<(), StateHandlerError> {
+        self.master_peripherals.plow(cooldown_ms).await.map_err(StateHandlerError::Communication)
     }
 
-    pub async fn toggle_led(&self) -> Result<(), ()> {
-        let curr_led = self.master_peripherals.get_peripherals_state().await?.led;
-        self.master_peripherals.set_led(!curr_led).await?;
-        Ok(())
+    pub async fn toggle_led(&self) -> Result<(), StateHandlerError> {
+        let curr_led = self.master_peripherals.get_peripherals_state().await
+            .map_err(StateHandlerError::Communication)?.led;
+        self.master_peripherals.set_led(!curr_led).await.map_err(StateHandlerError::Communication)
     }
 
-    pub async fn home(&self) -> Result<(), ()> {
+    pub async fn home(&self) -> Result<(), StateHandlerError> {
         self.move_to(0.0, 0.0, 0.0).await
     }
 
-    pub async fn reset(&self) -> Result<(), ()> {
+    pub async fn reset(&self) -> Result<(), StateHandlerError> {
         // first wait for the Z axis to reset
         self.retract().await?;
 
@@ -133,34 +129,34 @@ impl StateHandler {
             self.master_x.reset_motor(),
             self.master_y.reset_motor(),
         ).await;
-        res_x?;
-        res_y?;
+        res_x.map_err(StateHandlerError::Communication)?;
+        res_y.map_err(StateHandlerError::Communication)?;
         mutate_state!(&self.state, position.x = 0.0, position.y = -ARM_LENGTH);
 
         Ok(())
     }
 
-    pub async fn retract(&self) -> Result<(), ()> {
+    pub async fn retract(&self) -> Result<(), StateHandlerError> {
         // "retract" means resetting just the Z axis
         mutate_state!(&self.state, target.z = 0.0);
-        self.master_z.reset_motor().await?;
+        self.master_z.reset_motor().await.map_err(StateHandlerError::Communication)?;
         mutate_state!(&self.state, position.z = 0.0);
         Ok(())
     }
 
-    pub async fn move_to(&self, x: f32, y: f32, z: f32) -> Result<(), ()> {
+    pub async fn move_to(&self, x: f32, y: f32, z: f32) -> Result<(), StateHandlerError> {
         let params = self.get_state().parameters.clone();
         let world = Vec3 { x, y, z };
         let Some(joint) = world_to_joint(&world, &params) else {
-            return Err(());
+            return Err(StateHandlerError::InvalidWorldCoordinates(world));
         };
 
         // TODO compute trajectory that avoids obstacles and optimizes path
         // TODO handle errors while motors are moving and stop everything if errors happen
         mutate_state!(&self.state, target = world, target_joint = joint.clone());
-        self.master_x.move_motor(joint.x).await?;
-        self.master_y.move_motor(joint.y).await?;
-        self.master_z.move_motor(joint.z).await?;
+        self.master_x.move_motor(joint.x).await.map_err(StateHandlerError::Communication)?;
+        self.master_y.move_motor(joint.y).await.map_err(StateHandlerError::Communication)?;
+        self.master_z.move_motor(joint.z).await.map_err(StateHandlerError::Communication)?;
         Ok(())
     }
 
@@ -201,4 +197,11 @@ impl StateHandler {
 
         state.clone()
     }
+}
+
+#[derive(Debug)]
+pub enum StateHandlerError {
+    Communication(CommunicationError),
+    InvalidWorldCoordinates(Vec3),
+    GenericError(String),
 }
