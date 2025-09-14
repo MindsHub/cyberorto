@@ -7,7 +7,7 @@ use state::StateHandler;
 use tokio::{signal::unix::{signal, SignalKind}, sync::oneshot};
 use util::cors::Cors;
 
-use crate::util::{serial::SerialPorts, test_peripherals::test_peripherals};
+use crate::util::{serial::SerialPorts, test_devices::test_devices};
 
 mod action;
 mod api;
@@ -43,7 +43,7 @@ struct Args {
     /// performed on connected serial port peripherals, to check if they work and print some
     /// information about them.
     #[arg(short, long)]
-    test_peripherals: bool,
+    test_devices: bool,
 }
 
 #[rocket::main]
@@ -51,8 +51,8 @@ async fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
     let args = Args::parse();
 
-    if args.test_peripherals {
-        test_peripherals(args.ports).await;
+    if args.test_devices {
+        test_devices(args.ports).await;
         return;
     }
 

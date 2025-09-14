@@ -10,7 +10,7 @@ const ID: u8 = 123;
 const TIMEOUT: Duration = Duration::from_millis(100);
 const RESEND_TIMES: u8 = 20;
 
-pub async fn test_peripherals(ports: SerialPorts) {
+pub async fn test_devices(ports: SerialPorts) {
     let ports = match ports {
         SerialPorts::Ports(items) => items,
         _ => SerialPorts::get_available_ports_or_exit(),
