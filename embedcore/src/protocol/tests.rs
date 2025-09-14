@@ -38,7 +38,7 @@ async fn test_who_are_you() {
 async fn test_move_to() {
     let (master, mut slave) = init_test(10).await;
     let _ = tokio::spawn(async move { slave.run().await });
-    master.move_to(0.0).await.unwrap();
+    master.move_motor(0.0).await.unwrap();
 }
 
 #[tokio::test]
@@ -47,7 +47,7 @@ async fn test_blocking() {
     let _ = tokio::spawn(async move { slave.run().await });
     let master = Arc::new(master);
     let m1 = master.clone();
-    let q = tokio::spawn(async move { m1.move_to(1.0).await });
+    let q = tokio::spawn(async move { m1.move_motor(1.0).await });
     tokio::time::sleep(Duration::from_millis(10)).await;
     let DeviceIdentifier { name, version } = master.who_are_you().await.unwrap();
     assert_eq!(name, b"ciao      ".clone());

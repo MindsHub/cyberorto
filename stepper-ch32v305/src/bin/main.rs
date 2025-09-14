@@ -22,15 +22,16 @@ use embedcore::{
     common::{
         controllers::pid::{CalibrationMode, PidController},
         motor::Motor,
-    }, protocol::{cyber::{MessagesHandler, Response, Slave}}, EncoderTrait, SerialWrapper
+    }, protocol::cyber::{MessagesHandler, MotorState, Response, Slave}, EncoderTrait, SerialWrapper
 };
 use defmt_or_log::info;
 
-#[derive(PartialEq, Eq, Clone, defmt::Format)]
+#[derive(PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Cmd {
     Reset,
     MoveTo(i32),
-    Waiting,
+    Idle,
     Error([u8; 10]),
 }
 struct Shared {
@@ -38,7 +39,7 @@ struct Shared {
 }
 
 static SHARED: Mutex<CriticalSectionRawMutex, RefCell<Shared>> =
-    Mutex::new(RefCell::new(Shared { cmd: Cmd::Waiting }));
+    Mutex::new(RefCell::new(Shared { cmd: Cmd::Idle }));
 
 irqs!();
 
@@ -55,37 +56,39 @@ impl SerialToMotorHandler {
 
 // implementing MessageHandler, if some message should not have any response, it will return None
 impl MessagesHandler for SerialToMotorHandler {
-    async fn set_led(&mut self, state: bool) -> Option<Response> {
-        info!("Set led {:?}", state);
-        if state {
-            if let Some(status_pin) = &mut self.status_pin {
-                status_pin.set_high();
-            }
-        } else {
-            if let Some(status_pin) = &mut self.status_pin {
-                status_pin.set_low();
-            }
-        }
-        Some(Response::Done)
-    }
-    async fn move_motor(&mut self, x: f32) -> Option<Response> {
+    async fn get_motor_state(&mut self) -> Response {
         SHARED.lock(|shared| {
-            shared.borrow_mut().cmd = Cmd::MoveTo(x as i32);
-        });
-        Some(Response::Wait { ms: 1000 })
+            let motor_pos = 0f32; // TODO
+            let (is_idle, error) = match &shared.borrow().cmd {
+                Cmd::Idle => (true, None),
+                Cmd::Error(e) => (true, Some(*e)),
+                _ => (false, None),
+            };
+            Response::MotorState(MotorState { motor_pos, is_idle, error })
+        })
     }
-    async fn reset_motor(&mut self) -> Option<Response> {
+    async fn reset_motor(&mut self) -> Response {
         SHARED.lock(|shared| {
             shared.borrow_mut().cmd = Cmd::Reset;
         });
-        Some(Response::Wait { ms: 1000 })
+        Response::Ok
     }
-    async fn poll(&mut self) -> Option<Response> {
-        SHARED.lock(|shared| match shared.borrow().cmd {
-            Cmd::Waiting => Some(Response::Done),
-            Cmd::Error(c) => Some(Response::Debug(c)),
-            _ => Some(Response::Wait { ms: 1000 }),
-        })
+    async fn move_motor(&mut self, x: f32) -> Response {
+        SHARED.lock(|shared| {
+            shared.borrow_mut().cmd = Cmd::MoveTo(x as i32);
+        });
+        Response::Ok
+    }
+    async fn set_led(&mut self, state: bool) -> Response {
+        info!("Set led {:?}", state);
+        if let Some(status_pin) = &mut self.status_pin {
+            if state {
+                status_pin.set_high();
+            } else {
+                status_pin.set_low();
+            }
+        }
+        Response::Ok
     }
 }
 
@@ -102,7 +105,7 @@ async fn main(spawner: Spawner) -> ! {
     // spawn message handler thread
     let serial_wrapper = serial(p.USART1, p.PA8, p.PB15, IrqsUsart, p.DMA1_CH4, p.DMA1_CH5);
     let mh = SerialToMotorHandler::new(None);//p.PA4.degrade());
-    let s: Slave<SerialWrapper<'static, USART1>, _> = Slave::new(serial_wrapper, 10000, *b"p         ", mh);
+    let s: Slave<SerialWrapper<'static, USART1>, _> = Slave::new(serial_wrapper, *b"p         ", mh);
     spawner.must_spawn(message_handler(s));
 
     // setup motor
@@ -123,7 +126,7 @@ async fn main(spawner: Spawner) -> ! {
                     embassy_futures::yield_now().await;
                 }
                 SHARED.lock(|x| {
-                    x.borrow_mut().cmd = Cmd::Waiting;
+                    x.borrow_mut().cmd = Cmd::Idle;
                 });
 
             }
@@ -138,7 +141,7 @@ async fn main(spawner: Spawner) -> ! {
                     Timer::after(Duration::from_micros(500)).await;
                 }
                 SHARED.lock(|x| {
-                    x.borrow_mut().cmd = Cmd::Waiting;
+                    x.borrow_mut().cmd = Cmd::Idle;
                 });
             }
             _ => {}

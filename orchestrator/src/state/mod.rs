@@ -114,7 +114,7 @@ impl StateHandler {
     }
 
     pub async fn toggle_led(&self) -> Result<(), ()> {
-        let curr_led = self.master_peripherals.get_state().await?.led;
+        let curr_led = self.master_peripherals.get_peripherals_state().await?.led;
         self.master_peripherals.set_led(!curr_led).await?;
         Ok(())
     }
@@ -130,8 +130,8 @@ impl StateHandler {
         // then also reset X and Y in parallel (to make things faster)
         mutate_state!(&self.state, target.x = 0.0, target.y = -ARM_LENGTH);
         let (res_x, res_y) = future::join(
-            self.master_x.reset(),
-            self.master_y.reset(),
+            self.master_x.reset_motor(),
+            self.master_y.reset_motor(),
         ).await;
         res_x?;
         res_y?;
@@ -143,7 +143,7 @@ impl StateHandler {
     pub async fn retract(&self) -> Result<(), ()> {
         // "retract" means resetting just the Z axis
         mutate_state!(&self.state, target.z = 0.0);
-        self.master_z.reset().await?;
+        self.master_z.reset_motor().await?;
         mutate_state!(&self.state, position.z = 0.0);
         Ok(())
     }
@@ -158,18 +158,18 @@ impl StateHandler {
         // TODO compute trajectory that avoids obstacles and optimizes path
         // TODO handle errors while motors are moving and stop everything if errors happen
         mutate_state!(&self.state, target = world, target_joint = joint.clone());
-        self.master_x.move_to(joint.x).await?;
-        self.master_y.move_to(joint.y).await?;
-        self.master_z.move_to(joint.z).await?;
+        self.master_x.move_motor(joint.x).await?;
+        self.master_y.move_motor(joint.y).await?;
+        self.master_z.move_motor(joint.z).await?;
         Ok(())
     }
 
     pub async fn try_update_state(&self) -> State {
         let (x, y, z, peripherals) = join4(
-            self.master_x.get_state(),
-            self.master_y.get_state(),
-            self.master_z.get_state(),
-            self.master_peripherals.get_state()
+            self.master_x.get_motor_state(),
+            self.master_y.get_motor_state(),
+            self.master_z.get_motor_state(),
+            self.master_peripherals.get_peripherals_state()
         ).await;
 
         let mut state = acquire(&self.state);

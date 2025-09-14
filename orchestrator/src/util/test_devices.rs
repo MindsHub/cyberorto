@@ -95,7 +95,7 @@ async fn send_who_are_you_raw(serial_port: &mut tokio_serial::SerialStream) {
 async fn receive_i_am_raw(serial_port: &mut tokio_serial::SerialStream) {
     let sample_iam_message = {
         let mut buf: [u8; 50] = [0; 50];
-        let msg = postcard::to_slice(&Response::Iam(DeviceIdentifier { name: *b"x         ", version: 1 }), &mut buf).unwrap();
+        let msg = postcard::to_slice(&Response::IAm(DeviceIdentifier { name: *b"x         ", version: 1 }), &mut buf).unwrap();
         let (buf, len) = SerMsg::create_msg_arr(msg, ID).unwrap();
         buf[..len].to_vec()
     };
@@ -160,7 +160,7 @@ async fn receive_i_am_raw(serial_port: &mut tokio_serial::SerialStream) {
 
     println!("Received response: {response:?}");
 
-    if let Response::Iam(iam) = response {
+    if let Response::IAm(iam) = response {
         println!("\x1b[32mReceived Iam successfully: {iam:?}\x1b[0m");
     } else {
         println!("\x1b[31mDid not receive Iam as response\x1b[0m");
@@ -169,7 +169,7 @@ async fn receive_i_am_raw(serial_port: &mut tokio_serial::SerialStream) {
 
 async fn move_motor_with_master(master: &Master<SerialStream>) {
     println!("Sending move motor command using a Master");
-    match master.move_to(10000.0).await {
+    match master.move_motor(10000.0).await {
         Ok(_) => println!("\x1b[32mSent move motor command successfully\x1b[0m"),
         Err(e) => println!("\x1b[31mCould not send move motor command: {e:?}\x1b[0m"),
     }

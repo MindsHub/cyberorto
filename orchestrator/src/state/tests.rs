@@ -79,6 +79,6 @@ test_with_state!(
             s.state_handler.toggle_led().await.unwrap();
         }
 
-        assert_eq!(messages, s.slave_bot_data.lock().unwrap().incoming,);
+        assert_eq!(messages, s.slave_bot_data.lock().unwrap().incoming);
     }
 );

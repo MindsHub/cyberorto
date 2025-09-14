@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::{blocking_send, protocol::cyber::{DeviceIdentifier, ResponseState}, wait};
+use crate::{blocking_send, protocol::cyber::{DeviceIdentifier, MotorState, PeripheralsState}};
 use core::fmt::Debug;
 use defmt_or_log::{debug, trace};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
@@ -66,99 +66,95 @@ impl<Serial: AsyncSerial> Master<Serial> {
         }
     }
 
-    pub async fn reset(&self) -> Result<(), ()> {
-        todo!();
-    }
-
-    /// See [Message::MoveMotor]
-    pub async fn move_to(&self, pos: f32) -> Result<(), ()> {
-        debug!("Move to called with pos = {}", pos);
-        let m = Message::MoveMotor { x: pos };
-        let mut lock = Some(self.inner.lock().await);
-        blocking_send!(self, lock, m =>
-            Response::Wait { ms: _ms } => {
-                return Ok(());
-                // TODO wait does not work
-                //wait!(self, lock, ms);
-            },
-            Response::Done => {
-                return Ok(());
-            },
-            _ => {}
-        )
-    }
-
-    /// See [Message::Water]
-    pub async fn water(&self, cooldown_ms: u64) -> Result<(), ()> {
-        let m = Message::Water { cooldown_ms };
-        let mut lock = Some(self.inner.lock().await);
-        blocking_send!(self, lock, m =>
-            Response::Wait { ms } => {
-                wait!(self, lock, ms);
-            },
-            Response::Done => {
-                return Ok(())
-            },
-            _ => {}
-        )
-    }
-
-    /// See [Message::Lights]
-    pub async fn lights(&self, _cooldown_ms: u64) -> Result<(), ()> {
-        todo!();
-    }
-
-    /// See [Message::Pump]
-    pub async fn pump(&self, _cooldown_ms: u64) -> Result<(), ()> {
-        todo!();
-    }
-
-    /// See [Message::Plow]
-    pub async fn plow(&self, cooldown_ms: u64) -> Result<(), ()> {
-        let m = Message::Plow { cooldown_ms };
-        let mut lock = Some(self.inner.lock().await);
-        blocking_send!(self, lock, m =>
-            Response::Wait { ms } => {
-                wait!(self, lock, ms);
-            },
-            Response::Done => {
-                return Ok(())
-            },
-            _ => {}
-        )
-    }
-
-    pub async fn set_led(&self, led: bool) -> Result<(), ()> {
-        let m = Message::SetLed { led };
-        let mut lock = Some(self.inner.lock().await);
-        blocking_send!(self, lock, m =>
-            Response::Done => {
-                return Ok(());
-            },
-            _ => {}
-        )
-    }
-
+    /// See [Message::WhoAreYou].
     pub async fn who_are_you(&self) -> Result<DeviceIdentifier, ()> {
         debug!("who_are_you(): called");
-        let mut lock = Some(self.inner.lock().await);
-        blocking_send!(self, lock, Message::WhoAreYou =>
-            Response::Iam(device_identifier) => {
+        blocking_send!(self, Message::WhoAreYou =>
+            Response::IAm(device_identifier) => {
                 return Ok(device_identifier);
-            },
-            _ => {}
+            }
         )
     }
 
-    pub async fn get_state(&self) -> Result<ResponseState, ()> {
-        debug!("get_state(): called");
-        let m = Message::State;
-        let mut lock = Some(self.inner.lock().await);
-        blocking_send!(self, lock, m =>
-            Response::State(state) => {
-                return Ok(state);
-            },
-            _ => {}
+    /// See [Message::GetMotorState].
+    pub async fn get_motor_state(&self) -> Result<MotorState, ()> {
+        blocking_send!(self, Message::GetMotorState =>
+            Response::MotorState(motor_state) => {
+                return Ok(motor_state);
+            }
+        )
+    }
+
+    /// See [Message::ResetMotor].
+    pub async fn reset_motor(&self) -> Result<(), ()> {
+        blocking_send!(self, Message::ResetMotor =>
+            Response::Ok => {
+                return Ok(());
+            }
+        )
+    }
+
+    /// See [Message::MoveMotor].
+    pub async fn move_motor(&self, pos: f32) -> Result<(), ()> {
+        debug!("Move to called with pos = {}", pos);
+        blocking_send!(self, Message::MoveMotor { x: pos } =>
+            Response::Ok => {
+                return Ok(());
+            }
+        )
+    }
+
+    /// See [Message::GetPeripheralsState].
+    pub async fn get_peripherals_state(&self) -> Result<PeripheralsState, ()> {
+        blocking_send!(self, Message::GetPeripheralsState =>
+            Response::PeripheralsState(motor_state) => {
+                return Ok(motor_state);
+            }
+        )
+    }
+
+    /// See [Message::Water].
+    pub async fn water(&self, cooldown_ms: u64) -> Result<(), ()> {
+        blocking_send!(self, Message::Water { cooldown_ms } =>
+            Response::Ok => {
+                return Ok(());
+            }
+        )
+    }
+
+    /// See [Message::Lights].
+    pub async fn lights(&self, cooldown_ms: u64) -> Result<(), ()> {
+        blocking_send!(self, Message::Lights { cooldown_ms } =>
+            Response::Ok => {
+                return Ok(());
+            }
+        )
+    }
+
+    /// See [Message::Pump].
+    pub async fn pump(&self, cooldown_ms: u64) -> Result<(), ()> {
+        blocking_send!(self, Message::Pump { cooldown_ms } =>
+            Response::Ok => {
+                return Ok(());
+            }
+        )
+    }
+
+    /// See [Message::Plow].
+    pub async fn plow(&self, cooldown_ms: u64) -> Result<(), ()> {
+        blocking_send!(self, Message::Plow { cooldown_ms } =>
+            Response::Ok => {
+                return Ok(());
+            }
+        )
+    }
+
+    /// See [Message::SetLed].
+    pub async fn set_led(&self, led: bool) -> Result<(), ()> {
+        blocking_send!(self, Message::SetLed { led } =>
+            Response::Ok => {
+                return Ok(());
+            }
         )
     }
 }

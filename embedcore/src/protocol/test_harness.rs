@@ -64,15 +64,12 @@ pub struct Dummy {
     pub led_state: &'static Mutex<bool>,
 }
 impl MessagesHandler for Dummy {
-    async fn set_led(&mut self, state: bool) -> Option<Response> {
+    async fn set_led(&mut self, state: bool) -> Response {
         *self.led_state.lock().await = state;
-        Some(Response::Done)
+        Response::Ok
     }
-    async fn move_motor(&mut self, _x: f32) -> Option<Response> {
-        Some(Response::Wait { ms: 100 })
-    }
-    async fn poll(&mut self) -> Option<Response> {
-        Some(Response::Done)
+    async fn move_motor(&mut self, _x: f32) -> Response {
+        Response::Ok
     }
 }
 impl Default for Dummy {
@@ -89,52 +86,48 @@ pub struct MessageRecorderSlave {
 }
 
 impl MessagesHandler for Arc<std::sync::Mutex<MessageRecorderSlave>> {
-    async fn move_motor(&mut self, x: f32) -> Option<Response> {
+    async fn move_motor(&mut self, x: f32) -> Response {
         self.lock().unwrap().incoming.push(Message::MoveMotor { x });
-        Some(Response::Wait { ms: 10 })
+        Response::Ok
     }
-    async fn reset_motor(&mut self) -> Option<Response> {
+    async fn reset_motor(&mut self) -> Response {
         self.lock().unwrap().incoming.push(Message::ResetMotor);
-        Some(Response::Wait { ms: 10 })
+        Response::Ok
     }
-    async fn poll(&mut self) -> Option<Response> {
-        self.lock().unwrap().incoming.push(Message::Poll);
-        Some(Response::Done)
-    }
-    async fn water(&mut self, cooldown_ms: u64) -> Option<Response> {
+    async fn water(&mut self, cooldown_ms: u64) -> Response {
         self.lock()
             .unwrap()
             .incoming
             .push(Message::Water { cooldown_ms });
-        Some(Response::Done)
+        Response::Ok
     }
-    async fn lights(&mut self, cooldown_ms: u64) -> Option<Response> {
+    async fn lights(&mut self, cooldown_ms: u64) -> Response {
         self.lock()
             .unwrap()
             .incoming
             .push(Message::Lights { cooldown_ms });
-        Some(Response::Done)
+        Response::Ok
     }
-    async fn pump(&mut self, cooldown_ms: u64) -> Option<Response> {
+    async fn pump(&mut self, cooldown_ms: u64) -> Response {
         self.lock()
             .unwrap()
             .incoming
             .push(Message::Pump { cooldown_ms });
-        Some(Response::Done)
+        Response::Ok
     }
-    async fn plow(&mut self, cooldown_ms: u64) -> Option<Response> {
+    async fn plow(&mut self, cooldown_ms: u64) -> Response {
         self.lock()
             .unwrap()
             .incoming
             .push(Message::Plow { cooldown_ms });
-        Some(Response::Done)
+        Response::Ok
     }
-    async fn set_led(&mut self, state: bool) -> Option<Response> {
+    async fn set_led(&mut self, state: bool) -> Response {
         self.lock()
             .unwrap()
             .incoming
             .push(Message::SetLed { led: state });
-        Some(Response::Done)
+        Response::Ok
     }
 }
 pub fn new_testable_slave<Serial: AsyncSerial>(

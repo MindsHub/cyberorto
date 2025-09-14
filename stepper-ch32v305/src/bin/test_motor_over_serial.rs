@@ -1,10 +1,8 @@
 #![no_std]
 #![no_main]
 #![feature(type_alias_impl_trait)]
-#![feature(naked_functions)]
 #![feature(impl_trait_in_assoc_type)]
-#![allow(non_snake_case)]
-#![allow(unsafe_op_in_unsafe_fn)]
+#![allow(non_snake_case, unsafe_op_in_unsafe_fn, unused_imports, unused_mut)]
 /*!
  * Monolitic code test, first version of the implementation of the driver. if necessary, it could be best to modulirize a little more */
 
@@ -22,37 +20,32 @@ use embassy_executor::Spawner;
 use embassy_sync::blocking_mutex::{Mutex, raw::CriticalSectionRawMutex};
 use embassy_time::{Duration, Instant, Timer};
 use embedcore::{
-    DiscreteDriver, Drv8843Pwm, EncoderTrait, SerialWrapper,
     common::{
         controllers::pid::{CalibrationMode, PidController},
         motor::{
-            Motor,
-            test::{test_basic_movement, test_max_speed},
+            test::{test_basic_movement, test_max_speed}, Motor
         },
         static_encoder::StaticEncoder,
-    },
-    protocol::{
-        AsyncSerial,
-        comunication::CommunicationError,
-        cyber::{DeviceIdentifier, Message, MessagesHandler, Response, Slave},
-    },
+    }, protocol::{
+        comunication::CommunicationError, cyber::{DeviceIdentifier, Message, MessagesHandler, MotorState, Response, Slave}, AsyncSerial
+    }, DiscreteDriver, Drv8843Pwm, EncoderTrait, SerialWrapper
 };
 use qingke::riscv::register::satp::set;
 use serialmessage::{ParseState, SerMsg};
 
 #[derive(PartialEq, Eq, Clone)]
-pub enum CMD {
+pub enum Cmd {
     Reset,
     MoveTo(i32),
-    Waiting,
+    Idle,
     Error([u8; 10]),
 }
 struct Shared {
-    pub cmd: CMD,
+    pub cmd: Cmd,
 }
 
 static SHARED: Mutex<CriticalSectionRawMutex, RefCell<Shared>> =
-    Mutex::new(RefCell::new(Shared { cmd: CMD::Waiting }));
+    Mutex::new(RefCell::new(Shared { cmd: Cmd::Idle }));
 
 irqs!();
 
@@ -67,36 +60,41 @@ impl SerialToMotorHandler {
     }
 }
 
-// implementing MessageHandler, if some message should not have any response, it will return None
+// implementing MessageHandler, if some message should not have any response, it will return Unsupported
 impl MessagesHandler for SerialToMotorHandler {
-    async fn set_led(&mut self, state: bool) -> Option<Response> {
+    async fn get_motor_state(&mut self) -> Response {
+        SHARED.lock(|shared| {
+            let motor_pos = 0f32; // TODO
+            let (is_idle, error) = match &shared.borrow().cmd {
+                Cmd::Idle => (true, None),
+                Cmd::Error(e) => (true, Some(*e)),
+                _ => (false, None),
+            };
+            Response::MotorState(MotorState { motor_pos, is_idle, error })
+        })
+    }
+    async fn reset_motor(&mut self) -> Response {
+        SHARED.lock(|shared| {
+            shared.borrow_mut().cmd = Cmd::Reset;
+        });
+        Response::Ok
+    }
+    async fn move_motor(&mut self, x: f32) -> Response {
+        SHARED.lock(|shared| {
+            shared.borrow_mut().cmd = Cmd::MoveTo(x as i32);
+        });
+        Response::Ok
+    }
+    async fn set_led(&mut self, state: bool) -> Response {
         if state {
             self.status_pin.set_high();
         } else {
             self.status_pin.set_low();
         }
-        Some(Response::Done)
-    }
-    async fn move_motor(&mut self, x: f32) -> Option<Response> {
-        SHARED.lock(|shared| {
-            shared.borrow_mut().cmd = CMD::MoveTo(x as i32);
-        });
-        Some(Response::Wait { ms: 1000 })
-    }
-    async fn reset_motor(&mut self) -> Option<Response> {
-        SHARED.lock(|shared| {
-            shared.borrow_mut().cmd = CMD::Reset;
-        });
-        Some(Response::Wait { ms: 1000 })
-    }
-    async fn poll(&mut self) -> Option<Response> {
-        SHARED.lock(|shared| match shared.borrow().cmd {
-            CMD::Waiting => Some(Response::Done),
-            CMD::Error(c) => Some(Response::Debug(c)),
-            _ => Some(Response::Wait { ms: 1000 }),
-        })
+        Response::Ok
     }
 }
+
 #[embassy_executor::task(pool_size = 3)]
 async fn blink(pin: AnyPin, interval_ms: u64) {
     let mut led = Output::new(pin, Level::Low, Default::default());
@@ -112,81 +110,7 @@ async fn blink(pin: AnyPin, interval_ms: u64) {
 #[embassy_executor::task]
 async fn message_handler(
     mut s: Slave<SerialWrapper<'static, USART1>, SerialToMotorHandler>,
-    mut status_pin: Option<Output<'static>>,
 ) {
-    /*loop {
-        let mut buf = ['a' as u8];
-        s.com.serial.rx.read(&mut buf).await.unwrap();
-        s.com.serial.tx.write(&buf).await.unwrap();
-        s.com.serial.tx.write(&buf).await.unwrap();
-        s.com.serial.tx.write(&buf).await.unwrap();
-        s.com.serial.tx.write(&buf).await.unwrap();
-        Timer::after(Duration::from_millis(100)).await;
-    }*/
-    /*loop {
-        if let Some(a) = s.com.try_read_byte().await {
-            let buf = [a];
-            s.com.serial.tx.write(&buf).await.unwrap();
-            s.com.serial.tx.write(&buf).await.unwrap();
-            s.com.serial.tx.write(&buf).await.unwrap();
-            s.com.serial.tx.write(&buf).await.unwrap();
-        } else {
-            s.com.serial.tx.write(b"nada").await.unwrap();
-        }
-    }*/
-    /*let mut i = 0;
-    let mut id: u8 = 0;
-    loop {
-        if let Some(a) = s.com.try_read_byte().await {
-            if a == 126 {
-                if i != 0 {
-                    status_pin.as_mut().map(|p| (p.toggle(),));
-                }
-                i = 0;
-            }
-            if i == 1 {
-                id = a;
-            }
-            if i == 7 {
-                let resp = Response::Iam(DeviceIdentifier { name: *b"ciao123456", version: 1 });
-                let mut buf = [0; 32];
-                let buf2 = postcard::to_slice(&resp, &mut buf).unwrap();
-                let buf3 = SerMsg::create_msg_arr(buf2, id).unwrap();
-                s.com.serial.tx.write(&buf3.0[..buf3.1]).await.unwrap();
-            }
-        } else {
-            //status_pin.as_mut().map(|p| (p.toggle(),));
-        }
-        i += 1;
-    }*/
-    /*loop {
-        match s.com.try_read::<Message>().await {
-            Ok((id, _m)) => {
-                let resp = Response::Iam(DeviceIdentifier { name: *b"ciao123456", version: 1 });
-                let mut buf = [0; 32];
-                let buf2 = postcard::to_slice(&resp, &mut buf).unwrap();
-                let buf3 = SerMsg::create_msg_arr(buf2, id).unwrap();
-                s.com.serial.tx.write(&buf3.0[..buf3.1]).await.unwrap();
-            },
-            Err(CommunicationError::CantRead) => {
-                status_pin.as_mut().map(|p| (p.toggle(),));
-            },
-            Err(CommunicationError::InvalidMsg) => {
-                //status_pin.as_mut().map(|p| (p.toggle(),));
-            }
-            _ => {
-                status_pin.as_mut().map(|p| (p.toggle(),));
-            }
-        }
-    }*/
-    /*loop {
-        if let Ok(a) = s.com.try_read::<Message>().await {
-            s.com.send( Response::Iam(DeviceIdentifier { name: *b"ciao123456", version: 1 }), a.0).await;
-        } else {
-            status_pin.as_mut().map(|p| (p.toggle(),));
-            if let Some(pin) = &mut status_pin { pin.toggle() }
-        }
-    }*/
     s.run().await
 }
 
@@ -196,7 +120,7 @@ async fn update_motor(mut motor: PidController<StaticEncoder, driver_type!()>) {
     loop {
         let cur = SHARED.lock(|x| x.borrow().cmd.clone());
         match cur {
-            CMD::MoveTo(x) => {
+            Cmd::MoveTo(x) => {
                 motor.set_objective(x);
                 while (motor.motor.read() - x).abs() > 5 {
                     motor.update().await;
@@ -210,10 +134,10 @@ async fn update_motor(mut motor: PidController<StaticEncoder, driver_type!()>) {
                 }
                 motor.update().await;
                 SHARED.lock(|x| {
-                    x.borrow_mut().cmd = CMD::Waiting;
+                    x.borrow_mut().cmd = Cmd::Idle;
                 });
             }
-            CMD::Reset => {
+            Cmd::Reset => {
                 let cur_pos = motor.motor.read();
                 motor
                     .calibration(cur_pos + 2000, CalibrationMode::NoOvershoot)
@@ -224,7 +148,7 @@ async fn update_motor(mut motor: PidController<StaticEncoder, driver_type!()>) {
                     Timer::after(Duration::from_micros(500)).await;
                 }
                 SHARED.lock(|x| {
-                    x.borrow_mut().cmd = CMD::Waiting;
+                    x.borrow_mut().cmd = Cmd::Idle;
                 });
             }
             _ => {
@@ -277,7 +201,7 @@ async fn main(spawner: Spawner) -> ! {
     let serial_wrapper = SerialWrapper::new(serial, None);
     let s: Slave<SerialWrapper<'static, USART1>, _> =
         Slave::new(serial_wrapper, *b"z         ", mh);
-    spawner.must_spawn(message_handler(s, None));
+    spawner.must_spawn(message_handler(s));
 
     //spawner.must_spawn(update_motor(pid));
     //let mut out = Output::new(p.PA4, Level::High, Speed::High);
@@ -344,6 +268,7 @@ async fn main(spawner: Spawner) -> ! {
         }*/
         Timer::after_secs(1).await;
     }
+    #[allow(unreachable_code)]
     loop {
         //out.toggle();
         //let mut c = [55u8];

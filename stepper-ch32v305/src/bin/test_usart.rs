@@ -25,21 +25,6 @@ use embedcore::{
 };
 use serialmessage::{ParseState, SerMsg};
 
-
-#[derive(PartialEq, Eq, Clone)]
-pub enum CMD {
-    Reset,
-    MoveTo(i32),
-    Waiting,
-    Error([u8; 10]),
-}
-struct Shared {
-    pub cmd: CMD,
-}
-
-static SHARED: Mutex<CriticalSectionRawMutex, RefCell<Shared>> =
-    Mutex::new(RefCell::new(Shared { cmd: CMD::Waiting }));
-
 irqs!();
 
 struct SerialToMotorHandler {
@@ -55,32 +40,13 @@ impl SerialToMotorHandler {
 
 // implementing MessageHandler, if some message should not have any response, it will return None
 impl MessagesHandler for SerialToMotorHandler {
-    async fn set_led(&mut self, state: bool) -> Option<Response> {
+    async fn set_led(&mut self, state: bool) -> Response {
         if state {
             self.status_pin.set_high();
         } else {
             self.status_pin.set_low();
         }
-        Some(Response::Done)
-    }
-    async fn move_motor(&mut self, x: f32) -> Option<Response> {
-        SHARED.lock(|shared| {
-            shared.borrow_mut().cmd = CMD::MoveTo(x as i32);
-        });
-        Some(Response::Wait { ms: 1000 })
-    }
-    async fn reset_motor(&mut self) -> Option<Response> {
-        SHARED.lock(|shared| {
-            shared.borrow_mut().cmd = CMD::Reset;
-        });
-        Some(Response::Wait { ms: 1000 })
-    }
-    async fn poll(&mut self) -> Option<Response> {
-        SHARED.lock(|shared| match shared.borrow().cmd {
-            CMD::Waiting => Some(Response::Done),
-            CMD::Error(c) => Some(Response::Debug(c)),
-            _ => Some(Response::Wait { ms: 1000 }),
-        })
+        Response::Ok
     }
 }
 #[embassy_executor::task(pool_size = 3)]
