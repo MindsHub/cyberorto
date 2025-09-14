@@ -85,6 +85,7 @@ impl Default for Dummy {
 #[derive(Default)]
 pub struct MessageRecorderSlave {
     pub incoming: Vec<Message>,
+    pub led_state: bool,
     //outgoing: Vec<Response>,
 }
 
@@ -96,6 +97,18 @@ impl MessagesHandler for Arc<std::sync::Mutex<MessageRecorderSlave>> {
     async fn reset_motor(&mut self) -> Response {
         self.lock().unwrap().incoming.push(Message::ResetMotor);
         Response::Ok
+    }
+
+    async fn get_peripherals_state(&mut self) -> Response {
+        let mut lock = self.lock().unwrap();
+        lock.incoming.push(Message::GetPeripheralsState);
+        Response::PeripheralsState(PeripheralsState {
+            water: false,
+            lights: false,
+            pump: false,
+            plow: false,
+            led: lock.led_state,
+        })
     }
     async fn water(&mut self, cooldown_ms: u64) -> Response {
         self.lock()
@@ -126,10 +139,9 @@ impl MessagesHandler for Arc<std::sync::Mutex<MessageRecorderSlave>> {
         Response::Ok
     }
     async fn set_led(&mut self, state: bool) -> Response {
-        self.lock()
-            .unwrap()
-            .incoming
-            .push(Message::SetLed { led: state });
+        let mut lock = self.lock().unwrap();
+        lock.led_state = state;
+        lock.incoming.push(Message::SetLed { led: state });
         Response::Ok
     }
 }

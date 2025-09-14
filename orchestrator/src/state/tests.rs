@@ -75,6 +75,7 @@ test_with_state!(
         let mut messages = Vec::new();
         for i in 0..10 {
             // TODO fix this test
+            messages.push(Message::GetPeripheralsState);
             messages.push(Message::SetLed { led: i % 2 == 0 });
             s.state_handler.toggle_led().await.unwrap();
         }
