@@ -15,7 +15,6 @@ pub mod cyber {
     pub use super::cyber_slave::Slave;
 }
 
-pub mod macros;
 #[cfg(feature = "std")]
 pub mod test_harness;
 #[cfg(all(feature = "std", test))]
