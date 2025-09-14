@@ -1,14 +1,11 @@
 mod tests;
 
 use std::{
-    collections::{HashMap, VecDeque},
-    fs::create_dir_all,
-    future::Future,
-    path::PathBuf,
-    sync::{Arc, Condvar, Mutex, MutexGuard},
+    collections::{HashMap, VecDeque}, fs::create_dir_all, future::Future, panic::{AssertUnwindSafe, UnwindSafe}, path::PathBuf, sync::{Arc, Condvar, Mutex, MutexGuard}
 };
 
 use definitions::{ActionInfo, EmergencyStatus, QueueState};
+use rocket::futures::FutureExt;
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 
@@ -247,15 +244,25 @@ impl QueueHandler {
     /// Just a utility function to obtain a future from [`tokio::select`](tokio::select).
     /// Waits for `stepper` to finish executing, unless a message from `killer_rx` is received
     /// before `stepper` terminates.
-    /// Returns `true` if there are some more steps available,
-    /// or `false` if the action has finished executing.
-    async fn step_or_kill<F: Future<Output = bool>>(
+    /// Returns:
+    /// - `true` if there are some more steps available,
+    /// - `false` if the action has finished executing, or if there was an unexpected panic.
+    async fn step_or_kill<F: Future<Output = bool> + UnwindSafe>(
         stepper: F,
         killer_rx: oneshot::Receiver<bool>,
     ) -> bool {
         tokio::select! {
-            // Just forward the value from `stepper()`
-            output = stepper => output,
+            output = stepper.catch_unwind() => {
+                match output {
+                    // Just forward the value from `stepper()`
+                    Ok(output) => output,
+                    // Some panic happened, do as if the action has finished executing
+                    Err(err) => {
+                        error!("Panic while stepping action: {err:?}");
+                        false
+                    },
+                }
+            }
 
             // Calling unwrap() here, since the tx is never going to be dropped,
             // without sending anything, while this future is still being executed.
@@ -294,7 +301,13 @@ impl QueueHandler {
                 // will also do the same, i.e. return `true` if the action should be kept
                 // in the queue, or `false` otherwise.
                 if !runtime.block_on(Self::step_or_kill(
-                    action.step(&action_wrapper.ctx, &self.state_handler),
+                    // Here we kindly ask the compiler to not check unwind safety. Losing unwind
+                    // safety is not undefined behavior, though it could possibly lead to logic bugs
+                    // if the panic happens in the middle of operations that leave `action` or
+                    // `state_handler` in invalid states.
+                    // See https://old.reddit.com/r/rust/comments/7diwt1 and
+                    // https://users.rust-lang.org/t/73067/3 .
+                    AssertUnwindSafe(action.step(&action_wrapper.ctx, &self.state_handler)),
                     killer_rx,
                 )) {
                     // The action has finished executing, release its resources and remove
