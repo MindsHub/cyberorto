@@ -50,7 +50,7 @@ pub struct Master<Serial: AsyncSerial> {
 macro_rules! match_response {
     ($msg:expr, $($p:pat => $e:expr,)+) => {{
         let msg = $msg;
-        match $msg {
+        match msg {
             Response::Unsupported => {
                 defmt_or_log::error!("match_response!: received response Unsupported");
                 Err(CommunicationError::UnsupportedResponse)
