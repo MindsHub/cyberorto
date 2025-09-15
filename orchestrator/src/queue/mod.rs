@@ -338,7 +338,7 @@ impl QueueHandler {
                     StepResult::Finished => {
                         trace!("action.step() with id {id} finished");
                         // TODO maybe allow returning progress here, too, instead of using 100% manually
-                        (true, false, StepProgress::Percentage(1.0f32))
+                        (true, false, StepProgress::Proportion(1.0f32))
                     },
                     StepResult::FinishedError(state_handler_error) => {
                         error!("action.step() with id {id} returned FinishedError: {state_handler_error:?}");

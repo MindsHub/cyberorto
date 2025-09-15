@@ -51,13 +51,17 @@ pub struct Actuators {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct WaterLevel {
-    pub percentage: f32,
+    /// How filled the water tank is as a value between 0.0 and 1.0.
+    pub proportion: f32,
+    /// How much water is in the tank, in liters.
     pub liters: f32,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BatteryLevel {
-    pub percentage: f32,
+    /// How charged the battery is as a value between 0.0 and 1.0.
+    pub proportion: f32,
+    /// The battery voltage.
     pub volts: f32,
 }
 

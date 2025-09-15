@@ -13,7 +13,7 @@ use embedcore::protocol::{comunication::CommunicationError, cyber::Master};
 use rocket::futures::future::{self, join4};
 use tokio_serial::SerialStream;
 
-use crate::{constants::{ARM_LENGTH, WATER_TIME_MS}, state::kinematics::{joint_to_world, world_to_joint}, util::serial::Masters};
+use crate::{constants::{ARM_LENGTH, BATTERY_VOLTAGE_MAX, BATTERY_VOLTAGE_MIN, WATER_SCALE_MAX, WATER_SCALE_MIN, WATER_TANK_LITERS, WATER_TIME_MS}, state::kinematics::{joint_to_world, world_to_joint}, util::serial::Masters};
 
 #[derive(Debug, Clone)]
 pub struct Plant {
@@ -191,6 +191,12 @@ impl StateHandler {
                 state.actuators.pump = peripherals.pump;
                 state.actuators.plow = peripherals.plow;
                 state.actuators.led = peripherals.led;
+                state.water_level.proportion = (peripherals.water_scale - WATER_SCALE_MIN) as f32
+                    / (WATER_SCALE_MAX - WATER_SCALE_MIN) as f32;
+                state.water_level.liters = state.water_level.proportion * WATER_TANK_LITERS;
+                state.battery_level.proportion = (peripherals.battery_voltage - BATTERY_VOLTAGE_MIN)
+                    / (BATTERY_VOLTAGE_MAX - BATTERY_VOLTAGE_MIN);
+                state.battery_level.volts = peripherals.battery_voltage;
             }
             Err(_) => state.errors.peripherals = true,
         }

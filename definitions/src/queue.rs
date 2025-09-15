@@ -47,5 +47,5 @@ pub enum StepProgress {
         steps_total: usize,
     },
     /// The progress as a number between 0 and 1.
-    Percentage(f32),
+    Proportion(f32),
 }
