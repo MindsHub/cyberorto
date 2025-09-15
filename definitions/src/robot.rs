@@ -68,13 +68,13 @@ pub struct BatteryLevel {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Errors {
     /// Was there an error communicating to the x-axis motor?
-    pub motor_x: bool,
+    pub motor_x: Option<String>,
     /// Was there an error communicating to the y-axis motor?
-    pub motor_y: bool,
+    pub motor_y: Option<String>,
     /// Was there an error communicating to the z-axis motor?
-    pub motor_z: bool,
+    pub motor_z: Option<String>,
     /// Was there an error communicating to the embedded device handling actuators and sensors?
-    pub peripherals: bool,
+    pub peripherals: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

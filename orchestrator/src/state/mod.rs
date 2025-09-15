@@ -27,12 +27,10 @@ type State = RobotState;
 #[derive(Debug, Clone)]
 pub struct StateHandler {
     state: Arc<Mutex<State>>,
-    master_x: Arc<Master<SerialStream>>,
-    master_y: Arc<Master<SerialStream>>,
-    master_z: Arc<Master<SerialStream>>,
-    /// Sensors might be implemented by a motor, so this may be a clone of one of
-    /// master_x, master_y, master_z, so avoid using it while also using a motor!
-    master_peripherals: Arc<Master<SerialStream>>,
+    motor_x: Arc<Master<SerialStream>>,
+    motor_y: Arc<Master<SerialStream>>,
+    motor_z: Arc<Master<SerialStream>>,
+    peripherals: Arc<Master<SerialStream>>,
 }
 
 fn acquire(state: &Arc<Mutex<State>>) -> MutexGuard<'_, State> {
@@ -51,6 +49,22 @@ macro_rules! mutate_state {
     };
 }
 
+macro_rules! handle_errors {
+    ($self:ident.$master:ident.$func:ident ( $($args:expr)* )) => {
+        async {
+            let res = $self.$master.$func($($args)*).await;
+            if let Err(e) = &res {
+                mutate_state!(&$self.state, errors.$master = Some(format!("{e:?}")));
+            }
+            res.map_err(|e| StateHandlerError::Communication {
+                error: e,
+                device_name: stringify!($master),
+                function_call: stringify!($func),
+            })
+        }
+    };
+}
+
 impl StateHandler {
     pub fn new(masters: Masters) -> StateHandler {
         StateHandler {
@@ -62,10 +76,10 @@ impl StateHandler {
                 },
                 ..Default::default()
             })),
-            master_x: masters.x,
-            master_y: masters.y,
-            master_z: masters.z,
-            master_peripherals: masters.peripherals,
+            motor_x: masters.x,
+            motor_y: masters.y,
+            motor_z: masters.z,
+            peripherals: masters.peripherals,
         }
     }
 
@@ -94,25 +108,24 @@ impl StateHandler {
     }
 
     pub async fn water(&self, cooldown_ms: u64) -> Result<(), StateHandlerError> {
-        self.master_peripherals.water(cooldown_ms).await.map_err(StateHandlerError::Communication)
+        handle_errors!(self.peripherals.water(cooldown_ms)).await
     }
 
     pub async fn lights(&self, cooldown_ms: u64) -> Result<(), StateHandlerError> {
-        self.master_peripherals.lights(cooldown_ms).await.map_err(StateHandlerError::Communication)
+        handle_errors!(self.peripherals.lights(cooldown_ms)).await
     }
 
     pub async fn pump(&self, cooldown_ms: u64) -> Result<(), StateHandlerError> {
-        self.master_peripherals.pump(cooldown_ms).await.map_err(StateHandlerError::Communication)
+        handle_errors!(self.peripherals.pump(cooldown_ms)).await
     }
 
     pub async fn plow(&self, cooldown_ms: u64) -> Result<(), StateHandlerError> {
-        self.master_peripherals.plow(cooldown_ms).await.map_err(StateHandlerError::Communication)
+        handle_errors!(self.peripherals.plow(cooldown_ms)).await
     }
 
     pub async fn toggle_led(&self) -> Result<(), StateHandlerError> {
-        let curr_led = self.master_peripherals.get_peripherals_state().await
-            .map_err(StateHandlerError::Communication)?.led;
-        self.master_peripherals.set_led(!curr_led).await.map_err(StateHandlerError::Communication)
+        let curr_led = handle_errors!(self.peripherals.get_peripherals_state()).await?.led;
+        handle_errors!(self.peripherals.set_led(!curr_led)).await
     }
 
     pub async fn home(&self) -> Result<(), StateHandlerError> {
@@ -126,11 +139,11 @@ impl StateHandler {
         // then also reset X and Y in parallel (to make things faster)
         mutate_state!(&self.state, target.x = 0.0, target.y = -ARM_LENGTH);
         let (res_x, res_y) = future::join(
-            self.master_x.reset_motor(),
-            self.master_y.reset_motor(),
+            handle_errors!(self.motor_x.reset_motor()),
+            handle_errors!(self.motor_y.reset_motor()),
         ).await;
-        res_x.map_err(StateHandlerError::Communication)?;
-        res_y.map_err(StateHandlerError::Communication)?;
+        res_x?;
+        res_y?;
         mutate_state!(&self.state, position.x = 0.0, position.y = -ARM_LENGTH);
 
         Ok(())
@@ -139,7 +152,7 @@ impl StateHandler {
     pub async fn retract(&self) -> Result<(), StateHandlerError> {
         // "retract" means resetting just the Z axis
         mutate_state!(&self.state, target.z = 0.0);
-        self.master_z.reset_motor().await.map_err(StateHandlerError::Communication)?;
+        handle_errors!(self.motor_z.reset_motor()).await?;
         mutate_state!(&self.state, position.z = 0.0);
         Ok(())
     }
@@ -154,51 +167,45 @@ impl StateHandler {
         // TODO compute trajectory that avoids obstacles and optimizes path
         // TODO handle errors while motors are moving and stop everything if errors happen
         mutate_state!(&self.state, target = world, target_joint = joint.clone());
-        self.master_x.move_motor(joint.x).await.map_err(StateHandlerError::Communication)?;
-        self.master_y.move_motor(joint.y).await.map_err(StateHandlerError::Communication)?;
-        self.master_z.move_motor(joint.z).await.map_err(StateHandlerError::Communication)?;
+        handle_errors!(self.motor_x.move_motor(joint.x)).await?;
+        handle_errors!(self.motor_y.move_motor(joint.y)).await?;
+        handle_errors!(self.motor_z.move_motor(joint.z)).await?;
         Ok(())
     }
 
     pub async fn try_update_state(&self) -> State {
         let (x, y, z, peripherals) = join4(
-            self.master_x.get_motor_state(),
-            self.master_y.get_motor_state(),
-            self.master_z.get_motor_state(),
-            self.master_peripherals.get_peripherals_state()
+            handle_errors!(self.motor_x.get_motor_state()),
+            handle_errors!(self.motor_y.get_motor_state()),
+            handle_errors!(self.motor_z.get_motor_state()),
+            handle_errors!(self.peripherals.get_peripherals_state())
         ).await;
 
         let mut state = acquire(&self.state);
 
-        match x {
-            Ok(x) => state.position_joint.x = x.motor_pos,
-            Err(_) => state.errors.motor_x = true,
+        if let Ok(x) = x {
+            state.position_joint.x = x.motor_pos;
         }
-        match y {
-            Ok(y) => state.position_joint.y = y.motor_pos,
-            Err(_) => state.errors.motor_y = true,
+        if let Ok(y) = y {
+            state.position_joint.y = y.motor_pos;
         }
-        match z {
-            Ok(z) => state.position_joint.z = z.motor_pos,
-            Err(_) => state.errors.motor_z = true,
+        if let Ok(z) = z {
+            state.position_joint.z = z.motor_pos;
         }
         state.position = joint_to_world(&state.position_joint, &state.parameters);
 
-        match peripherals {
-            Ok(peripherals) => {
-                state.actuators.water = peripherals.water;
-                state.actuators.lights = peripherals.lights;
-                state.actuators.pump = peripherals.pump;
-                state.actuators.plow = peripherals.plow;
-                state.actuators.led = peripherals.led;
-                state.water_level.proportion = (peripherals.water_scale - WATER_SCALE_MIN) as f32
-                    / (WATER_SCALE_MAX - WATER_SCALE_MIN) as f32;
-                state.water_level.liters = state.water_level.proportion * WATER_TANK_LITERS;
-                state.battery_level.proportion = (peripherals.battery_voltage - BATTERY_VOLTAGE_MIN)
-                    / (BATTERY_VOLTAGE_MAX - BATTERY_VOLTAGE_MIN);
-                state.battery_level.volts = peripherals.battery_voltage;
-            }
-            Err(_) => state.errors.peripherals = true,
+        if let Ok(peripherals) = peripherals {
+            state.actuators.water = peripherals.water;
+            state.actuators.lights = peripherals.lights;
+            state.actuators.pump = peripherals.pump;
+            state.actuators.plow = peripherals.plow;
+            state.actuators.led = peripherals.led;
+            state.water_level.proportion = (peripherals.water_scale - WATER_SCALE_MIN) as f32
+                / (WATER_SCALE_MAX - WATER_SCALE_MIN) as f32;
+            state.water_level.liters = state.water_level.proportion * WATER_TANK_LITERS;
+            state.battery_level.proportion = (peripherals.battery_voltage - BATTERY_VOLTAGE_MIN)
+                / (BATTERY_VOLTAGE_MAX - BATTERY_VOLTAGE_MIN);
+            state.battery_level.volts = peripherals.battery_voltage;
         }
 
         state.clone()
@@ -207,7 +214,11 @@ impl StateHandler {
 
 #[derive(Debug)]
 pub enum StateHandlerError {
-    Communication(CommunicationError),
+    Communication {
+        error: CommunicationError,
+        device_name: &'static str,
+        function_call: &'static str,
+    },
     InvalidWorldCoordinates(Vec3),
     GenericError(String),
 }

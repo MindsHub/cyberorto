@@ -14,9 +14,9 @@ use super::{
 
 // this inner struct is behind a mutex. It should be possible to have multiple read-only references to the master struct and be able to send/read messages.
 pub struct InnerMaster<Serial: AsyncSerial> {
-    ///Communication wrapper
+    /// Communication wrapper
     com: Communication<Serial>,
-    ///Last sent message id, before sending it get's increased by one until overflow appens, and then restarts from 0.
+    /// Last sent message id, before sending it get's increased by one until overflow appens, and then restarts from 0.
     id: u8,
 }
 
