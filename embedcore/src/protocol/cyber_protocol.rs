@@ -149,6 +149,8 @@ pub struct PeripheralsState {
     pub pump: bool,
     pub plow: bool,
     pub led: bool,
+    pub battery_voltage: f32,
+    pub water_scale: f32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

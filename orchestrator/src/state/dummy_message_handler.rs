@@ -87,6 +87,8 @@ impl MessagesHandler for DummyMessageHandler {
             pump: self.pump_state,
             plow: self.plow_state,
             led: self.led_state,
+            battery_voltage: rand::random_range(13.0..=13.4),
+            water_scale: rand::random_range(8800000..=8900000),
         };
         // TODO add logging
         //println!("Got request for state: {resp_state:?}");

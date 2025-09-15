@@ -108,6 +108,8 @@ impl MessagesHandler for Arc<std::sync::Mutex<MessageRecorderSlave>> {
             pump: false,
             plow: false,
             led: lock.led_state,
+            battery_voltage: 13.2,
+            water_scale: 8805870,
         })
     }
     async fn water(&mut self, cooldown_ms: u64) -> Response {
