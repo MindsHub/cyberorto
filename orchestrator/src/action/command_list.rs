@@ -1,10 +1,9 @@
-use std::{collections::VecDeque, future::Future, time::Duration};
+use std::{future::Future, time::Duration};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    state::{StateHandler, StateHandlerError},
-    util::serde::{deserialize_from_json_file, serialize_to_json_file},
+    action::{StepProgress, StepResult}, state::{StateHandler, StateHandlerError}, util::serde::{deserialize_from_json_file, serialize_to_json_file}
 };
 
 use super::{Action, Context};
@@ -12,10 +11,11 @@ use super::{Action, Context};
 /// Executes a list of commands directly on the robot state.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CommandListAction {
-    commands: VecDeque<Command>,
+    commands: Vec<Command>,
+    steps_done_so_far: usize,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Command {
     Move { x: f32, y: f32, z: f32 },
     Reset,
@@ -37,7 +37,8 @@ pub enum Command {
 impl CommandListAction {
     pub fn new(commands: Vec<Command>) -> Self {
         CommandListAction {
-            commands: VecDeque::from(commands),
+            commands,
+            steps_done_so_far: 0,
         }
     }
 
@@ -85,14 +86,13 @@ impl CommandListAction {
 
 #[async_trait]
 impl Action for CommandListAction {
-    async fn step(&mut self, _ctx: &Context, state_handler: &StateHandler) -> bool {
-        let command = if let Some(command) = self.commands.pop_front() {
-            command
-        } else {
-            return false;
-        };
+    async fn step(&mut self, _ctx: &Context, state_handler: &StateHandler) -> StepResult {
+        if self.steps_done_so_far >= self.commands.len() {
+            return StepResult::Finished;
+        }
+        let command = self.commands[self.steps_done_so_far].clone();
 
-        match command {
+        let res = match command {
             Command::Move { x, y, z } => state_handler.move_to(x, y, z).await,
             Command::Reset => state_handler.reset().await,
             Command::Home => state_handler.home().await,
@@ -126,9 +126,24 @@ impl Action for CommandListAction {
                 Self::run_wait_function(StateHandler::plow, state_handler, duration).await
             }
             Command::ToggleLed => state_handler.toggle_led().await,
-        }.unwrap(); // TODO handle errors
+        };
 
-        !self.commands.is_empty()
+        if let Err(e) = res {
+            return StepResult::RunningError(e);
+        }
+
+        // only increment if there has been no error
+        self.steps_done_so_far += 1;
+        if self.steps_done_so_far >= self.commands.len() {
+            StepResult::Finished
+        } else {
+            StepResult::Running(
+                StepProgress::Ratio {
+                    steps_done_so_far: self.steps_done_so_far,
+                    steps_total: self.commands.len(),
+                }
+            )
+        }
     }
 
     fn get_type_name() -> &'static str

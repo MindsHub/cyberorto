@@ -6,7 +6,7 @@ use std::{fs, thread::JoinHandle, time::Duration};
 
 use super::*;
 use crate::{
-    action::action_wrapper::Context,
+    action::{action_wrapper::Context, StepProgress, StepResult},
     state::tests::{get_test_state, TestState},
 };
 
@@ -118,11 +118,11 @@ struct InfiniteTestAction {
 
 #[async_trait]
 impl Action for InfiniteTestAction {
-    async fn step(&mut self, _: &Context, _: &StateHandler) -> bool {
+    async fn step(&mut self, _: &Context, _: &StateHandler) -> StepResult {
         self.i += 1;
         tokio::time::sleep(Duration::from_millis(10)).await;
         self.i += 1;
-        true
+        StepResult::Running(StepProgress::Unknown)
     }
 
     fn get_type_name() -> &'static str

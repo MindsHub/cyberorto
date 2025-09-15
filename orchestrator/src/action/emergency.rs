@@ -1,4 +1,4 @@
-use crate::state::StateHandler;
+use crate::{action::StepResult, state::StateHandler};
 
 use super::{Action, Context};
 
@@ -8,10 +8,12 @@ pub struct EmergencyAction {}
 
 #[async_trait]
 impl Action for EmergencyAction {
-    async fn step(&mut self, _ctx: &Context, state_handler: &StateHandler) -> bool {
+    async fn step(&mut self, _ctx: &Context, state_handler: &StateHandler) -> StepResult {
         // TODO implement better emergency logic
-        let _ = state_handler.reset().await;
-        false
+        if let Err(e) = state_handler.reset().await {
+            error!("EmergencyAction could not reset: {e:?}")
+        }
+        StepResult::Finished
     }
 
     fn get_type_name() -> &'static str

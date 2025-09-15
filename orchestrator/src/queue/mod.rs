@@ -1,10 +1,11 @@
 mod tests;
 
 use std::{
-    collections::{HashMap, VecDeque}, fs::create_dir_all, future::Future, panic::{AssertUnwindSafe, UnwindSafe}, path::PathBuf, sync::{Arc, Condvar, Mutex, MutexGuard}
+    collections::{HashMap, VecDeque}, fs::create_dir_all, future::Future, panic::{catch_unwind, AssertUnwindSafe, UnwindSafe}, path::PathBuf, sync::{Arc, Condvar, Mutex, MutexGuard}
 };
 
 use definitions::{ActionInfo, EmergencyStatus, QueueState};
+use log::trace;
 use rocket::futures::FutureExt;
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
@@ -13,9 +14,9 @@ use crate::{
     action::{
         action_wrapper::{ActionId, ActionWrapper},
         emergency::EmergencyAction,
-        Action,
+        Action, StepResult,
     },
-    state::StateHandler,
+    state::{StateHandler, StateHandlerError},
     util::serde::{deserialize_from_json_file, serialize_to_json_file},
 };
 
@@ -245,12 +246,14 @@ impl QueueHandler {
     /// Waits for `stepper` to finish executing, unless a message from `killer_rx` is received
     /// before `stepper` terminates.
     /// Returns:
-    /// - `true` if there are some more steps available,
-    /// - `false` if the action has finished executing, or if there was an unexpected panic.
-    async fn step_or_kill<F: Future<Output = bool> + UnwindSafe>(
+    /// - [StepResult::Running] or [StepResult::RunningError] if there are some more steps
+    ///   available,
+    /// - [StepResult::Finished] or [StepResult::FinishedError] if the action has finished
+    ///   executing, or if there was an unexpected panic.
+    async fn step_or_kill<F: Future<Output = StepResult> + UnwindSafe>(
         stepper: F,
         killer_rx: oneshot::Receiver<bool>,
-    ) -> bool {
+    ) -> StepResult {
         tokio::select! {
             output = stepper.catch_unwind() => {
                 match output {
@@ -259,7 +262,9 @@ impl QueueHandler {
                     // Some panic happened, do as if the action has finished executing
                     Err(err) => {
                         error!("Panic while stepping action: {err:?}");
-                        false
+                        StepResult::FinishedError(StateHandlerError::GenericError(
+                            format!("Panic while stepping action: {err:?}")
+                        ))
                     },
                 }
             }
@@ -268,7 +273,15 @@ impl QueueHandler {
             // without sending anything, while this future is still being executed.
             // The tx is only dropped after it sends something, or after the other branch of
             // this select! has returned before this one.
-            output = killer_rx => output.unwrap(),
+            output = killer_rx => if output.unwrap() {
+                info!("Received kill signal for action, with keep_in_queue = true");
+                // keep in queue
+                StepResult::RunningError(StateHandlerError::GenericError("Killed".to_string()))
+            } else {
+                info!("Received kill signal for action, with keep_in_queue = false");
+                // remove from queue
+                StepResult::FinishedError(StateHandlerError::GenericError("Killed".to_string()))
+            },
         }
     }
 
@@ -300,7 +313,7 @@ impl QueueHandler {
                 // or `false` if the action has finished executing. The `killer_rx` channel
                 // will also do the same, i.e. return `true` if the action should be kept
                 // in the queue, or `false` otherwise.
-                if !runtime.block_on(Self::step_or_kill(
+                let step_result = runtime.block_on(Self::step_or_kill(
                     // Here we kindly ask the compiler to not check unwind safety. Losing unwind
                     // safety is not undefined behavior, though it could possibly lead to logic bugs
                     // if the panic happens in the middle of operations that leave `action` or
@@ -309,10 +322,38 @@ impl QueueHandler {
                     // https://users.rust-lang.org/t/73067/3 .
                     AssertUnwindSafe(action.step(&action_wrapper.ctx, &self.state_handler)),
                     killer_rx,
-                )) {
-                    // The action has finished executing, release its resources and remove
-                    // it from the queue.
-                    action.release(&action_wrapper.ctx);
+                ));
+
+                let (should_release_action, should_pause_queue) = match step_result {
+                    StepResult::Running(step_progress) => {
+                        // Nothing to do, action is kept in the queue.
+                        trace!("action.step() with id {id} reported progress {step_progress:?}");
+                        (false, false)
+                    },
+                    StepResult::RunningError(state_handler_error) => {
+                        // Action failed with an error, but should remain in queue, so pause the
+                        // queue.
+                        error!("action.step() with id {id} returned RunningError: {state_handler_error:?}");
+                        (false, true)
+                    },
+                    StepResult::Finished => {
+                        trace!("action.step() with id {id} finished");
+                        (true, false)
+                    },
+                    StepResult::FinishedError(state_handler_error) => {
+                        error!("action.step() with id {id} returned FinishedError: {state_handler_error:?}");
+                        (true, false)
+                    },
+                };
+
+                if should_release_action {
+                    // The action has finished executing, release its resources and remove it from
+                    // the queue. Run this with catch_unwind just in case there is some panic!() in
+                    // action.release().
+                    if let Err(err) = catch_unwind(AssertUnwindSafe(|| action.release(&action_wrapper.ctx))) {
+                        error!("Panic while releasing action: {err:?}");
+                        // ignore errors and proceed normally
+                    }
                     action_wrapper.action = None;
                 }
 
@@ -320,6 +361,9 @@ impl QueueHandler {
                     let mut queue = self.queue.0.lock().unwrap();
                     queue.running_id = None;
                     queue.running_killer = None;
+                    if should_pause_queue {
+                        queue.paused = true;
+                    }
                 }
                 prev_action = Some(action_wrapper);
             } else {
