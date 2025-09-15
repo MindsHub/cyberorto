@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 #[non_exhaustive]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-/// In our comunication protocol we send this structure from the master to the slave.
+/// In our communication protocol we send this structure from the master to the slave.
 /// Any message may reply with [Response::Unsupported] or [Response::Error] if something is wrong.
 pub enum Message {
     /// Requests information about the slave. Normally replies with [Response::IAm].
@@ -93,7 +93,7 @@ pub trait MessagesHandler {
 #[non_exhaustive]
 #[derive(Serialize, Deserialize, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-/// In our comunication protocol we send this structure from the slave to the master.
+/// In our communication protocol we send this structure from the slave to the master.
 /// The master should check if the obtained response is reasonable for the command that it has sent.
 pub enum Response {
 

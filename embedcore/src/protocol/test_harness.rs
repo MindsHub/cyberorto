@@ -10,7 +10,7 @@ use tokio::sync::{
     mpsc::{self, Receiver, Sender},
 };
 
-use crate::protocol::comunication::CommunicationError;
+use crate::protocol::communication::CommunicationError;
 
 use super::{AsyncSerial, cyber::*};
 pub type TestMaster<Serial> = Master<Serial>;

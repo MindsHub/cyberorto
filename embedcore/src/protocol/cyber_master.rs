@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::protocol::{comunication::CommunicationError, cyber::{DeviceIdentifier, MotorState, PeripheralsState}};
+use crate::protocol::{communication::CommunicationError, cyber::{DeviceIdentifier, MotorState, PeripheralsState}};
 use core::fmt::Debug;
 use defmt_or_log::{debug, trace};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
@@ -8,14 +8,14 @@ use serde::Deserialize;
 
 use super::{
     AsyncSerial,
-    comunication::Comunication,
+    communication::Communication,
     cyber_protocol::{Message, Response},
 };
 
 // this inner struct is behind a mutex. It should be possible to have multiple read-only references to the master struct and be able to send/read messages.
 pub struct InnerMaster<Serial: AsyncSerial> {
-    ///Comunication wrapper
-    com: Comunication<Serial>,
+    ///Communication wrapper
+    com: Communication<Serial>,
     ///Last sent message id, before sending it get's increased by one until overflow appens, and then restarts from 0.
     id: u8,
 }
@@ -40,7 +40,7 @@ pub struct Master<Serial: AsyncSerial> {
     ph: PhantomData<Serial>,
     /// Mutex for InnerMaster. It should get Locked when sending a message, when reading a response, and unlocked for everything else.
     inner: Mutex<CriticalSectionRawMutex, InnerMaster<Serial>>,
-    /// how many times should a message be resent? Bigger numbers means better comunication but possibly slower.
+    /// how many times should a message be resent? Bigger numbers means better communication but possibly slower.
     resend_times: u8,
     /// how much time should we wait for a message, before trying to resend it?
     #[cfg(feature = "std")]
@@ -81,7 +81,7 @@ impl<Serial: AsyncSerial> Master<Serial> {
         Self {
             ph: PhantomData,
             inner: Mutex::new(InnerMaster {
-                com: Comunication::new(serial),
+                com: Communication::new(serial),
                 id: 0,
             }),
             resend_times,

@@ -7,7 +7,7 @@ use embassy_time::Instant;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use tokio_serial::SerialStream;
 
-use crate::{common::motor::Motor, protocol::{comunication::CommunicationError, AsyncSerial}, DiscreteDriver, EncoderTrait};
+use crate::{common::motor::Motor, protocol::{communication::CommunicationError, AsyncSerial}, DiscreteDriver, EncoderTrait};
 
 /// implement AsyncSerial for SerialStream
 impl AsyncSerial for SerialStream {

@@ -1,13 +1,13 @@
-//! Definitions for the comunication protocol used over serial
+//! Definitions for the communication protocol used over serial
 //! AsyncTrait is an abstraction over serial, it should be correctly implemented on each platform we support
-//! In comunication mod there is the heavy lifting in order to implement any tipe of protocol
+//! In communication mod there is the heavy lifting in order to implement any tipe of protocol
 //! in cyber_protocol mod we define the protocol used between the motors and the raspberry
 
 use core::future::Future;
 
-use crate::protocol::comunication::CommunicationError;
+use crate::protocol::communication::CommunicationError;
 
-pub mod comunication;
+pub mod communication;
 mod cyber_master;
 mod cyber_protocol;
 mod cyber_slave;

@@ -21,7 +21,7 @@ use embedcore::{
         controllers::pid::{CalibrationMode, PidController},
         motor::{test::{test_basic_movement, test_max_speed}, Motor},
         static_encoder::StaticEncoder,
-    }, protocol::{comunication::CommunicationError, cyber::{DeviceIdentifier, Message, MessagesHandler, Response, Slave}, AsyncSerial}, DiscreteDriver, Drv8843Pwm, EncoderTrait, SerialWrapper
+    }, protocol::{communication::CommunicationError, cyber::{DeviceIdentifier, Message, MessagesHandler, Response, Slave}, AsyncSerial}, DiscreteDriver, Drv8843Pwm, EncoderTrait, SerialWrapper
 };
 use serialmessage::{ParseState, SerMsg};
 

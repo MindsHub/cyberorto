@@ -27,7 +27,7 @@ use embedcore::{
         },
         static_encoder::StaticEncoder,
     }, protocol::{
-        comunication::CommunicationError, cyber::{DeviceIdentifier, Message, MessagesHandler, MotorState, Response, Slave}, AsyncSerial
+        communication::CommunicationError, cyber::{DeviceIdentifier, Message, MessagesHandler, MotorState, Response, Slave}, AsyncSerial
     }, DiscreteDriver, Drv8843Pwm, EncoderTrait, SerialWrapper
 };
 use qingke::riscv::register::satp::set;

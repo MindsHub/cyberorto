@@ -2,7 +2,7 @@ use ch32_hal::{
     gpio::Output, mode, usart::{self, Uart, UartRx, UartTx}
 };
 
-use crate::protocol::{comunication::CommunicationError, AsyncSerial};
+use crate::protocol::{communication::CommunicationError, AsyncSerial};
 
 pub struct SerialWrapper<'a, T: usart::Instance> {
     pub rx: UartRx<'a, T, mode::Async>,

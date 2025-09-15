@@ -9,7 +9,7 @@ use std::{
 };
 
 use definitions::{Parameters, RobotState, Vec3};
-use embedcore::protocol::{comunication::CommunicationError, cyber::Master};
+use embedcore::protocol::{communication::CommunicationError, cyber::Master};
 use rocket::futures::future::{self, join4};
 use tokio_serial::SerialStream;
 

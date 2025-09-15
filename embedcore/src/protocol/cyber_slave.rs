@@ -2,13 +2,13 @@ use crate::protocol::cyber::DeviceIdentifier;
 
 use super::{
     AsyncSerial,
-    comunication::Comunication,
+    communication::Communication,
     cyber_protocol::{Message, MessagesHandler, Response},
 };
 
 pub struct Slave<Serial: AsyncSerial, MA: MessagesHandler> {
-    /// comunication interface, that permit to read/send messages
-    pub com: Comunication<Serial>,
+    /// communication interface, that permit to read/send messages
+    pub com: Communication<Serial>,
     /// what is my name?
     device_identifier: DeviceIdentifier,
     /// struct used to handle all messages
@@ -19,7 +19,7 @@ impl<Serial: AsyncSerial, MA: MessagesHandler> Slave<Serial, MA> {
     /// init this struct, you should provide what serial you will use, and some other configs
     pub fn new(serial: Serial, name: [u8; 10], message_handler: MA) -> Self {
         Self {
-            com: Comunication::new(serial),
+            com: Communication::new(serial),
             device_identifier: DeviceIdentifier { name, version: 0 },
             message_handler,
         }

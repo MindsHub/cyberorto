@@ -8,9 +8,9 @@ use serialmessage::{ParseState, SerMsg};
 use crate::protocol::cyber::Response;
 
 use super::AsyncSerial;
-/// Comunication wrapper, it shouldn't be used directly.
+/// Communication wrapper, it shouldn't be used directly.
 /// Note that this will not do any timeout.
-pub struct Comunication<Serial: AsyncSerial> {
+pub struct Communication<Serial: AsyncSerial> {
     /// Serial interface
     pub serial: Serial,
     /// serial buffer
@@ -60,8 +60,8 @@ pub enum CommunicationError {
 }
 
 // TODO timeout shouldn't be handled here anymore, remove every reference to it
-impl<Serial: AsyncSerial> Comunication<Serial> {
-    /// create a new Comunication Instance
+impl<Serial: AsyncSerial> Communication<Serial> {
+    /// create a new Communication Instance
     pub fn new(serial: Serial) -> Self {
         Self {
             serial,
