@@ -65,7 +65,7 @@ async fn main() {
     let queue_handler_clone = queue_handler.clone();
     let queue_handler_thread = thread::spawn(move || queue_handler_clone.run());
 
-    rocket::build()
+    let rocket_error = rocket::build()
         .attach(Cors)
         .manage(state_handler) // used by `impl FromRequest for State`
         .manage(queue_handler.clone()) // used by `impl FromRequest for &QueueHandler`
@@ -79,8 +79,11 @@ async fn main() {
             api::add_action_command_list
         ])
         .launch()
-        .await
-        .unwrap();
+        .await;
+
+    if let Err(e) = rocket_error {
+        error!("Could not start Rocket: {e:?}");
+    }
 
     // launch().await will block until it receives a shutdown request (e.g. Ctrl+C)
     info!("Shutting down Cyberorto orchestrator...");
