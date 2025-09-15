@@ -11,7 +11,6 @@ use crate::util::{serial::SerialPorts, test_devices::test_devices};
 
 mod action;
 mod api;
-mod constants;
 mod queue;
 mod state;
 mod util;

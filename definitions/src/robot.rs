@@ -83,4 +83,16 @@ pub struct Parameters {
     pub arm_length: f32,
     /// Length of the rail along which the tower moves, in meters.
     pub rail_length: f32,
+
+    /// The battery voltage for when the battery is fully discharged.
+    pub battery_voltage_min: f32,
+    /// The battery voltage for when the battery is fully charged.
+    pub battery_voltage_max: f32,
+
+    /// The reading on the scale when the water tank is empty.
+    pub water_scale_min: u32,
+    /// The reading on the scale when the water tank is full.
+    pub water_scale_max: u32,
+    /// The capacity of the water tank in liters.
+    pub water_tank_liters: f32,
 }

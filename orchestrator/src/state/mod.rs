@@ -13,7 +13,7 @@ use embedcore::protocol::{communication::CommunicationError, cyber::Master};
 use rocket::futures::future::{self, join4};
 use tokio_serial::SerialStream;
 
-use crate::{constants::{ARM_LENGTH, BATTERY_VOLTAGE_MAX, BATTERY_VOLTAGE_MIN, WATER_SCALE_MAX, WATER_SCALE_MIN, WATER_TANK_LITERS, WATER_TIME_MS}, state::kinematics::{joint_to_world, world_to_joint}, util::serial::Masters};
+use crate::{state::kinematics::{joint_to_world, world_to_joint}, util::serial::Masters};
 
 #[derive(Debug, Clone)]
 pub struct Plant {
@@ -41,10 +41,10 @@ fn acquire(state: &Arc<Mutex<State>>) -> MutexGuard<'_, State> {
 }
 
 macro_rules! mutate_state {
-    ($state:expr, $($($field:ident).+ = $value:expr),+ $(,)?) => {
+    (&$self:ident.$state:ident, $($($field:ident).+ = $value:expr),+ $(,)?) => {
         {
-            let mut state = acquire($state);
-            $(state$(.$field)+ = $value;)*
+            let mut $state = acquire(&$self.$state);
+            $($state$(.$field)+ = $value;)*
         }
     };
 }
@@ -72,7 +72,12 @@ impl StateHandler {
                 // TODO read parameters from file
                 parameters: Parameters {
                     arm_length: 1.511, // meters
-                    rail_length: 5.3, // meters
+                    rail_length: 5.3,
+                    battery_voltage_min: 12.0,
+                    battery_voltage_max: 13.5,
+                    water_scale_min: 8590000,
+                    water_scale_max: 9140000,
+                    water_tank_liters: 10.0, // meters
                 },
                 ..Default::default()
             })),
@@ -89,8 +94,9 @@ impl StateHandler {
 
     pub async fn water_a_plant(&self, x: f32, y: f32, z: f32) -> Result<(), StateHandlerError> {
         self.move_to(x, y, z).await?;
-        self.water(WATER_TIME_MS).await?;
-        tokio::time::sleep(Duration::from_millis(WATER_TIME_MS)).await;
+        // TODO allow passing amount of time
+        self.water(5_000).await?;
+        tokio::time::sleep(Duration::from_millis(5_000)).await;
         self.water(0).await?;
         Ok(())
     }
@@ -137,14 +143,14 @@ impl StateHandler {
         self.retract().await?;
 
         // then also reset X and Y in parallel (to make things faster)
-        mutate_state!(&self.state, target.x = 0.0, target.y = -ARM_LENGTH);
+        mutate_state!(&self.state, target.x = 0.0, target.y = -state.parameters.arm_length);
         let (res_x, res_y) = future::join(
             handle_errors!(self.motor_x.reset_motor()),
             handle_errors!(self.motor_y.reset_motor()),
         ).await;
         res_x?;
         res_y?;
-        mutate_state!(&self.state, position.x = 0.0, position.y = -ARM_LENGTH);
+        mutate_state!(&self.state, position.x = 0.0, position.y = -state.parameters.arm_length);
 
         Ok(())
     }
@@ -200,11 +206,11 @@ impl StateHandler {
             state.actuators.pump = peripherals.pump;
             state.actuators.plow = peripherals.plow;
             state.actuators.led = peripherals.led;
-            state.water_level.proportion = (peripherals.water_scale - WATER_SCALE_MIN) as f32
-                / (WATER_SCALE_MAX - WATER_SCALE_MIN) as f32;
-            state.water_level.liters = state.water_level.proportion * WATER_TANK_LITERS;
-            state.battery_level.proportion = (peripherals.battery_voltage - BATTERY_VOLTAGE_MIN)
-                / (BATTERY_VOLTAGE_MAX - BATTERY_VOLTAGE_MIN);
+            state.water_level.proportion = (peripherals.water_scale - state.parameters.water_scale_min) as f32
+                / (state.parameters.water_scale_max - state.parameters.water_scale_min) as f32;
+            state.water_level.liters = state.water_level.proportion * state.parameters.water_tank_liters;
+            state.battery_level.proportion = (peripherals.battery_voltage - state.parameters.battery_voltage_min)
+                / (state.parameters.battery_voltage_max - state.parameters.battery_voltage_min);
             state.battery_level.volts = peripherals.battery_voltage;
         }
 
