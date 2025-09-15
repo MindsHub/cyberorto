@@ -1,9 +1,10 @@
 use std::{future::Future, time::Duration};
 
+use definitions::StepProgress;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    action::{StepProgress, StepResult}, state::{StateHandler, StateHandlerError}, util::serde::{deserialize_from_json_file, serialize_to_json_file}
+    action::StepResult, state::{StateHandler, StateHandlerError}, util::serde::{deserialize_from_json_file, serialize_to_json_file}
 };
 
 use super::{Action, Context};

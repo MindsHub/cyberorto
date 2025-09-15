@@ -28,4 +28,24 @@ pub struct ActionInfo {
     pub type_name: String,
     pub save_dir: PathBuf,
     pub is_running: bool,
+    pub progress: StepProgress,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub enum StepProgress {
+    /// The progress is completely unknown.
+    #[default]
+    Unknown,
+    /// Only the number of steps done so far is known, but the total number is unknown.
+    Count {
+        steps_done_so_far: usize,
+    },
+    /// The progress as a ratio between the number of steps already
+    /// performed over the total number of steps.
+    Ratio {
+        steps_done_so_far: usize,
+        steps_total: usize,
+    },
+    /// The progress as a number between 0 and 1.
+    Percentage(f32),
 }

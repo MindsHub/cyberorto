@@ -4,7 +4,7 @@ use std::{
     collections::{HashMap, VecDeque}, fs::create_dir_all, future::Future, panic::{catch_unwind, AssertUnwindSafe, UnwindSafe}, path::PathBuf, sync::{Arc, Condvar, Mutex, MutexGuard}
 };
 
-use definitions::{ActionInfo, EmergencyStatus, QueueState};
+use definitions::{ActionInfo, EmergencyStatus, QueueState, StepProgress};
 use log::trace;
 use rocket::futures::FutureExt;
 use serde::{Deserialize, Serialize};
@@ -12,9 +12,7 @@ use tokio::sync::oneshot;
 
 use crate::{
     action::{
-        action_wrapper::{ActionId, ActionWrapper},
-        emergency::EmergencyAction,
-        Action, StepResult,
+        action_wrapper::{ActionId, ActionWrapper}, emergency::EmergencyAction, Action, StepResult
     },
     state::{StateHandler, StateHandlerError},
     util::serde::{deserialize_from_json_file, serialize_to_json_file},
@@ -215,6 +213,7 @@ impl QueueHandler {
                 let action_in_queue = queue.actions.front_mut().unwrap();
                 let mut next_action = ActionWrapper {
                     action: std::mem::take(&mut action_in_queue.action),
+                    progress: action_in_queue.progress.clone(),
                     ctx: action_in_queue.ctx.clone(),
                 };
 
@@ -324,25 +323,26 @@ impl QueueHandler {
                     killer_rx,
                 ));
 
-                let (should_release_action, should_pause_queue) = match step_result {
+                let (should_release_action, should_pause_queue, new_progress) = match step_result {
                     StepResult::Running(step_progress) => {
                         // Nothing to do, action is kept in the queue.
                         trace!("action.step() with id {id} reported progress {step_progress:?}");
-                        (false, false)
+                        (false, false, step_progress)
                     },
                     StepResult::RunningError(state_handler_error) => {
                         // Action failed with an error, but should remain in queue, so pause the
                         // queue.
                         error!("action.step() with id {id} returned RunningError: {state_handler_error:?}");
-                        (false, true)
+                        (false, true, StepProgress::Unknown)
                     },
                     StepResult::Finished => {
                         trace!("action.step() with id {id} finished");
-                        (true, false)
+                        // TODO maybe allow returning progress here, too, instead of using 100% manually
+                        (true, false, StepProgress::Percentage(1.0f32))
                     },
                     StepResult::FinishedError(state_handler_error) => {
                         error!("action.step() with id {id} returned FinishedError: {state_handler_error:?}");
-                        (true, false)
+                        (true, false, StepProgress::Unknown)
                     },
                 };
 
@@ -354,6 +354,7 @@ impl QueueHandler {
                         error!("Panic while releasing action: {err:?}");
                         // ignore errors and proceed normally
                     }
+                    action_wrapper.progress = StepProgress::Unknown;
                     action_wrapper.action = None;
                 }
 
@@ -363,6 +364,14 @@ impl QueueHandler {
                     queue.running_killer = None;
                     if should_pause_queue {
                         queue.paused = true;
+                    }
+                    if !matches!(new_progress, StepProgress::Unknown) {
+                        if let Some(item) = queue
+                            .actions
+                            .iter_mut()
+                            .find(|item| item.get_id() == id) {
+                                item.progress = new_progress
+                        }
                     }
                 }
                 prev_action = Some(action_wrapper);
@@ -549,6 +558,7 @@ impl QueueHandler {
                 type_name: action.get_type_name().clone(),
                 save_dir: action.get_save_dir().clone(),
                 is_running: action.is_placeholder(),
+                progress: action.get_progress().clone(),
             }).collect(),
         }
     }

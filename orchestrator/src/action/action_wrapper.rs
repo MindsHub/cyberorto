@@ -3,6 +3,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use definitions::StepProgress;
+use log::warn;
+
+use crate::util::serde::{deserialize_from_json_file, serialize_to_json_file};
+
 use super::{command_list::CommandListAction, emergency::EmergencyAction, Action};
 
 /// Holds an `Action` along with some fixed stats needed to keep track of
@@ -14,6 +19,10 @@ pub struct ActionWrapper {
     /// The action being wrapped.
     /// Will be None if this ActionWrapper is a placeholder.
     pub action: Option<Box<dyn Action>>,
+
+    /// The last progress reported by `action.step()`.
+    /// Will be [StepProgress::Unknown] at the beginning.
+    pub progress: StepProgress,
 
     /// Additional information to identify the action and save it to disk.
     pub ctx: Context,
@@ -50,6 +59,7 @@ impl ActionWrapper {
     pub fn new<A: Action + 'static>(action: A, id: ActionId, save_dir: &Path) -> ActionWrapper {
         ActionWrapper {
             action: Some(Box::new(action)),
+            progress: StepProgress::Unknown,
             ctx: Context {
                 id,
                 type_name: A::get_type_name().to_string(),
@@ -80,6 +90,10 @@ impl ActionWrapper {
     /// placeholder.
     pub fn is_placeholder(&self) -> bool {
         self.action.is_none()
+    }
+
+    pub fn get_progress(&self) -> &StepProgress {
+        &self.progress
     }
 
     /// Returns an `Action` after loading it from disk at the location `dir`,
@@ -114,14 +128,24 @@ impl ActionWrapper {
             save_dir: dir.into(),
         };
 
+        let progress = match deserialize_from_json_file(&ctx.save_dir.join("progress.json")) {
+            Ok(progress) => progress,
+            Err(e) => {
+                warn!("Could not read progress for action {id}: {e}");
+                StepProgress::Unknown
+            },
+        };
+
         if type_name == EmergencyAction::get_type_name() {
             Ok(ActionWrapper {
                 action: Some(Box::new(EmergencyAction::load_from_disk(&ctx)?)),
+                progress,
                 ctx,
             })
         } else if type_name == CommandListAction::get_type_name() {
             Ok(ActionWrapper {
                 action: Some(Box::new(CommandListAction::load_from_disk(&ctx)?)),
+                progress,
                 ctx,
             })
         } else {
@@ -137,10 +161,16 @@ impl ActionWrapper {
         let action = if let Some(action) = &self.action {
             action
         } else {
-            return Err("".to_string());
+            return Err("Action is not set".to_string());
         };
 
         create_dir_all(&self.ctx.save_dir).map_err(|e| e.to_string())?;
+
+        match serialize_to_json_file(&self.progress, &self.ctx.save_dir.join("progress.json")) {
+            Ok(_) => {},
+            Err(e) => warn!("Could not save progress {:?} for action {}: {e}", self.progress, self.ctx.id),
+        }
+
         action.save_to_disk(&self.ctx)?;
 
         Ok(())
@@ -149,7 +179,9 @@ impl ActionWrapper {
     /// Deletes all data stored by this action inside `self.ctx.save_dir`,
     /// ignoring any error.
     pub fn delete_data_on_disk(&self) {
-        let _ = remove_dir_all(&self.ctx.save_dir);
+        if let Err(e) = remove_dir_all(&self.ctx.save_dir) {
+            warn!("Error while deleting data on disk for action {}: {e}", self.ctx.id);
+        }
     }
 }
 

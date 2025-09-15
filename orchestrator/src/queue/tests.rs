@@ -1,12 +1,13 @@
 #![cfg(test)]
 
+use definitions::StepProgress;
 use futures::future::{BoxFuture, FutureExt};
 
 use std::{fs, thread::JoinHandle, time::Duration};
 
 use super::*;
 use crate::{
-    action::{action_wrapper::Context, StepProgress, StepResult},
+    action::{action_wrapper::Context, StepResult},
     state::tests::{get_test_state, TestState},
 };
 

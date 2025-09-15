@@ -4,7 +4,7 @@ pub mod emergency;
 
 use std::fmt::Debug;
 
-use serde::{Deserialize, Serialize};
+use definitions::StepProgress;
 
 use crate::state::{StateHandler, StateHandlerError};
 
@@ -98,22 +98,4 @@ pub enum StepResult {
     /// The current step failed, but there is no way to recover.
     /// The action will be removed from the queue.
     FinishedError(StateHandlerError),
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum StepProgress {
-    /// The progress is completely unknown.
-    Unknown,
-    /// Only the number of steps done so far is known, but the total number is unknown.
-    Count {
-        steps_done_so_far: usize,
-    },
-    /// The progress as a ratio between the number of steps already
-    /// performed over the total number of steps.
-    Ratio {
-        steps_done_so_far: usize,
-        steps_total: usize,
-    },
-    /// The progress as a number between 0 and 1.
-    Percentage(f32),
 }
