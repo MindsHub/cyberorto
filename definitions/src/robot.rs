@@ -77,7 +77,7 @@ pub struct Errors {
     pub peripherals: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Parameters {
     /// Length of the rotating arm, in meters.
     pub arm_length: f32,
@@ -95,4 +95,20 @@ pub struct Parameters {
     pub water_scale_max: u32,
     /// The capacity of the water tank in liters.
     pub water_tank_liters: f32,
+}
+
+/// DO NOT CHANGE THE VALUES HERE, they are just some sensible defaults for tests and for when
+/// parameters could not be read. Change data in ~/.cyberorto/parameters.json instead!
+impl Default for Parameters {
+    fn default() -> Self {
+        Self {
+            arm_length: 1.511, // meters
+            rail_length: 5.3, // meters
+            battery_voltage_min: 12.0,
+            battery_voltage_max: 13.5,
+            water_scale_min: 8590000,
+            water_scale_max: 9140000,
+            water_tank_liters: 10.0,
+        }
+    }
 }

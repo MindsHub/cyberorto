@@ -3,6 +3,7 @@
 pub(crate) mod tests;
 pub mod dummy_message_handler;
 mod kinematics;
+pub mod parameters;
 
 use std::{
     sync::{Arc, Mutex, MutexGuard}, time::Duration
@@ -66,19 +67,11 @@ macro_rules! handle_errors {
 }
 
 impl StateHandler {
-    pub fn new(masters: Masters) -> StateHandler {
+    pub fn new(masters: Masters, parameters: Parameters) -> StateHandler {
         StateHandler {
             state: Arc::new(Mutex::new(State {
                 // TODO read parameters from file
-                parameters: Parameters {
-                    arm_length: 1.511, // meters
-                    rail_length: 5.3,
-                    battery_voltage_min: 12.0,
-                    battery_voltage_max: 13.5,
-                    water_scale_min: 8590000,
-                    water_scale_max: 9140000,
-                    water_tank_liters: 10.0, // meters
-                },
+                parameters,
                 ..Default::default()
             })),
             motor_x: masters.x,
