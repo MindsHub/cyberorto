@@ -131,6 +131,26 @@ test_with_queue!(
 
 
 test_with_queue!(
+    async fn test_step_result_finished(_s: &mut TestState, q: &mut TestQueue) {
+        q.queue_handler.add_action(
+            StepResultTestAction {
+                results: vec![
+                    StepResult::Finished,
+                    StepResult::Finished,
+                ].into(),
+            }
+        );
+
+        // wait just for one step, then the action should already have been removed from the queue
+        wait_for_nth_tick(q, 2, 1, 50).await;
+        with_locked_queue!(q, locked_queue, {
+            assert!(!locked_queue.paused);
+            assert_eq!(0, locked_queue.actions.len());
+        });
+    }
+);
+
+test_with_queue!(
     async fn test_step_result_running(_s: &mut TestState, q: &mut TestQueue) {
         q.queue_handler.add_action(
             StepResultTestAction {
@@ -180,6 +200,52 @@ test_with_queue!(
             assert_matches!(locked_queue.actions[0].errors[0], StateHandlerError::GenericError(_));
             // make sure the action has been put back in the queue before pausing
             assert!(locked_queue.actions[0].action.is_some());
+        });
+    }
+);
+
+test_with_queue!(
+    async fn test_step_result_running_error_previous_progress_kept(_s: &mut TestState, q: &mut TestQueue) {
+        q.queue_handler.add_action(
+            StepResultTestAction {
+                results: vec![
+                    StepResult::Running(StepProgress::Count { steps_done_so_far: 42 }),
+                    StepResult::RunningError(StateHandlerError::GenericError("whatever".into())),
+                ].into(),
+            }
+        );
+
+        assert_matches!(q.queue_handler.get_state().actions[0].progress, StepProgress::Unknown);
+        wait_for_nth_tick(q, 1, 2, 50).await;
+        assert_matches!(q.queue_handler.get_state().actions[0].progress, StepProgress::Count { steps_done_so_far: 42 });
+        wait_for_nth_tick(q, 2, 2, 50).await;
+        // now the queue should have been paused because of the error
+        with_locked_queue!(q, locked_queue, {
+            assert!(locked_queue.paused);
+            assert_eq!(1, locked_queue.actions.len());
+            assert_matches!(locked_queue.actions[0].progress, StepProgress::Count { steps_done_so_far: 42 });
+            assert_matches!(locked_queue.actions[0].errors[0], StateHandlerError::GenericError(_));
+            // make sure the action has been put back in the queue before pausing
+            assert!(locked_queue.actions[0].action.is_some());
+        });
+    }
+);
+
+test_with_queue!(
+    async fn test_step_result_finished_error(_s: &mut TestState, q: &mut TestQueue) {
+        q.queue_handler.add_action(
+            StepResultTestAction {
+                results: vec![
+                    StepResult::FinishedError(StateHandlerError::GenericError("whatever".into())),
+                ].into(),
+            }
+        );
+
+        wait_for_nth_tick(q, 2, 1, 50).await;
+        // now the queue should have been paused because of the error
+        with_locked_queue!(q, locked_queue, {
+            assert!(!locked_queue.paused);
+            assert_eq!(0, locked_queue.actions.len());
         });
     }
 );
