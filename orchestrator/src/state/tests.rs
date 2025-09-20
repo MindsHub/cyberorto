@@ -38,7 +38,10 @@ pub fn get_test_state() -> TestState {
             });
     });
 
-    let master = Arc::new(Master::new(master, Duration::from_millis(10), 8));
+    // We need a significantly high timeout here, since other async tests might be running in the
+    // background on the same thread and they might be scheduled before slave and master manage to
+    // exchange data. Keep resend times to 1 though since we shouldn't have errors.
+    let master = Arc::new(Master::new(master, Duration::from_millis(100), 1));
     TestState {
         state_handler: StateHandler::new(
             Masters { x: master.clone(), y: master.clone(), z: master.clone(), peripherals: master },
@@ -77,7 +80,6 @@ test_with_state!(
     async fn test_toggle_led(s: &mut TestState) {
         let mut messages = Vec::new();
         for i in 0..10 {
-            // TODO fix this test
             messages.push(Message::GetPeripheralsState);
             messages.push(Message::SetLed { led: i % 2 == 0 });
             s.state_handler.toggle_led().await.unwrap();
