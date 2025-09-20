@@ -1,3 +1,5 @@
+#![feature(assert_matches)]
+
 use std::{env, path::PathBuf, thread};
 
 use clap::Parser;
