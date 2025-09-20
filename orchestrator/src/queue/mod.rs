@@ -1,4 +1,6 @@
 mod tests;
+mod test_helpers;
+mod prev_next_action;
 
 use std::{
     collections::{HashMap, VecDeque}, fs::create_dir_all, future::Future, panic::{catch_unwind, AssertUnwindSafe, UnwindSafe}, path::PathBuf, sync::{Arc, Condvar, Mutex, MutexGuard}
@@ -6,16 +8,14 @@ use std::{
 
 use definitions::{ActionInfo, EmergencyStatus, QueueState, StepProgress};
 use log::trace;
-use rocket::futures::FutureExt;
+use rocket::{error, futures::FutureExt};
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 
 use crate::{
     action::{
         action_wrapper::{ActionId, ActionWrapper}, emergency::EmergencyAction, Action, StepResult
-    },
-    state::{StateHandler, StateHandlerError},
-    util::serde::{deserialize_from_json_file, serialize_to_json_file},
+    }, queue::prev_next_action::{NextAction, PrevAction}, state::{StateHandler, StateHandlerError}, util::serde::{deserialize_from_json_file, serialize_to_json_file}
 };
 
 #[derive(Debug)]
@@ -122,7 +122,7 @@ impl QueueHandler {
     fn release_prev_action<'a>(
         &'a self,
         mut queue: MutexGuard<'a, Queue>,
-        mut action: ActionWrapper,
+        mut action: PrevAction,
     ) -> MutexGuard<'a, Queue> {
         if action.action.is_some() {
             // call release() on the action to save resources while it
@@ -134,29 +134,29 @@ impl QueueHandler {
             if let Some(item) = queue
                 .actions
                 .iter_mut()
-                .find(|item| item.get_id() == action.get_id())
+                .find(|item| item.get_id() == action.ctx.get_id())
             {
                 // If the placeholder corresponding to the current action is in the queue,
                 // replace it with the non-placeholder current action. This not only moves
                 // the Action object back in the queue, but also updates other fields in
                 // ActionWrapper and effectively pauses the action if it's not going to be
                 // taken again right after in the loop below.
-                *item = action;
+                item.action = action.action;
             } else {
                 // `else`, it means that the placeholder has been deleted from the queue
                 // in the meantime, so delete any data this action might have saved to disk
                 // and just let it be dropped. The loop below will decide which action will
                 // come next.
-                action.delete_data_on_disk();
+                action.ctx.delete_data_on_disk();
             }
         } else {
             // The current action has finished executing, delete any of its data on disk.
-            action.delete_data_on_disk();
+            action.ctx.delete_data_on_disk();
 
             if let Some(index) = queue
                 .actions
                 .iter()
-                .position(|item| item.get_id() == action.get_id())
+                .position(|item| item.get_id() == action.ctx.get_id())
             {
                 // If the current action has finished executing,
                 // remove its corresponding placeholder from the queue.
@@ -170,7 +170,7 @@ impl QueueHandler {
         queue
     }
 
-    fn get_next_action(&self, mut prev_action: Option<ActionWrapper>) -> Option<ActionWrapper> {
+    fn get_next_action(&self, mut prev_action: Option<PrevAction>) -> Option<NextAction> {
         let (queue_mutex, condvar) = &*self.queue;
         let mut queue = queue_mutex.lock().unwrap();
 
@@ -192,41 +192,38 @@ impl QueueHandler {
                         continue;
                     }
                     queue.emergency = EmergencyStatus::Resetting;
-                    return Some(queue.create_action_wrapper(EmergencyAction {}));
+                    let action_wrapper = queue.create_action_wrapper(EmergencyAction {});
+                    return Some(NextAction { action: action_wrapper.action.unwrap(), ctx: action_wrapper.ctx });
                 }
             } else if let Some(id) = queue.actions.front().map(|a| a.get_id()) {
                 if let Some(prev_action) = std::mem::take(&mut prev_action) {
-                    if id == prev_action.get_id() && prev_action.action.is_some() {
-                        // just continue executing the current action for another step
-                        return Some(prev_action);
-                    } else {
-                        // the action to execute just changed, or the current action has finished
-                        // executing, so release it
-                        queue = self.release_prev_action(queue, prev_action);
-                        continue;
+                    if id == prev_action.ctx.get_id() {
+                        if let Some(action) = prev_action.action {
+                            // just continue executing the current action for another step
+                            return Some(NextAction { action, ctx: prev_action.ctx });
+                        }
                     }
+                    // the action to execute just changed, or the current action has finished
+                    // executing, so release it
+                    queue = self.release_prev_action(queue, prev_action);
+                    continue;
                 }
 
                 // The id of the first action in the queue changed, so we are going to execute a new
                 // action. The action is therefore extracted from the queue, and replaced with a
-                // placeholder (i.e. an ActionWrapper with action=None)
+                // placeholder (i.e. an ActionWrapper with action=None).
                 let action_in_queue = queue.actions.front_mut().unwrap();
-                let mut next_action = ActionWrapper {
-                    action: std::mem::take(&mut action_in_queue.action),
-                    progress: action_in_queue.progress.clone(),
-                    ctx: action_in_queue.ctx.clone(),
-                };
+                let mut next_action = std::mem::take(&mut action_in_queue.action)
+                    .expect("Unxpected placeholder in the queue");
+                let next_ctx = action_in_queue.ctx.clone();
 
                 // Release the lock before calling `.acquire()`.
                 drop(queue);
 
                 // We call acquire() to abide by the action lifecycle.
-                next_action
-                    .action
-                    .as_mut()
-                    .expect("Unxpected placeholder in the queue")
-                    .acquire(&next_action.ctx);
-                return Some(next_action);
+                next_action.acquire(&next_ctx);
+
+                return Some(NextAction { action: next_action, ctx: next_ctx });
             }
 
             if let Some(prev_action) = std::mem::take(&mut prev_action) {
@@ -292,14 +289,13 @@ impl QueueHandler {
 
         let mut prev_action = None; // will be None only the first iteration
         loop {
-            let action_wrapper = self.get_next_action(prev_action);
+            let next_action = self.get_next_action(prev_action);
             #[cfg(test)]
             self.increase_tick_counter();
 
-            if let Some(mut action_wrapper) = action_wrapper {
+            if let Some(NextAction { mut action, ctx }) = next_action {
                 // unwrapping since the returned action can't be a placeholder
-                let id = action_wrapper.get_id();
-                let action = action_wrapper.action.as_mut().unwrap();
+                let id = ctx.get_id();
                 let (killer_tx, killer_rx) = oneshot::channel();
 
                 {
@@ -319,44 +315,45 @@ impl QueueHandler {
                     // `state_handler` in invalid states.
                     // See https://old.reddit.com/r/rust/comments/7diwt1 and
                     // https://users.rust-lang.org/t/73067/3 .
-                    AssertUnwindSafe(action.step(&action_wrapper.ctx, &self.state_handler)),
+                    AssertUnwindSafe(action.step(&ctx, &self.state_handler)),
                     killer_rx,
                 ));
 
-                let (should_release_action, should_pause_queue, new_progress) = match step_result {
+                let (should_release_action, should_pause_queue, new_progress, error) = match step_result {
                     StepResult::Running(step_progress) => {
                         // Nothing to do, action is kept in the queue.
                         trace!("action.step() with id {id} reported progress {step_progress:?}");
-                        (false, false, step_progress)
+                        (false, false, step_progress, None)
                     },
                     StepResult::RunningError(state_handler_error) => {
                         // Action failed with an error, but should remain in queue, so pause the
                         // queue.
                         error!("action.step() with id {id} returned RunningError: {state_handler_error:?}");
-                        (false, true, StepProgress::Unknown)
+                        (false, true, StepProgress::Unknown, Some(state_handler_error))
                     },
                     StepResult::Finished => {
                         trace!("action.step() with id {id} finished");
                         // TODO maybe allow returning progress here, too, instead of using 100% manually
-                        (true, false, StepProgress::Proportion(1.0f32))
+                        (true, false, StepProgress::Proportion(1.0f32), None)
                     },
                     StepResult::FinishedError(state_handler_error) => {
                         error!("action.step() with id {id} returned FinishedError: {state_handler_error:?}");
-                        (true, false, StepProgress::Unknown)
+                        (true, false, StepProgress::Unknown, Some(state_handler_error))
                     },
                 };
 
-                if should_release_action {
+                let action = if should_release_action {
                     // The action has finished executing, release its resources and remove it from
                     // the queue. Run this with catch_unwind just in case there is some panic!() in
                     // action.release().
-                    if let Err(err) = catch_unwind(AssertUnwindSafe(|| action.release(&action_wrapper.ctx))) {
+                    if let Err(err) = catch_unwind(AssertUnwindSafe(|| action.release(&ctx))) {
                         error!("Panic while releasing action: {err:?}");
                         // ignore errors and proceed normally
                     }
-                    action_wrapper.progress = StepProgress::Unknown;
-                    action_wrapper.action = None;
-                }
+                    None
+                } else {
+                    Some(action)
+                };
 
                 {
                     let mut queue = self.queue.0.lock().unwrap();
@@ -365,16 +362,19 @@ impl QueueHandler {
                     if should_pause_queue {
                         queue.paused = true;
                     }
-                    if !matches!(new_progress, StepProgress::Unknown) {
-                        if let Some(item) = queue
-                            .actions
-                            .iter_mut()
-                            .find(|item| item.get_id() == id) {
-                                item.progress = new_progress
+                    if !matches!(new_progress, StepProgress::Unknown) || error.is_some() {
+                        if let Some(item) = queue.actions.iter_mut().find(|a| a.get_id() == id) {
+                            if !matches!(new_progress, StepProgress::Unknown) {
+                                item.progress = new_progress;
+                            }
+                            if let Some(error) = error {
+                                item.errors.push(error);
+                            }
                         }
                     }
                 }
-                prev_action = Some(action_wrapper);
+
+                prev_action = Some(PrevAction { action, ctx });
             } else {
                 return; // the queue was asked to stop
             }

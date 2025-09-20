@@ -6,7 +6,7 @@ use std::{
 use definitions::StepProgress;
 use log::warn;
 
-use crate::util::serde::{deserialize_from_json_file, serialize_to_json_file};
+use crate::{state::StateHandlerError, util::serde::{deserialize_from_json_file, serialize_to_json_file}};
 
 use super::{command_list::CommandListAction, emergency::EmergencyAction, Action};
 
@@ -24,7 +24,13 @@ pub struct ActionWrapper {
     /// Will be [StepProgress::Unknown] at the beginning.
     pub progress: StepProgress,
 
-    /// Additional information to identify the action and save it to disk.
+    /// A list of all the errors that were returned by `action.step()`. Will be empty at the
+    /// beginning and will remain empty if `action.step()` never returns any errors. Will not be
+    /// saved to and restored from disk when the orchestrator stop.
+    pub errors: Vec<StateHandlerError>,
+
+    /// Additional information to identify the action and save it to disk. Will remain constant
+    /// throughout the execution of the action.
     pub ctx: Context,
 }
 
@@ -60,6 +66,7 @@ impl ActionWrapper {
         ActionWrapper {
             action: Some(Box::new(action)),
             progress: StepProgress::Unknown,
+            errors: vec![],
             ctx: Context {
                 id,
                 type_name: A::get_type_name().to_string(),
@@ -140,12 +147,14 @@ impl ActionWrapper {
             Ok(ActionWrapper {
                 action: Some(Box::new(EmergencyAction::load_from_disk(&ctx)?)),
                 progress,
+                errors: vec![],
                 ctx,
             })
         } else if type_name == CommandListAction::get_type_name() {
             Ok(ActionWrapper {
                 action: Some(Box::new(CommandListAction::load_from_disk(&ctx)?)),
                 progress,
+                errors: vec![],
                 ctx,
             })
         } else {
@@ -175,14 +184,6 @@ impl ActionWrapper {
 
         Ok(())
     }
-
-    /// Deletes all data stored by this action inside `self.ctx.save_dir`,
-    /// ignoring any error.
-    pub fn delete_data_on_disk(&self) {
-        if let Err(e) = remove_dir_all(&self.ctx.save_dir) {
-            warn!("Error while deleting data on disk for action {}: {e}", self.ctx.id);
-        }
-    }
 }
 
 impl Context {
@@ -191,5 +192,18 @@ impl Context {
     /// saving the action to disk.
     pub fn get_save_dir(&self) -> &PathBuf {
         &self.save_dir
+    }
+
+    /// Returns the **unique** ID of the action represented by this context.
+    pub fn get_id(&self) -> ActionId {
+        self.id
+    }
+
+    /// Deletes all data stored by this action inside `self.ctx.save_dir`,
+    /// ignoring any error.
+    pub fn delete_data_on_disk(&self) {
+        if let Err(e) = remove_dir_all(&self.save_dir) {
+            warn!("Error while deleting data on disk for action {}: {e}", self.id);
+        }
     }
 }
