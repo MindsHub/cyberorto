@@ -126,10 +126,7 @@ impl Action for InfiniteTestAction {
         StepResult::Running(StepProgress::Unknown)
     }
 
-    fn get_type_name() -> &'static str
-    where
-        Self: Sized,
-    {
+    fn get_type_name() -> &'static str {
         "infinite"
     }
 
@@ -137,10 +134,7 @@ impl Action for InfiniteTestAction {
         serialize_to_json_file(&self, &ctx.get_save_dir().join("data.json"))
     }
 
-    fn load_from_disk(ctx: &Context) -> Result<Self, String>
-    where
-        Self: Sized,
-    {
+    fn load_from_disk(ctx: &Context) -> Result<Self, String> {
         deserialize_from_json_file(&ctx.get_save_dir().join("data.json"))
     }
 }

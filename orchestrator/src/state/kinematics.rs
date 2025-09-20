@@ -48,7 +48,15 @@ mod tests {
 
     use crate::state::kinematics::{joint_to_world, world_to_joint, EPSILON};
 
-    const PARAMS_1_3: Parameters = Parameters { arm_length: 1.0, rail_length: 3.0 };
+    const PARAMS_1_3: Parameters = Parameters {
+        arm_length: 1.0,
+        rail_length: 3.0,
+        battery_voltage_min: 0.0,
+        battery_voltage_max: 1.0,
+        water_scale_min: 0,
+        water_scale_max: 1,
+        water_tank_liters: 1.0,
+    };
 
     const fn vec3(x: f32, y: f32, z: f32) -> Vec3 {
         Vec3 { x, y, z }
