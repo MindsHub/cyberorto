@@ -19,8 +19,8 @@ pub trait Action: Debug + Send {
     // LIFECYCLE
     //----
 
-    /// Returns `true` if there are some more steps available,
-    /// or `false` if the action has finished executing.
+    /// Returns a [StepResult] indicating whether there are some more steps available,
+    /// or if the action has finished executing.
     ///
     /// Will be called only right after [`acquire()`](Action::acquire()),
     /// or after other [`step()`](Action::step()) calls.
@@ -32,6 +32,9 @@ pub trait Action: Debug + Send {
 
     /// Acquires any resource that this Action needs in order to run.
     ///
+    /// Should make sure to complete as quickly as possible, since the queue will
+    /// have to wait for this function to complete before calling [`step()`](Action::step()).
+    ///
     /// Will be called only before the first call to [`step()`](Action::step()),
     /// or right after a call to [`release()`](Action::release()). Will never be
     /// called multiple times in a row, but may be called again after a
@@ -40,9 +43,12 @@ pub trait Action: Debug + Send {
     /// * `ctx` contains information on this action, e.g. its id, the save folder, ...
     fn acquire(&mut self, _ctx: &Context) {}
 
-    /// Releases any resource that this Action needs in order to run,
-    /// to save RAM and allow other actions/programs to use the same
-    /// resources.
+    /// Releases any resource that this Action needs in order to run, to save
+    /// RAM and allow other actions/programs to use the same resources.
+    ///
+    /// Should make sure to complete as quickly as possible, since the queue will
+    /// have to wait for this function to complete before moving on to the successive
+    /// action.
     ///
     /// Will be called when this action is temporarily paused, or when it is about
     /// to be dismissed. Therefore, will be called only after

@@ -138,9 +138,8 @@ impl QueueHandler {
             {
                 // If the placeholder corresponding to the current action is in the queue,
                 // replace it with the non-placeholder current action. This not only moves
-                // the Action object back in the queue, but also updates other fields in
-                // ActionWrapper and effectively pauses the action if it's not going to be
-                // taken again right after in the loop below.
+                // the Action object back in the queue, but also effectively pauses the
+                // action if it's not going to be taken again right after in the loop below.
                 item.action = action.action;
             } else {
                 // `else`, it means that the placeholder has been deleted from the queue
