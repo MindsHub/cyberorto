@@ -140,3 +140,20 @@ impl Action for InfiniteTestAction {
         deserialize_from_json_file(&ctx.get_save_dir().join("data.json"))
     }
 }
+
+#[derive(Debug, Default)]
+pub struct StepResultTestAction {
+    pub results: VecDeque<StepResult>,
+}
+
+#[async_trait]
+impl Action for StepResultTestAction {
+    async fn step(&mut self, _: &Context, _: &StateHandler) -> StepResult {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        self.results.pop_front().unwrap_or(StepResult::Finished)
+    }
+
+    fn get_type_name() -> &'static str { "step_result" }
+    fn save_to_disk(&self, _ctx: &Context) -> Result<(), String> { Ok(()) }
+    fn load_from_disk(_ctx: &Context) -> Result<Self, String> { Ok(Self::default()) }
+}
