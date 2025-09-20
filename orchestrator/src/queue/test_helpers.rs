@@ -98,20 +98,20 @@ pub async fn stop_queue_and_wait(q: &mut TestQueue, timeout_millis: usize) {
 
 pub async fn wait_for_nth_tick(
     q: &mut TestQueue,
-    min_wait_counter: usize,
-    min_tick_counter: usize,
+    wait_counter: usize,
+    tick_counter: usize,
     timeout_millis: usize,
 ) {
     for _ in 0..timeout_millis {
         {
             let stats = q.queue_handler.test_stats.lock().unwrap();
-            if stats.wait_counter >= min_wait_counter && stats.tick_counter >= min_tick_counter {
+            if stats.wait_counter == wait_counter && stats.tick_counter == tick_counter {
                 return;
             }
         }
         tokio::time::sleep(Duration::from_millis(1)).await;
     }
-    panic!("Queue did not get to {min_wait_counter}th wait and {min_tick_counter}th tick in time");
+    panic!("Queue did not get to {wait_counter}th wait and {tick_counter}th tick in time");
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
