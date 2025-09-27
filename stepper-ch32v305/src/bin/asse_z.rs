@@ -9,7 +9,7 @@
 use core::cell::RefCell;
 
 use ch32_hal::{
-    gpio::{AnyPin, Level, Output, Pin as GpioPin, Speed},
+    gpio::{AnyPin, Input, Level, Output, Pin as GpioPin, Speed},
     peripherals::USART1,
     usart::{Config, Uart},
 };
@@ -20,15 +20,20 @@ use embassy_executor::Spawner;
 use embassy_sync::blocking_mutex::{Mutex, raw::CriticalSectionRawMutex};
 use embassy_time::{Duration, Instant, Timer};
 use embedcore::{
+    DiscreteDriver, Drv8843Pwm, EncoderTrait, SerialWrapper,
     common::{
         controllers::pid::{CalibrationMode, PidController},
         motor::{
-            test::{test_basic_movement, test_max_speed}, Motor
+            Motor,
+            test::{test_basic_movement, test_max_speed},
         },
         static_encoder::StaticEncoder,
-    }, protocol::{
-        communication::CommunicationError, cyber::{DeviceIdentifier, Message, MessagesHandler, MotorState, Response, Slave}, AsyncSerial
-    }, DiscreteDriver, Drv8843Pwm, EncoderTrait, SerialWrapper
+    },
+    protocol::{
+        AsyncSerial,
+        communication::CommunicationError,
+        cyber::{DeviceIdentifier, Message, MessagesHandler, MotorState, Response, Slave},
+    },
 };
 use qingke::riscv::register::satp::set;
 use serialmessage::{ParseState, SerMsg};
@@ -42,6 +47,7 @@ pub enum Cmd {
 }
 struct Shared {
     pub cmd: Cmd,
+    //pub reset: Bool,
 }
 
 static SHARED: Mutex<CriticalSectionRawMutex, RefCell<Shared>> =
@@ -70,7 +76,11 @@ impl MessagesHandler for SerialToMotorHandler {
                 Cmd::Error(e) => (true, Some(*e)),
                 _ => (false, None),
             };
-            Response::MotorState(MotorState { motor_pos, is_idle, error })
+            Response::MotorState(MotorState {
+                motor_pos,
+                is_idle,
+                error,
+            })
         })
     }
     async fn reset_motor(&mut self) -> Response {
@@ -108,14 +118,15 @@ async fn blink(pin: AnyPin, interval_ms: u64) {
 }
 
 #[embassy_executor::task]
-async fn message_handler(
-    mut s: Slave<SerialWrapper<'static, USART1>, SerialToMotorHandler>,
-) {
+async fn message_handler(mut s: Slave<SerialWrapper<'static, USART1>, SerialToMotorHandler>) {
     s.run().await
 }
 
 #[embassy_executor::task]
-async fn update_motor(mut motor: PidController<StaticEncoder, driver_type!()>) {
+async fn update_motor(
+    mut motor: PidController<StaticEncoder, driver_type!()>,
+    finecorsa: Input<'static>,
+) {
     let mut instant = Instant::now();
     loop {
         let cur = SHARED.lock(|x| x.borrow().cmd.clone());
@@ -138,15 +149,7 @@ async fn update_motor(mut motor: PidController<StaticEncoder, driver_type!()>) {
                 });
             }
             Cmd::Reset => {
-                let cur_pos = motor.motor.read();
-                motor
-                    .calibration(cur_pos + 2000, CalibrationMode::NoOvershoot)
-                    .await;
-                motor.set_objective(cur_pos);
-                while (motor.motor.read() - cur_pos).abs() > 10 {
-                    motor.update().await;
-                    Timer::after(Duration::from_micros(500)).await;
-                }
+                motor.reset(&finecorsa).await;
                 SHARED.lock(|x| {
                     x.borrow_mut().cmd = Cmd::Idle;
                 });
@@ -155,7 +158,7 @@ async fn update_motor(mut motor: PidController<StaticEncoder, driver_type!()>) {
                 motor.update().await;
             }
         }
-        Timer::after_millis(10).await;
+        Timer::after_micros(100).await;
     }
 }
 #[embassy_executor::main(entry = "qingke_rt::entry")]
@@ -178,23 +181,6 @@ async fn main(spawner: Spawner) -> ! {
     )
     .unwrap();
 
-    /*let (mut tx, mut rx) = serial.split();
-    loop {
-        let mut buf = [0u8];
-        //rx.read(&mut buf).await.unwrap();
-        tx.write(&buf).await.unwrap();
-        tx.write(&buf).await.unwrap();
-        tx.write(&buf).await.unwrap();
-        tx.write(&buf).await.unwrap();
-        Timer::after(Duration::from_millis(100)).await;
-    }*/
-
-    /*let motor = Motor::new(e, d, false);/sys/class/tty
-    let mut pid = PidController::new(motor, 1.8, 1.8);
-
-    pid.calibration(2000, CalibrationMode::NoOvershoot).await;*/
-
-    //spawner.spawn(blink(p.PA4.degrade(), 1000)).unwrap();
     let mh = SerialToMotorHandler::new(p.PA4.degrade());
 
     // spawn message handler thread
@@ -203,94 +189,88 @@ async fn main(spawner: Spawner) -> ! {
         Slave::new(serial_wrapper, *b"z         ", mh);
     spawner.must_spawn(message_handler(s));
 
-    //spawner.must_spawn(update_motor(pid));
-    //let mut out = Output::new(p.PA4, Level::High, Speed::High);
     let e = encoder!(p, spawner, IrqsExti);
     let d = driver!(p, spawner);
-    /*Timer::after_secs(30).await;
-    //loop {
-    for z in 0..2 {
-        const ITERATIONS: usize = 10000;
-        for x in 0..ITERATIONS {
-            if x %2 ==0{
-                d.set_phase(0,  x as f32 / ITERATIONS  as f32*2.1);
-            }else{
-                d.set_phase(40,  x as f32 / ITERATIONS as f32*2.1);
-            }
-            Timer::after_micros(3000).await;
-        }
-    }
-        d.set_phase(0, 0.0);
-    todo!();*/
-    //}
     let mut motor = Motor::new(e, d, true);
 
     let mut pid = PidController::new(motor, 1.0, 1.0);
-    //pid.motor.align(1.0, 1.0).await;
-    //let _ = pid.calibration(2000, CalibrationMode::NoOvershoot).await;
-    //pid.set_p(0.02, 2.0);
     pid.pid.p(0.005, 2.0);
-    pid.pid.i(0.0005,1.0);
+    pid.pid.i(0.0005, 1.0);
     pid.pid.d(-0.0005, 0.5);
     //0.046299618, i=0.000670455, d=0.00044697
     //info!("Motor initialized");
-    //pid.set_objective(30000);
 
-    pid.motor.align(1.0, 1.0).await;
-    pid.set_objective(-10_000);
-    let start = Instant::now();
-    while start.elapsed().as_secs() < 5 {
-        pid.update().await;
-        Timer::after_micros(500).await;
-    }
-    pid.set_objective(0);
-    let start = Instant::now();
-    while start.elapsed().as_secs() < 5 {
-        pid.update().await;
-        Timer::after_micros(500).await;
-    }
-    //loop{pid.update().await; Timer::after_micros(500).await;}
-    spawner.must_spawn(update_motor(pid));
+    let finecorsa = Input::new(p.PC2, ch32_hal::gpio::Pull::Up);
+    Timer::after_micros(10).await;
+    AsseZ::reset(&mut pid, &finecorsa).await;
+
+    // pid.set_objective(10_000);
+    // let start = Instant::now();
+    // while start.elapsed().as_secs() < 5 {
+    //     pid.update().await;
+    //     Timer::after_micros(500).await;
+    // }
+    // pid.set_objective(0);
+    // let start = Instant::now();
+    // while start.elapsed().as_secs() < 5 {
+    //     pid.update().await;
+    //     Timer::after_micros(500).await;
+    // }
+
+    spawner.must_spawn(update_motor(pid, finecorsa));
     loop {
-        /*defmt_or_log::info!("{}", pid.motor.read());
+        //pid.update().await;
+        Timer::after_secs(100).await;
+    }
+}
 
-        pid.set_objective(10000);
-        let t: Instant = Instant::now();
-        while t.elapsed().as_millis() < 3000 {
-            pid.update().await;
-            embassy_futures::yield_now().await;
+trait AsseZ {
+    async fn reset(&mut self, finecorsa: &Input<'static>);
+    async fn move_blocking(&mut self, current: f32, dist: i32);
+}
+
+impl AsseZ for PidController<StaticEncoder, driver_type!()> {
+    async fn reset(&mut self, finecorsa: &Input<'static>) {
+        // move down a bit if the finecorsa is already active,
+        // to avoid resetting at the wrong position
+        if finecorsa.is_low() {
+            self.move_blocking(1.0, 10_000).await;
         }
-        let t = Instant::now();
-        pid.set_objective(-10000);
-        while t.elapsed().as_millis() < 3000 {
-            pid.update().await;
-            embassy_futures::yield_now().await;
-        }*/
-        Timer::after_secs(1).await;
+
+        // move up until the finecorsa is activated
+        self.motor.align(1.0, 2.0).await;
+        let start = Instant::now();
+        let mut i = 0;
+        while finecorsa.is_high() && start.elapsed().as_secs() < 10 {
+            self.motor.set_phase(80 - (i % 80) as u8, 1.0);
+            i += 1;
+            Timer::after_micros(100).await;
+        }
+        
+        let current_position = self.motor.read();
+        // it must be a multiple of 80
+        self.motor.shift(-current_position+2_560);
+        let start = Instant::now();
+        let mut i = 0;
+        while self.motor.read() > 0 && start.elapsed().as_secs() < 1 {
+            self.motor.set_phase(80 - (i % 80) as u8, 1.0);
+            i += 1;
+            Timer::after_micros(100).await;
+        }
+        self.motor.align(1.0, 0.3).await;
     }
-    #[allow(unreachable_code)]
-    loop {
-        //out.toggle();
-        //let mut c = [55u8];
-        //let _= serial.bloPA4cking_read(&mut c);
 
-        //let c = tx.write(&c).await;
-        //info!("write: {}", c);
-        // let c = tx.blocking_flush();
-        // info!("flushed {}", c);
-        /*for i in 0..80{bloPA4cking_read
-            pid.try_from::<DE>().unwrap().set_phase(i%80, 1.0);
-            yield_now().await;
-
-        }*/
-        //pid.update(1.0.into());
-
-        motor.set_phase(10, 0.5);
-        test_max_speed(&mut motor, true).await;
-        Timer::after_secs(1).await;
-        test_max_speed(&mut motor, false).await;
-        Timer::after_secs(1).await;
+    async fn move_blocking(&mut self, current: f32, dist: i32) {
+        for i in 0..dist.abs() {
+            //info!("pos:  {}", i);
+            //d.low_level_current_set((i%20) as f32/20.0, 0.0);
+            if dist >0{
+                self.motor.set_phase((i % 80) as u8, current);
+            }else{
+                self.motor.set_phase(80 - (i % 80) as u8, current);
+            }
+            
+            Timer::after_micros(100).await;
+        }
     }
-    //x.write(buffer)
-    //SerialWrapper::new(tx);*/
 }
