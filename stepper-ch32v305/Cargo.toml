@@ -148,6 +148,11 @@ name = "test_usart"
 test = false
 bench = false
 
+[[bin]]
+name = "asse_z"
+test = false
+bench = false
+
 [lib]
 test = false
 bench = false
