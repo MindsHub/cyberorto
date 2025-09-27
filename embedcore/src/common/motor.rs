@@ -37,7 +37,7 @@ impl<E: EncoderTrait, D: DiscreteDriver> Motor<E, D> {
             self.shift(-shift);
         }
     }
-    fn shift(&mut self, amount: i32) {
+    pub fn shift(&mut self, amount: i32) {
         if self.rotation {
             self.shift += amount;
         } else {

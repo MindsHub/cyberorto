@@ -73,9 +73,6 @@ pub trait GetStaticEncoderStd2: Sized + EncoderTrait {
 
 impl<I: InputPin + 'static> GetStaticEncoderStd2 for EncoderPool2<I> {
     fn static_encoder(&self) -> StaticEncoder {
-        StaticEncoder {
-            direction: false,
-            shift: 0,
-        }
+        StaticEncoder { direction: false }
     }
 }

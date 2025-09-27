@@ -88,10 +88,7 @@ where
             irq: PhantomData,
         };
         unsafe { EXTI_ENCODER_MANAGER = Self::update };
-        StaticEncoder {
-            direction,
-            shift: 0,
-        }
+        StaticEncoder { direction }
     }
     #[allow(static_mut_refs)]
     pub fn update() -> i32 {
