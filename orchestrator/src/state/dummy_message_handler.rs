@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use embedcore::{
-    common::controllers::pid::{CalibrationMode, PidController},
+    common::controllers::pid::PidController,
     protocol::cyber::{MessagesHandler, MotorState, PeripheralsState, Response},
     std::{get_fake_motor, FakeDriver, FakeEncoder},
     EncoderTrait,
@@ -62,11 +62,13 @@ impl MessagesHandler for DummyMessageHandler {
         })
     }
     async fn reset_motor(&mut self) -> Response {
-        self.motor
-            .lock()
-            .await
-            .calibration(0, CalibrationMode::NoOvershoot)
-            .await;
+        // TODO implement better dummy reset logic
+        self.motor.lock().await.set_objective(0);
+        // self.motor
+        //     .lock()
+        //     .await
+        //     .calibration(0, CalibrationMode::NoOvershoot)
+        //     .await;
         Response::Ok
     }
     async fn move_motor(&mut self, x: f32) -> Response {
