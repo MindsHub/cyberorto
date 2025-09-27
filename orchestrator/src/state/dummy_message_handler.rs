@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use embedcore::{
-    common::controllers::pid::{CalibrationMode, PidController},
+    common::controllers::pid::PidController,
     protocol::cyber::{MessagesHandler, MotorState, PeripheralsState, Response},
     std::{get_fake_motor, FakeDriver, FakeEncoder},
     EncoderTrait,
