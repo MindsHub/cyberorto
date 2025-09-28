@@ -226,7 +226,14 @@ trait AsseZ {
     const RESET_OFFSET_MICROSTEPS: i32;
 
     /// Reset the Z axis using the finecorsa.
-    async fn reset(&mut self, finecorsa: &Input<'static>, current: f32);
+    async fn reset(&mut self, finecorsa: &Input<'static>, current: f32) -> ResetResult;
+}
+
+#[must_use]
+enum ResetResult {
+    Ok,
+    ReachingFinecorsaTimedOut,
+    ReachingOffsetTimedOut,
 }
 
 impl AsseZ for PidController<StaticEncoder, driver_type!()> {
@@ -234,7 +241,7 @@ impl AsseZ for PidController<StaticEncoder, driver_type!()> {
     const RESET_SAFE_DOWN_MICROSTEPS: u32 = 10_000;
     const RESET_OFFSET_MICROSTEPS: i32 = 2_560;
 
-    async fn reset(&mut self, finecorsa: &Input<'static>, current: f32) {
+    async fn reset(&mut self, finecorsa: &Input<'static>, current: f32) -> ResetResult {
         // Note: in this function we don't use PID to move the motor, nor do we use
         // feedback for keeping track of the motor position. We just set maximum current
         // and cycle through the microsteps one at a time, as if this was a normal stepper
@@ -242,6 +249,7 @@ impl AsseZ for PidController<StaticEncoder, driver_type!()> {
         // direction even if completely misaligned.
         const PHASE_COUNT: u32 = (<driver_type!()>::MICROSTEP * 4) as u32;
         const _: () = assert!(PHASE_COUNT == 80); // compile-time assertion
+        let mut result = ResetResult::Ok;
 
         // - if the finecorsa is already active move down a bit
         //   to avoid resetting at the wrong position
@@ -257,7 +265,11 @@ impl AsseZ for PidController<StaticEncoder, driver_type!()> {
         // move up until the finecorsa is activated
         let start = Instant::now();
         let mut i = 0;
-        while finecorsa.is_high() && start.elapsed().as_secs() < 10 {
+        while finecorsa.is_high() {
+            if start.elapsed().as_secs() >= 10 {
+                result = ResetResult::ReachingFinecorsaTimedOut;
+                break;
+            }
             self.motor.set_phase((PHASE_COUNT - (i % PHASE_COUNT)) as u8, current);
             i += 1;
             Timer::after_micros(Self::RESET_PHASE_DURATION).await;
@@ -277,7 +289,13 @@ impl AsseZ for PidController<StaticEncoder, driver_type!()> {
         // the `reset()` finishes, and also makes the movement more smooth (since the `align()`
         // takes some time and the motor would be still for that time, and then move again).
         let start = Instant::now();
-        while self.motor.read() > 0 && start.elapsed().as_secs() < 1 {
+        while self.motor.read() > 0 {
+            if start.elapsed().as_secs() < 1 {
+                if matches!(result, ResetResult::Ok) {
+                    result = ResetResult::ReachingOffsetTimedOut;
+                }
+                break;
+            }
             self.motor.set_phase((PHASE_COUNT - (i % PHASE_COUNT)) as u8, current);
             i += 1;
             Timer::after_micros(Self::RESET_PHASE_DURATION).await;
@@ -297,5 +315,7 @@ impl AsseZ for PidController<StaticEncoder, driver_type!()> {
 
         // make sure the objective is now 0, so the motor remains still
         self.set_objective(0);
+
+        result
     }
 }
