@@ -286,6 +286,13 @@ impl AsseZ for PidController<StaticEncoder, driver_type!()> {
         // THIS STEP IS VERY IMPORTANT: keep the motor still with a strong current for a
         // bit of time, to ensure its physical position corresponds with the one in memory.
         // This is then used to compute the phase.
+        // TODO: `align()` also just sets the phase directly, just like we do above with
+        // `set_phase()`, so we could inline the code in align to achieve various things:
+        // - not skip phase from `80-(i%80)` to `0` at the beginning of `align()`,
+        //   which makes the motor jump ahead a bit all of a sudden
+        // - potentially make it so that the above loop decelerates the closer the target is
+        // - after the loop above we already know in which physical position the motor is,
+        //   so we don't need to recompute it inside `align()`
         self.motor.align(current, 0.3).await;
 
         // make sure the objective is now 0, so the motor remains still
