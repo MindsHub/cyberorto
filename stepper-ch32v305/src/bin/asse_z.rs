@@ -225,52 +225,39 @@ async fn main(spawner: Spawner) -> ! {
 }
 
 trait AsseZ {
-    async fn reset(&mut self, finecorsa: &Input<'static>);
-    async fn move_blocking(&mut self, current: f32, dist: i32);
+    async fn reset(&mut self, finecorsa: &Input<'static>, current: f32);
 }
 
 impl AsseZ for PidController<StaticEncoder, driver_type!()> {
-    async fn reset(&mut self, finecorsa: &Input<'static>) {
+    async fn reset(&mut self, finecorsa: &Input<'static>, current: f32) {
         // move down a bit if the finecorsa is already active,
         // to avoid resetting at the wrong position
         if finecorsa.is_low() {
-            self.move_blocking(1.0, 10_000).await;
+            for i in 0..10_000 {
+                self.motor.set_phase((i % 80) as u8, current);
+                Timer::after_micros(100).await;
+            }
         }
 
         // move up until the finecorsa is activated
-        self.motor.align(1.0, 2.0).await;
         let start = Instant::now();
         let mut i = 0;
         while finecorsa.is_high() && start.elapsed().as_secs() < 10 {
-            self.motor.set_phase(80 - (i % 80) as u8, 1.0);
+            self.motor.set_phase(80 - (i % 80) as u8, current);
             i += 1;
             Timer::after_micros(100).await;
         }
-        
+
         let current_position = self.motor.read();
         // it must be a multiple of 80
         self.motor.shift(-current_position+2_560);
         let start = Instant::now();
         let mut i = 0;
         while self.motor.read() > 0 && start.elapsed().as_secs() < 1 {
-            self.motor.set_phase(80 - (i % 80) as u8, 1.0);
+            self.motor.set_phase(80 - (i % 80) as u8, current);
             i += 1;
             Timer::after_micros(100).await;
         }
-        self.motor.align(1.0, 0.3).await;
-    }
-
-    async fn move_blocking(&mut self, current: f32, dist: i32) {
-        for i in 0..dist.abs() {
-            //info!("pos:  {}", i);
-            //d.low_level_current_set((i%20) as f32/20.0, 0.0);
-            if dist >0{
-                self.motor.set_phase((i % 80) as u8, current);
-            }else{
-                self.motor.set_phase(80 - (i % 80) as u8, current);
-            }
-            
-            Timer::after_micros(100).await;
-        }
+        self.motor.align(current, 0.3).await;
     }
 }
