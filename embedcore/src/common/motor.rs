@@ -7,7 +7,7 @@ pub struct Motor<E: EncoderTrait, D: DiscreteDriver> {
     pub encoder: E,
     pub driver: D,
     pub rotation: bool,
-    shift: i32,
+    pub shift: i32,
 }
 
 impl<E: EncoderTrait, D: DiscreteDriver> Motor<E, D> {
@@ -37,6 +37,7 @@ impl<E: EncoderTrait, D: DiscreteDriver> Motor<E, D> {
             self.shift(-shift);
         }
     }
+    // NOTE: YOU MUST CALL `align()` AFTER CALLING THIS!
     pub fn shift(&mut self, amount: i32) {
         if self.rotation {
             self.shift += amount;

@@ -6,7 +6,7 @@
 /*!
  * Monolitic code test, first version of the implementation of the driver. if necessary, it could be best to modulirize a little more */
 
-use core::cell::RefCell;
+use core::{cell::RefCell, cmp::min};
 
 use ch32_hal::{
     gpio::{AnyPin, Input, Level, Output, Pin as GpioPin, Speed},
@@ -217,13 +217,29 @@ async fn main(spawner: Spawner) -> ! {
 }
 
 trait AsseZ {
-    /// How much time to remain in each phase before moving on to the next.
-    const RESET_PHASE_DURATION: u64;
+    /// How many microseconds to remain in each phase before moving on to the next.
+    const RESET_PHASE_US: u64;
+    /// How many milliseconds to remain still to wait for the position to settle during alignement.
+    const RESET_ALIGN_MS: u64;
     /// How much to go down before going back up if the finecorsa was already
-    /// active when starting the reset procedure.
+    /// active when starting the reset procedure. It's better if this is a multiple of
+    /// the number of microsteps (80), so the motor doesn't jump ahead suddenly, but it's
+    /// not so important.
     const RESET_SAFE_DOWN_MICROSTEPS: u32;
     /// How much further up can the axis move after the finecorsa has been activated?
-    const RESET_OFFSET_MICROSTEPS: i32;
+    /// MUST BE A MULTIPLE OF THE NUMBER OF MICROSTEPS (80)
+    const RESET_OFFSET_MICROSTEPS: u32;
+    /// The number of phases for a full turn of the motor.
+    const PHASE_COUNT: u8;
+
+    // Some static asserts
+    const _PHASE_COUNT_ASSERT: () = assert!(Self::PHASE_COUNT == 80);
+    const _RESET_OFFSET_ASSERT: () = assert!(Self::RESET_OFFSET_MICROSTEPS % (Self::PHASE_COUNT as u32) == 0);
+
+    /// Little helper to do i%PHASE_COUNT.
+    fn to_phase(i: i32) -> u8 {
+        i.rem_euclid(Self::PHASE_COUNT as i32) as u8
+    }
 
     /// Reset the Z axis using the finecorsa.
     async fn reset(&mut self, finecorsa: &Input<'static>, current: f32) -> ResetResult;
@@ -233,13 +249,14 @@ trait AsseZ {
 enum ResetResult {
     Ok,
     ReachingFinecorsaTimedOut,
-    ReachingOffsetTimedOut,
 }
 
 impl AsseZ for PidController<StaticEncoder, driver_type!()> {
-    const RESET_PHASE_DURATION: u64 = 100;
+    const RESET_PHASE_US: u64 = 100;
+    const RESET_ALIGN_MS: u64 = 500;
     const RESET_SAFE_DOWN_MICROSTEPS: u32 = 10_000;
-    const RESET_OFFSET_MICROSTEPS: i32 = 2_560;
+    const RESET_OFFSET_MICROSTEPS: u32 = 2_560;
+    const PHASE_COUNT: u8 = (<driver_type!()>::MICROSTEP * 4) as u8;
 
     async fn reset(&mut self, finecorsa: &Input<'static>, current: f32) -> ResetResult {
         // Note: in this function we don't use PID to move the motor, nor do we use
@@ -247,8 +264,9 @@ impl AsseZ for PidController<StaticEncoder, driver_type!()> {
         // and cycle through the microsteps one at a time, as if this was a normal stepper
         // without feedback. This means that the motor will be able to move in the right
         // direction even if completely misaligned.
-        const PHASE_COUNT: u32 = (<driver_type!()>::MICROSTEP * 4) as u32;
-        const _: () = assert!(PHASE_COUNT == 80); // compile-time assertion
+
+        // represents the next phase that will be set on the motor (mod PHASE_COUNT)
+        let mut i = 0i32;
         let mut result = ResetResult::Ok;
 
         // - if the finecorsa is already active move down a bit
@@ -256,65 +274,52 @@ impl AsseZ for PidController<StaticEncoder, driver_type!()> {
         // - otherwise don't do anything, to avoid hitting obstacles below
         //   (e.g. imagine the end effector is already touching the ground)
         if finecorsa.is_low() {
-            for i in 0..Self::RESET_SAFE_DOWN_MICROSTEPS {
-                self.motor.set_phase((i % PHASE_COUNT) as u8, current);
-                Timer::after_micros(Self::RESET_PHASE_DURATION).await;
+            for _ in 0..Self::RESET_SAFE_DOWN_MICROSTEPS {
+                self.motor.set_phase(Self::to_phase(i), current);
+                i += 1; // go down, so add
+                Timer::after_micros(Self::RESET_PHASE_US).await;
             }
         }
 
         // move up until the finecorsa is activated
         let start = Instant::now();
-        let mut i = 0;
         while finecorsa.is_high() {
             if start.elapsed().as_secs() >= 10 {
                 result = ResetResult::ReachingFinecorsaTimedOut;
                 break;
             }
-            self.motor.set_phase((PHASE_COUNT - (i % PHASE_COUNT)) as u8, current);
-            i += 1;
-            Timer::after_micros(Self::RESET_PHASE_DURATION).await;
+            self.motor.set_phase(Self::to_phase(i), current);
+            i -= 1; // go up, so subtract
+            Timer::after_micros(Self::RESET_PHASE_US).await;
         }
 
-        // set the motor's 0 position to the current position - RESET_OFFSET_MICROSTEPS;
-        // we subtract RESET_OFFSET_MICROSTEPS because there is still some distance left
-        // that the motor can continue going up after the finecorsa is activated
-        let current_position = self.motor.read();
-        self.motor.shift(- current_position + Self::RESET_OFFSET_MICROSTEPS);
-
-        // We continue moving up until we actually reach 0 using feedback from the encoder.
-        // Remember that the zero was offsetted by RESET_OFFSET_MICROSTEPS, hence why we
-        // still have to move to reach 0. Note that this step is unnecessary, since the PID in
-        // `motor.update()` would realize that the objective is off by ~RESET_OFFSET_MICROSTEPS
-        // and move the motor to 0. However doing it here makes sure the motor is at ~0 after
-        // the `reset()` finishes, and also makes the movement more smooth (since the `align()`
-        // takes some time and the motor would be still for that time, and then move again).
-        let start = Instant::now();
-        while self.motor.read() > 0 {
-            if start.elapsed().as_secs() < 1 {
-                if matches!(result, ResetResult::Ok) {
-                    result = ResetResult::ReachingOffsetTimedOut;
-                }
+        // we continue moving up for Self::RESET_OFFSET_MICROSTEPS,
+        // and then keep going a bit more until we reach a phase of 0
+        i = Self::to_phase(i) as i32;
+        loop {
+            self.motor.set_phase(Self::to_phase(i), current);
+            if i < -(Self::RESET_OFFSET_MICROSTEPS as i32) && Self::to_phase(i) == 0 {
                 break;
             }
-            self.motor.set_phase((PHASE_COUNT - (i % PHASE_COUNT)) as u8, current);
-            i += 1;
-            Timer::after_micros(Self::RESET_PHASE_DURATION).await;
+            i -= 1; // go up, so subtract
+            Timer::after_micros(Self::RESET_PHASE_US).await;
         }
 
-        // THIS STEP IS VERY IMPORTANT: keep the motor still with a strong current for a
-        // bit of time, to ensure its physical position corresponds with the one in memory.
-        // This is then used to compute the phase.
-        // TODO: `align()` also just sets the phase directly, just like we do above with
-        // `set_phase()`, so we could inline the code in align to achieve various things:
-        // - not skip phase from `80-(i%80)` to `0` at the beginning of `align()`,
-        //   which makes the motor jump ahead a bit all of a sudden
-        // - potentially make it so that the above loop decelerates the closer the target is
-        // - after the loop above we already know in which physical position the motor is,
-        //   so we don't need to recompute it inside `align()`
-        self.motor.align(current, 0.3).await;
+        // wait some time for the motor to settle down, so we can be sure that the motor has
+        // physically reached the position corresponding to phase 0
+        Timer::after_millis(Self::RESET_ALIGN_MS).await;
 
-        // make sure the objective is now 0, so the motor remains still
+        // Set the motor's 0 position to the current position. Note that this requires the
+        // physical phase to be aligned to 0, since `self.motor.shift = -current_position`
+        // will make it so that if we called `self.motor.read()` we would get 0, and that's
+        // also what's used in `self.motor.set_current()`.
+        let current_position = self.motor.encoder.read();
+        self.motor.shift = -current_position;
+
+        // make sure the objective corresponds with the current position (i.e. 0)
         self.set_objective(0);
+        // turn off motor
+        self.motor.set_phase(0, 0.0);
 
         result
     }
